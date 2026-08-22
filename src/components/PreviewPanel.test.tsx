@@ -155,4 +155,64 @@ describe('PreviewPanel script injection sanitization', () => {
 
     unmountBundled();
   });
+
+  it('renders Tailwind v4 in static mode with type="text/tailwindcss" and browser CDN', async () => {
+    const staticV4Files = [
+      {
+        path: '/index.html',
+        content: '<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><h1 class="text-hykon-gold">Hykon</h1></body></html>',
+        type: 'file',
+        updatedAt: Date.now()
+      },
+      {
+        path: '/style.css',
+        content: '@import "tailwindcss";\n@theme {\n  --color-hykon-gold: #c5a059;\n}',
+        type: 'file',
+        updatedAt: Date.now()
+      }
+    ];
+
+    const { unmount } = render(<PreviewPanel files={staticV4Files as any} />);
+
+    await waitFor(() => {
+      const iframe = screen.getByTitle('Preview') as HTMLIFrameElement;
+      const srcdoc = iframe.getAttribute('srcdoc') || '';
+      expect(srcdoc).toContain('https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4');
+      expect(srcdoc).toContain('type="text/tailwindcss"');
+      expect(srcdoc).toContain('--color-hykon-gold: #c5a059;');
+      expect(srcdoc).not.toContain('@import "tailwindcss"');
+    });
+
+    unmount();
+  });
+
+  it('renders Tailwind v3 in static mode with plain style and v3 Play CDN', async () => {
+    const staticV3Files = [
+      {
+        path: '/index.html',
+        content: '<!DOCTYPE html><html><head><link rel="stylesheet" href="./style.css"></head><body><h1>Legacy</h1></body></html>',
+        type: 'file',
+        updatedAt: Date.now()
+      },
+      {
+        path: '/style.css',
+        content: '@tailwind base;\n@tailwind utilities;\nbody { background: #fff; }',
+        type: 'file',
+        updatedAt: Date.now()
+      }
+    ];
+
+    const { unmount } = render(<PreviewPanel files={staticV3Files as any} />);
+
+    await waitFor(() => {
+      const iframe = screen.getByTitle('Preview') as HTMLIFrameElement;
+      const srcdoc = iframe.getAttribute('srcdoc') || '';
+      expect(srcdoc).toContain('https://cdn.tailwindcss.com');
+      expect(srcdoc).not.toContain('@tailwindcss/browser@4');
+      expect(srcdoc).not.toContain('type="text/tailwindcss"');
+      expect(srcdoc).toContain('body { background: #fff; }');
+    });
+
+    unmount();
+  });
 });

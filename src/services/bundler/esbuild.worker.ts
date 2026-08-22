@@ -64,26 +64,53 @@ async function getDepCache(): Promise<Cache | null> {
   return null;
 }
 
-export function stripTailwindDirectives(css: string): { stripped: string; hasTailwind: boolean } {
-  const tailwindRegex = /(?:@import\s+(?:url\()?['"]tailwindcss(?:\/[^'")]*)?['"]\)?\s*;?|@tailwind\s+(?:base|components|utilities|screens|variants)\s*;?)/g;
-  const hasTailwind = tailwindRegex.test(css);
-  const stripped = css.replace(tailwindRegex, '');
-  return { stripped, hasTailwind };
+export type TailwindVersion = 'v3' | 'v4' | null;
+
+export function stripTailwindDirectives(css: string): { stripped: string; hasTailwind: boolean; version: TailwindVersion } {
+  const v4Regex = /(?:@import\s+(?:url\()?['"]tailwindcss(?:\/[^'")]*)?['"]\)?\s*;?)/;
+  const v3Regex = /(?:@tailwind\s+(?:base|components|utilities|screens|variants)\s*;?)/;
+
+  const hasV4 = v4Regex.test(css);
+  const hasV3 = v3Regex.test(css);
+
+  if (!hasV4 && !hasV3) {
+    return { stripped: css, hasTailwind: false, version: null };
+  }
+
+  const version: TailwindVersion = hasV4 ? 'v4' : 'v3';
+  const combinedRegex = /(?:@import\s+(?:url\()?['"]tailwindcss(?:\/[^'")]*)?['"]\)?\s*;?|@tailwind\s+(?:base|components|utilities|screens|variants)\s*;?)/g;
+  const stripped = css.replace(combinedRegex, '');
+
+  return { stripped, hasTailwind: true, version };
 }
 
-export function createCssJsSnippet(cssContent: string, hasTailwind: boolean, sourcePath?: string): string {
-  return `
-const css = ${JSON.stringify(cssContent)};
-if (typeof document !== 'undefined') {
-  ${hasTailwind ? `
+export function createCssJsSnippet(cssContent: string, tailwindVersion: TailwindVersion | boolean, sourcePath?: string): string {
+  const isV4 = tailwindVersion === 'v4';
+  const isV3 = tailwindVersion === 'v3' || tailwindVersion === true;
+
+  const scriptTag = isV4
+    ? `
+  if (!document.querySelector('script[src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"]')) {
+    const twScript = document.createElement('script');
+    twScript.src = 'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4';
+    document.head.appendChild(twScript);
+  }`
+    : isV3
+    ? `
   if (!document.querySelector('script[src="https://cdn.tailwindcss.com"]')) {
     const twScript = document.createElement('script');
     twScript.src = 'https://cdn.tailwindcss.com';
     document.head.appendChild(twScript);
-  }
-  ` : ''}
+  }`
+    : '';
+
+  const styleTypeAttr = isV4 ? `style.setAttribute('type', 'text/tailwindcss');\n  ` : '';
+
+  return `
+const css = ${JSON.stringify(cssContent)};
+if (typeof document !== 'undefined') {${scriptTag}
   const style = document.createElement('style');
-  ${sourcePath ? `style.setAttribute('data-vfs-css', ${JSON.stringify(sourcePath)});` : ''}
+  ${styleTypeAttr}${sourcePath ? `style.setAttribute('data-vfs-css', ${JSON.stringify(sourcePath)});` : ''}
   style.textContent = css;
   document.head.appendChild(style);
 }
@@ -237,9 +264,9 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
          if (!file) return { errors: [{ text: `File not found in VFS: ${args.path}` }] };
          
          if (args.path.endsWith('.css')) {
-           const { stripped, hasTailwind } = stripTailwindDirectives(file.content);
+           const { stripped, version } = stripTailwindDirectives(file.content);
            return {
-             contents: createCssJsSnippet(stripped, hasTailwind, args.path),
+             contents: createCssJsSnippet(stripped, version, args.path),
              loader: 'js'
            };
          }
@@ -268,9 +295,9 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
          };
 
          const handleCssContent = (cssText: string) => {
-           const { stripped, hasTailwind } = stripTailwindDirectives(cssText);
+           const { stripped, version } = stripTailwindDirectives(cssText);
            return {
-             contents: createCssJsSnippet(stripped, hasTailwind, url),
+             contents: createCssJsSnippet(stripped, version, url),
              loader: 'js' as const
            };
          };

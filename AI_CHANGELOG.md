@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-24
-- Last verified working: Script tag closing sequence sanitization in PreviewPanel.tsx preventing early script termination in bundled and fallback preview shells. All unit and regression tests passing.
+- Phase: HOTFIX-27
+- Last verified working: Tailwind v3 vs v4 syntax detection, @theme custom token preservation in CSS, version-specific CDN injection (@tailwindcss/browser@4 for v4 vs cdn.tailwindcss.com for v3), and type="text/tailwindcss" style attribute handling across bundled and static fallback preview pipelines. All 183 unit tests passing.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,24 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-27] Tailwind v3 vs v4 detection, custom @theme preservation, and version-specific CDN injection — 2026-08-22
+Prompt: Distinguish Tailwind v3 (@tailwind directives) vs v4 (@import "tailwindcss") syntax, preserve v4 @theme blocks in CSS, inject @tailwindcss/browser@4 CDN with type="text/tailwindcss" for v4 projects, and maintain v3 Play CDN for v3 projects.
+Files touched:
+- `src/services/bundler/esbuild.worker.ts` (modified)
+- `src/components/PreviewPanel.tsx` (modified)
+- `src/services/bundler/esbuild.worker.test.ts` (modified)
+- `src/components/PreviewPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated `stripTailwindDirectives` in `esbuild.worker.ts` to return `{ stripped, hasTailwind, version: 'v3' | 'v4' | null }`, preserving `@theme` blocks and custom tokens for Tailwind v4 while stripping import/directive statements.
+- Updated `createCssJsSnippet` to inject `https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4` and set `style.setAttribute('type', 'text/tailwindcss')` when v4 is detected, while retaining `https://cdn.tailwindcss.com` for v3.
+- Added `detectProjectTailwindVersion` and updated `injectTailwindScriptIntoHtml` in `PreviewPanel.tsx` to handle v4 vs v3 across both bundled and static HTML generation pipelines.
+- Added unit and integration tests across `esbuild.worker.test.ts` and `PreviewPanel.test.tsx` covering v3/v4 directive detection, `@theme` token preservation, CDN script selection, and DOM style element creation.
+Decisions: Prioritized v4 if multiple CSS stylesheets exist with differing directives to allow modern component styles with custom tokens to take effect properly.
+Deviations: none
+Verified: All 183 tests across 27 test files passed in Vitest; `compile_applet` build succeeded cleanly.
+Open questions: none
 
 ### [HOTFIX-26] Move script tag sanitization to bundler — 2026-08-22
 Prompt: Move the </script> sanitization from PreviewPanel.tsx into src/services/bundler/bundler.ts, at the single point where bundle() returns its compiled code string — right before the return statement.

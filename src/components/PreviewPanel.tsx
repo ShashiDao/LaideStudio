@@ -38,15 +38,32 @@ export function buildBundledHtml(code: string, indexHtmlContent?: string): strin
   return finalHtml;
 }
 
-export function injectTailwindScriptIntoHtml(html: string): string {
-  if (html.includes('cdn.tailwindcss.com')) return html;
+export function detectProjectTailwindVersion(files: Pick<FileItem, 'path' | 'content'>[]): 'v3' | 'v4' | null {
+  const cssFiles = files.filter(f => f.path.endsWith('.css'));
+  let detected: 'v3' | 'v4' | null = null;
+  for (const f of cssFiles) {
+    const { hasTailwind, version } = stripTailwindDirectives(f.content);
+    if (hasTailwind && version) {
+      if (version === 'v4') return 'v4';
+      detected = version;
+    }
+  }
+  return detected;
+}
+
+export function injectTailwindScriptIntoHtml(html: string, version: 'v3' | 'v4' = 'v3'): string {
+  const scriptUrl = version === 'v4'
+    ? 'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4'
+    : 'https://cdn.tailwindcss.com';
+
+  if (html.includes(scriptUrl)) return html;
   if (html.includes('<head>')) {
-    return html.replace('<head>', '<head>\n    <script src="https://cdn.tailwindcss.com"></script>');
+    return html.replace('<head>', `<head>\n    <script src="${scriptUrl}"></script>`);
   }
   if (html.includes('<html>')) {
-    return html.replace('<html>', '<html><head><script src="https://cdn.tailwindcss.com"></script></head>');
+    return html.replace('<html>', `<html><head><script src="${scriptUrl}"></script></head>`);
   }
-  return `<script src="https://cdn.tailwindcss.com"></script>\n` + html;
+  return `<script src="${scriptUrl}"></script>\n` + html;
 }
 
 interface PreviewPanelProps {
@@ -140,9 +157,9 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
           let finalHtml = buildBundledHtml(code, indexFile?.content);
           
           finalHtml = injectCaptureScriptIntoHtml(finalHtml);
-          const hasTailwind = files.some(f => f.path.endsWith('.css') && stripTailwindDirectives(f.content).hasTailwind);
-          if (hasTailwind) {
-            finalHtml = injectTailwindScriptIntoHtml(finalHtml);
+          const tailwindVersion = detectProjectTailwindVersion(files);
+          if (tailwindVersion) {
+            finalHtml = injectTailwindScriptIntoHtml(finalHtml, tailwindVersion);
           }
           
           
@@ -182,8 +199,12 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
             const targetPath = resolvePath(indexFile.path, href);
             const targetFile = files.find(f => f.path === targetPath);
             if (targetFile) {
+              const { stripped, hasTailwind, version } = stripTailwindDirectives(targetFile.content);
               const styleEl = doc.createElement('style');
-              styleEl.textContent = targetFile.content;
+              if (hasTailwind && version === 'v4') {
+                styleEl.setAttribute('type', 'text/tailwindcss');
+              }
+              styleEl.textContent = stripped;
               link.replaceWith(styleEl);
             }
           }
@@ -220,9 +241,9 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
         }
 
         finalHtml = injectCaptureScriptIntoHtml(finalHtml);
-        const hasTailwind = files.some(f => f.path.endsWith('.css') && stripTailwindDirectives(f.content).hasTailwind);
-        if (hasTailwind) {
-          finalHtml = injectTailwindScriptIntoHtml(finalHtml);
+        const tailwindVersion = detectProjectTailwindVersion(files);
+        if (tailwindVersion) {
+          finalHtml = injectTailwindScriptIntoHtml(finalHtml, tailwindVersion);
         }
         
         
