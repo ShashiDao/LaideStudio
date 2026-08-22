@@ -1,0 +1,6 @@
+{
+  "name": "LAIDE Studio",
+  "description": "A modern PWA studio application built with React and Vite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

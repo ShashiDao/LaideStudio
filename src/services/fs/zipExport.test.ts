@@ -1,0 +1,38 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import 'fake-indexeddb/auto';
+import JSZip from 'jszip';
+import { db } from '../../db';
+import { exportZip } from './zipExport';
+import { createFile } from './vfs';
+
+describe('Zip Export Service', () => {
+  const projectId = 'export-test';
+
+  beforeEach(async () => {
+    await db.files.clear();
+  });
+
+  it('should export all files preserving paths', async () => {
+    await createFile(projectId, '/README.md', '# Test');
+    await createFile(projectId, '/src/main.ts', 'console.log();');
+    await createFile(projectId, '/assets/logo.png', 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='); // Valid base64
+
+    const blob = await exportZip(projectId);
+    expect(blob).toBeInstanceOf(Blob);
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    
+    // JSZip also creates folder entries for 'src/' and 'assets/' implicitly when files are added
+    const paths = Object.keys(zip.files);
+    expect(paths).toContain('README.md');
+    expect(paths).toContain('src/main.ts');
+    expect(paths).toContain('assets/logo.png');
+    
+    const readmeContent = await zip.file('README.md')?.async('string');
+    expect(readmeContent).toBe('# Test');
+
+    const pngBase64 = await zip.file('assets/logo.png')?.async('base64');
+    expect(pngBase64).toBe('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==');
+  });
+});

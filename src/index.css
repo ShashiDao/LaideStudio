@@ -1,0 +1,207 @@
+@import "tailwindcss";
+
+:root,
+[data-theme="oled"] {
+  --bg: #000000;
+  --surface: #0D0D10;
+  --surface-elevated: #131316;
+  --border: #232326;
+  --accent: #E8A33D;
+  --accent-text-on: #1A1200;
+  --text-primary: #F2F0EA;
+  --text-secondary: #8A8A8F;
+  --success: #3FAE68;
+  --error: #D9584F;
+  --code-bg: #070709;
+  --grid-line: rgba(35, 35, 38, 0.4);
+  --scanline-color: rgba(232, 163, 61, 0.02);
+}
+
+[data-theme="paper"] {
+  --bg: #EDF1F5;
+  --surface: #F7F9FB;
+  --surface-elevated: #FFFFFF;
+  --border: #B7C4CE;
+  --accent: #E8A33D;
+  --accent-text-on: #1A1200;
+  --text-primary: #1F2E3D;
+  --text-secondary: #5C6B78;
+  --success: #2A8550;
+  --error: #C8463E;
+  --code-bg: #E2E8EE;
+  --grid-line: #C7D3DC;
+  --scanline-color: transparent;
+}
+
+@theme {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-text-on: var(--accent-text-on);
+  --color-text: var(--text-primary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-muted: var(--text-secondary);
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --color-moss: var(--success);
+  --color-oxide: var(--error);
+  --color-code-bg: var(--code-bg);
+
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    background-color: var(--bg);
+    color: var(--text-primary);
+  }
+
+  /* Instrument panel / Blueprint Monospace typography for headings and readouts */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  [data-theme="paper"] h1,
+  [data-theme="paper"] h2,
+  [data-theme="paper"] h3,
+  [data-theme="paper"] h4 {
+    letter-spacing: -0.02em;
+  }
+
+  /* Visible keyboard focus rings across all interactive elements */
+  :focus-visible {
+    outline: 2px solid var(--accent) !important;
+    outline-offset: 2px !important;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--accent) !important;
+    outline-offset: 2px !important;
+  }
+}
+
+/* Paper Grain Texture (applied on Paper theme) */
+[data-theme="paper"] .paper-grain-overlay {
+  position: relative;
+}
+
+[data-theme="paper"] .paper-grain-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  z-index: 1;
+}
+
+/* Grid Line Textures for Canvases & Empty States */
+.canvas-grid-pattern {
+  background-size: 24px 24px;
+  background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+                    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+}
+
+[data-theme="oled"] .canvas-grid-pattern {
+  background-size: 24px 24px;
+  background-image: linear-gradient(to right, rgba(35, 35, 38, 0.45) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(35, 35, 38, 0.45) 1px, transparent 1px);
+}
+
+[data-theme="paper"] .canvas-grid-pattern {
+  background-size: 20px 20px;
+  background-image: linear-gradient(to right, rgba(199, 211, 220, 0.6) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(199, 211, 220, 0.6) 1px, transparent 1px);
+}
+
+/* OLED Scanline Texture */
+[data-theme="oled"] .oled-scanline {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(232, 163, 61, 0.02) 3px,
+    rgba(232, 163, 61, 0.02) 4px
+  );
+}
+
+/* Corner registration marks for Blueprint/Paper panels and modals */
+.corner-ticks {
+  position: relative;
+}
+
+[data-theme="paper"] .corner-ticks::before,
+[data-theme="paper"] .corner-ticks::after {
+  content: "+";
+  position: absolute;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--border);
+  pointer-events: none;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+[data-theme="paper"] .corner-ticks::before {
+  top: 5px;
+  left: 6px;
+}
+
+[data-theme="paper"] .corner-ticks::after {
+  bottom: 5px;
+  right: 6px;
+}
+
+/* Accent hairline signature utilities */
+.hairline-b-accent {
+  border-bottom: 1px solid var(--accent);
+}
+
+.hairline-t-accent {
+  border-top: 1px solid var(--accent);
+}
+
+@keyframes accent-flash {
+  0% {
+    background-color: rgba(232, 163, 61, 0.45);
+    color: #1A1200;
+    box-shadow: inset 0 0 12px rgba(232, 163, 61, 0.35);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+.animate-accent-flash {
+  animation: accent-flash 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Reduced motion preference compliance */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-accent-flash {
+    animation: none !important;
+  }
+}
+
+
