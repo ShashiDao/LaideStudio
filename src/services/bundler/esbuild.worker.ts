@@ -156,6 +156,7 @@ export interface VfsPluginOptions {
   cache?: Cache | null;
   activeNetworkFetches?: Set<string>;
   onStatus?: (status: string) => void;
+  _nestedWorkerPaths?: Set<string>;
 }
 
 export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
@@ -259,7 +260,7 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
         };
       });
 
-      build.onLoad({ filter: /.*/, namespace: 'vfs' }, args => {
+      build.onLoad({ filter: /.*/, namespace: 'vfs' }, async args => {
          const file = files.find(f => f.path === args.path);
          if (!file) return { errors: [{ text: `File not found in VFS: ${args.path}` }] };
          
@@ -277,7 +278,89 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
             loader = ext as esbuild.Loader;
          }
          
-         return { contents: file.content, loader };
+         let contents = file.content;
+         
+         const workerPattern = /new\s+Worker\s*\(\s*new\s+URL\s*\(\s*(['"`])(.*?)\1\s*,\s*import\.meta\.url\s*\)\s*(?:,\s*(\{[^}]*\}))?\s*\)/g;
+         if (workerPattern.test(contents)) {
+           workerPattern.lastIndex = 0;
+           
+           const nestedWorkerPaths = options._nestedWorkerPaths || new Set<string>();
+           let match;
+           let rewrittenContents = '';
+           let lastIndex = 0;
+           
+           while ((match = workerPattern.exec(contents)) !== null) {
+             const fullMatch = match[0];
+             const specifier = match[2];
+             const optionsObj = match[3] || "{ type: 'module' }";
+             
+             let resolvePath = specifier;
+             if (specifier.startsWith('.')) {
+               const parts = args.path.split('/');
+               parts.pop();
+               const dir = parts.join('/');
+               resolvePath = normalizePath((dir ? dir + '/' : '/') + specifier);
+             }
+             
+             let matchedFile = files.find(f => f.path === resolvePath);
+             if (!matchedFile) {
+               const exts = ['.ts', '.tsx', '.js', '.jsx', '.css', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
+               for (const ext of exts) {
+                 matchedFile = files.find(f => f.path === resolvePath + ext);
+                 if (matchedFile) {
+                   resolvePath = resolvePath + ext;
+                   break;
+                 }
+               }
+             }
+             
+             if (matchedFile) {
+               if (nestedWorkerPaths.has(resolvePath)) {
+                 rewrittenContents += contents.substring(lastIndex, match.index);
+                 rewrittenContents += `/* nested/circular worker bundling isn't supported yet */ ${fullMatch}`;
+                 lastIndex = workerPattern.lastIndex;
+               } else {
+                 nestedWorkerPaths.add(resolvePath);
+                 
+                 try {
+                   const result = await esbuild.build({
+                     entryPoints: [resolvePath],
+                     bundle: true,
+                     write: false,
+                     format: 'esm',
+                     plugins: [createVfsPlugin({
+                       ...options,
+                       entryPoint: resolvePath,
+                       _nestedWorkerPaths: nestedWorkerPaths
+                     })]
+                   });
+                   
+                   const bundledWorkerCode = result.outputFiles?.[0]?.text || '';
+                   
+                   rewrittenContents += contents.substring(lastIndex, match.index);
+                   rewrittenContents += `new Worker(URL.createObjectURL(new Blob([${JSON.stringify(bundledWorkerCode)}], { type: 'text/javascript' })), ${optionsObj})`;
+                   lastIndex = workerPattern.lastIndex;
+                 } catch (err) {
+                   console.error('Failed to bundle worker', err);
+                   rewrittenContents += contents.substring(lastIndex, match.index);
+                   rewrittenContents += fullMatch;
+                   lastIndex = workerPattern.lastIndex;
+                 }
+                 
+                 nestedWorkerPaths.delete(resolvePath);
+               }
+             } else {
+               rewrittenContents += contents.substring(lastIndex, match.index);
+               rewrittenContents += fullMatch;
+               lastIndex = workerPattern.lastIndex;
+             }
+           }
+           
+           rewrittenContents += contents.substring(lastIndex);
+           contents = rewrittenContents;
+         }
+         
+         return { contents, loader };
       });
       
       build.onLoad({ filter: /.*/, namespace: 'unpkg-url' }, async (args) => {

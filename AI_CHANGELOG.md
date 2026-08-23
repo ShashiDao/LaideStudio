@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-27
-- Last verified working: Tailwind v3 vs v4 syntax detection, @theme custom token preservation in CSS, version-specific CDN injection (@tailwindcss/browser@4 for v4 vs cdn.tailwindcss.com for v3), and type="text/tailwindcss" style attribute handling across bundled and static fallback preview pipelines. All 183 unit tests passing.
+- Phase: HOTFIX-28
+- Last verified working: Recursive worker bundling implemented. The pattern `new Worker(new URL('./file', import.meta.url), ...)` is detected during build, bundled recursively via esbuild, and rewritten to use a Blob URL, enabling self-hosting of in-browser workers (like our own bundler).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,22 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-28] Implement recursive worker bundling for `new URL(..., import.meta.url)` pattern — 2026-08-22
+Prompt: Emulate Vite's behavior for `new Worker(new URL('./file.ts', import.meta.url))` by bundling the worker recursively and injecting its code via `URL.createObjectURL(new Blob(...))` inside the browser's esbuild bundler.
+Files touched:
+- `src/services/bundler/esbuild.worker.ts` (modified)
+- `src/services/bundler/esbuild.worker.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Passed `_nestedWorkerPaths: Set<string>` inside `VfsPluginOptions` to track recursive bundling state and prevent infinite recursion.
+- In `onLoad` for `vfs` namespace, scanned file contents using regex to match `new Worker(new URL(..., import.meta.url), ...)`.
+- Replaced the worker declaration with an inline Blob URL after synchronously awaiting a nested `esbuild.build()` call for the resolved worker path.
+- Created test cases verifying correct rewrite for static module URLs and unaffected passthrough for dynamic Blob URLs.
+Decisions: Used `_nestedWorkerPaths` locally to the root build rather than global state to ensure clean builds per call. Guarded circular imports by leaving original code + a warning comment.
+Deviations: none
+Verified: All 185 unit tests passed, including new integration tests for nested worker bundling in `esbuild.worker.test.ts`. `compile_applet` succeeds.
+Open questions: none
 
 ### [HOTFIX-27] Tailwind v3 vs v4 detection, custom @theme preservation, and version-specific CDN injection — 2026-08-22
 Prompt: Distinguish Tailwind v3 (@tailwind directives) vs v4 (@import "tailwindcss") syntax, preserve v4 @theme blocks in CSS, inject @tailwindcss/browser@4 CDN with type="text/tailwindcss" for v4 projects, and maintain v3 Play CDN for v3 projects.

@@ -248,6 +248,70 @@ describe('esbuild.worker bundler plugins and loaders', () => {
       expect(output).toContain('background: #f0f0f0;');
     });
 
+    it('bundles nested workers recursively and rewrites their creation into Blob URLs', async () => {
+      const files = [
+        {
+          path: '/src/bundler.ts',
+          content: `export const worker = new Worker(new URL('./esbuild.worker.ts', import.meta.url), { type: 'module' });`
+        },
+        {
+          path: '/src/esbuild.worker.ts',
+          content: `console.log("I am a worker");`
+        }
+      ];
+
+      const vfsPlugin = createVfsPlugin({
+        files,
+        entryPoint: '/src/bundler.ts'
+      });
+
+      const result = await esbuild.build({
+        entryPoints: ['/src/bundler.ts'],
+        bundle: true,
+        write: false,
+        plugins: [vfsPlugin],
+        format: 'esm'
+      });
+
+      expect(result.errors.length).toBe(0);
+      const output = result.outputFiles?.[0]?.text;
+      
+      expect(output).toBeDefined();
+      expect(output).toContain('new Worker(URL.createObjectURL(new Blob([');
+      expect(output).toContain('I am a worker');
+      expect(output).toContain('{ type: "module" }');
+      expect(output).not.toContain('new URL');
+    });
+
+    it('passes through dynamic Blob URLs without recursive bundling (like testRunner.ts)', async () => {
+      const files = [
+        {
+          path: '/src/testRunner.ts',
+          content: `const blob = new Blob(["console.log('hi');"], { type: 'application/javascript' });\nconst url = URL.createObjectURL(blob);\nexport const worker = new Worker(url, { type: 'module' });`
+        }
+      ];
+
+      const vfsPlugin = createVfsPlugin({
+        files,
+        entryPoint: '/src/testRunner.ts'
+      });
+
+      const result = await esbuild.build({
+        entryPoints: ['/src/testRunner.ts'],
+        bundle: true,
+        write: false,
+        plugins: [vfsPlugin],
+        format: 'esm'
+      });
+
+      expect(result.errors.length).toBe(0);
+      const output = result.outputFiles?.[0]?.text;
+      
+      expect(output).toBeDefined();
+      expect(output).toContain('new Worker(url, { type: "module" })');
+      expect(output).not.toContain('URL.createObjectURL(new Blob');
+    });
+
     it('externalizes inline data: and blob: URIs during onResolve', async () => {
       const files = [
         {
