@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import React from 'react';
-import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
 import App from './App';
 import { db } from './db';
 import { useAppStore } from './store';
@@ -46,8 +46,8 @@ describe('App Files-tab Header Layout on narrow widths', () => {
 
   const widths = [360, 390, 412, 480];
 
-  widths.forEach(width => {
-    it(`renders Files header cleanly with wrapping support at ${width}px width`, async () => {
+    widths.forEach(width => {
+    it(`renders Files header cleanly with streamlined actions menu at ${width}px width`, async () => {
       // Set viewport width
       window.innerWidth = width;
       window.dispatchEvent(new Event('resize'));
@@ -58,20 +58,23 @@ describe('App Files-tab Header Layout on narrow widths', () => {
         expect(screen.getByText('Test Project Mobile')).toBeDefined();
       });
 
-      // Verify all project controls and action buttons exist
+      // Verify project controls exist in the compact header
       expect(screen.getByLabelText('Select active workspace project')).toBeDefined();
       expect(screen.getByLabelText('Create new project')).toBeDefined();
-      expect(screen.getByLabelText('Delete project Test Project Mobile')).toBeDefined();
-      expect(screen.getByLabelText('Import from GitHub')).toBeDefined();
-      expect(screen.getByLabelText('Push to GitHub')).toBeDefined();
-      expect(screen.getByLabelText('Upload file or .zip')).toBeDefined();
-      expect(screen.getByLabelText('Download project')).toBeDefined();
+      
+      // Verify actions menu trigger is present
+      const actionsMenuBtn = screen.getByLabelText('Workspace actions menu');
+      expect(actionsMenuBtn).toBeDefined();
 
-      // Check header container has flex-wrap to prevent visual crowding / overlapping on narrow viewports
-      const headerRow = screen.getByLabelText('Select active workspace project').closest('.flex-wrap');
-      expect(headerRow).not.toBeNull();
-      expect(headerRow?.className).toContain('flex-wrap');
-      expect(headerRow?.className).toContain('justify-between');
+      // Open the actions menu
+      fireEvent.click(actionsMenuBtn);
+
+      // Verify action options are present inside the menu
+      expect(screen.getByText('Import from GitHub')).toBeDefined();
+      expect(screen.getByText('Push to GitHub')).toBeDefined();
+      expect(screen.getByText('Upload ZIP or File')).toBeDefined();
+      expect(screen.getByText('Export Project ZIP')).toBeDefined();
+      expect(screen.getByText('Delete Project')).toBeDefined();
     });
   });
 });

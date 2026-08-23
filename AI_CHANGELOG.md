@@ -1,6 +1,6 @@
 ## Current State
-- Phase: FEAT-FILE-SEARCH
-- Last verified working: Global file search implemented in the FileTree component. Users can filter files across the entire project by filename and directory path with live match highlighting, keyboard navigation (Arrow keys + Enter), shortcuts (/ and Cmd+P/Ctrl+P), and quick clear buttons.
+- Phase: FEAT-PROJECT-ANALYTICS
+- Last verified working: Integrated active project detailed metadata and language distribution analytics using Recharts. Displays Total Lines of Code (LOC), file counts, uncompressed codebase size, dominant language, and interactive Donut/Bar charts with metric toggles directly in the active project header.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,125 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [FEAT-PROJECT-ANALYTICS] Add active project detailed metadata & Recharts language distribution charts — 2026-08-22
+Prompt: Update the project header to display more detailed metadata like total lines of code or language distribution charts using recharts, only for the active project.
+Files touched:
+- `package.json` (installed `recharts`)
+- `src/utils/projectStats.ts` (created)
+- `src/utils/projectStats.test.ts` (created)
+- `src/components/ProjectMetadataPanel.tsx` (created)
+- `src/components/ProjectMetadataPanel.test.tsx` (created)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Installed `recharts` for rich, animated SVG data visualization.
+- Created `projectStats.ts` utility calculating lines of code (LOC), byte sizes, dominant programming language, file extension language classification, and percentage breakdowns for all codebase files.
+- Built `ProjectMetadataPanel` displaying:
+  - Metric summary cards: Total LOC, Total Files, Uncompressed Size, and Dominant Language.
+  - Interactive Recharts Donut (`PieChart`) and horizontal `BarChart` comparing code composition.
+  - Interactive metric toggle (`LOC` vs `Files`) and chart type switcher (`Donut` vs `Bar`).
+  - Custom themed tooltip rendering lines of code, file counts, percentages, and formatted sizes with language accent colors.
+  - Detailed scrollable language breakdown list.
+- Integrated an interactive metadata trigger badge directly into the active project header row (`<LOC> LOC • <DominantLang>`), as well as a "Project Analytics" entry in `ProjectActionsMenu`.
+- Added unit test suites for `projectStats.ts` and `ProjectMetadataPanel.tsx`.
+Decisions: Ensuring analytics are scoped strictly to the active project preserves performance and context clarity while keeping the project header clean and collapsible on demand.
+Deviations: none
+Verified: Vitest suite (16 tests) passing; `compile_applet` clean build.
+Open questions: none
+
+### [FEAT-HEADER-STREAMLINE] Streamline upper file tree header into professional ProjectActionsMenu dropdown — 2026-08-22
+Prompt: Make upper part less bloated and wrap in drop down professionally.
+Files touched:
+- `src/components/ProjectActionsMenu.tsx` (created)
+- `src/components/ProjectActionsMenu.test.tsx` (created)
+- `src/components/GithubIcons.tsx` (created)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Replaced the stacked multi-row workspace button bar (which previously took 4 vertical rows with Import, Push, Upload, Export, Trash, file counter) with a single-line compact header.
+- Created `ProjectActionsMenu` dropdown component featuring:
+  - Clean `Actions ⋮` trigger button with active states and tooltips.
+  - Floating menu containing organized items: GitHub Import, GitHub Push, File/ZIP Upload, ZIP Export, and Delete Project with icons, subtext descriptions, and contextual color styling.
+  - Full keyboard accessibility (`Escape` to close, outside click listener, ARIA menu roles).
+- Preserved the quick `+` New Project button, compact project switcher, and file count badge on the left side of the single header row.
+- Added comprehensive unit test suite in `ProjectActionsMenu.test.tsx`.
+Decisions: Consolidating secondary project actions into a sleek dropdown menu eliminated vertical clutter and significantly expanded usable viewport height for the file tree and code editor on mobile and desktop viewports.
+Deviations: none
+Verified: `compile_applet` builds cleanly; vitest tests passing.
+Open questions: none
+
+### [FEAT-BREADCRUMB] Implement FileBreadcrumb component in FileTree with parent navigation — 2026-08-22
+Prompt: Implement a breadcrumb component at the top of the file tree area that shows the current directory path for the selected project, allowing users to navigate up to parent folders.
+Files touched:
+- `src/components/FileBreadcrumb.tsx` (created)
+- `src/components/FileBreadcrumb.test.tsx` (created)
+- `src/components/FileTree.tsx` (modified)
+- `src/components/FileTree.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Created `FileBreadcrumb` component displaying the root project name with home icon, chevron-delimited directory segments, and active file leaf badge.
+- Added dedicated "Navigate up to parent folder (..)" button (`CornerLeftUp` icon) with automatic root disable state.
+- Integrated `FileBreadcrumb` into `FileTree` header area, maintaining synchronized `selectedFolderPath` when clicking folders, breadcrumb segments, or opening files.
+- Added auto-expansion in `FolderNode` for active path hierarchies and visual highlighting for the current directory path.
+- Added unit test suites in `FileBreadcrumb.test.tsx` and extended `FileTree.test.tsx` to verify segment rendering, click interactions, up navigation, and store synchronization.
+Decisions: Styled breadcrumb segments with clean hover states and subtle border accents matching the design system with horizontal scroll support for deeply nested paths.
+Deviations: none
+Verified: `compile_applet` builds cleanly; full Vitest suite passing.
+Open questions: none
+
+### [FEAT-KEYBOARD-SHORTCUTS] Add global keyboard accelerators & shortcuts cheatsheet modal — 2026-08-22
+Prompt: Add global keyboard shortcuts (e.g., Ctrl+P for search, Ctrl+B to toggle FileTree, Ctrl+` to toggle Terminal) to improve developer workflow speed.
+Files touched:
+- `src/components/KeyboardShortcutsModal.tsx` (created)
+- `src/components/KeyboardShortcutsModal.test.tsx` (created)
+- `src/components/TopStrip.tsx` (modified)
+- `src/components/FileTree.tsx` (modified)
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented global hotkey listener in `App.tsx` supporting:
+  - `Ctrl+B` / `Cmd+B`: Toggle or switch to Files (FileTree) tab.
+  - `Ctrl+`` / `Cmd+``: Toggle or switch to Terminal tab.
+  - `Ctrl+P` / `Cmd+P`: Quick open and immediately focus the file search input in the FileTree.
+  - `Ctrl+Shift+P` / `Cmd+Shift+P`: Switch to Preview tab.
+  - `Ctrl+1` through `Ctrl+5`: Directly switch tabs (1: Files, 2: Chat, 3: Preview, 4: Terminal, 5: Settings) when not actively editing text.
+  - `Ctrl+T` / `Cmd+T`: Toggle color theme (OLED vs Paper).
+  - `Ctrl+Shift+L` / `Cmd+Shift+L`: Instantly lock vault and secure session keys.
+  - `Ctrl+?` / `Cmd+?` or `Ctrl+/`: Open interactive Keyboard Shortcuts Cheatsheet modal.
+  - `Esc`: Close open file editor, dismiss active modals, or reset search filter.
+- Created `KeyboardShortcutsModal` displaying all shortcut categories (Navigation & Views, Files & Search, Terminal & Actions) with platform-aware key glyphs (`⌘` on macOS, `Ctrl` on Windows/Linux).
+- Added quick hotkey button in `TopStrip` header to open the shortcuts cheat sheet at any time.
+- Added Keyboard Shortcuts Reference documentation section in `SettingsPanel`.
+- Added unit tests in `KeyboardShortcutsModal.test.tsx` verifying modal rendering, accessibility dialog roles, close triggers, and key cheatsheet presence.
+Decisions: Handled platform-specific modifiers seamlessly (`⌘` on macOS vs `Ctrl` on Linux/Windows) and ensured text typing in inputs and CodeMirror is not interrupted by non-accelerator keys.
+Deviations: none
+Verified: `compile_applet` builds cleanly; full Vitest suite passing.
+Open questions: none
+
+### [FEAT-TERMINAL-PANEL] Create new TerminalPanel component for sandbox shell execution — 2026-08-22
+Prompt: Create a new 'TerminalPanel' component that allows users to run basic commands within the project's sandbox, providing a more professional development experience.
+Files touched:
+- `src/components/TerminalPanel.tsx` (created)
+- `src/components/TerminalPanel.test.tsx` (created)
+- `src/store.ts` (modified)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `'terminal'` to `TabId` in `store.ts`.
+- Integrated `TerminalPanel` component and bottom navigation tab button in `App.tsx`.
+- Implemented sandbox virtual shell engine supporting:
+  - File System commands: `ls` (with `-l`, `-a`, `-h`), `cd`, `pwd`, `cat` (with `-n`), `head`, `tail`, `touch`, `mkdir`, `rm` (with `-r`/`-rf`), `cp`, `mv`, `grep` (with `-i`, `-n`, `-v`, `-c`), `find`, `wc`, `stat`, `tree` (hierarchical Unicode directory visualizer).
+  - Dev & Sandbox execution: `npm test` / `test` (executing live Vitest test runner), `npm run build` / `build` (compiling bundle via in-browser ESBuild WebAssembly bundler), `npm ls` / `pkg` (dependency tree from `package.json`), `node -e` / `eval` / `run` (safe browser JS evaluation with console interception), `code` / `open` (instantly opens file in editor), `git status`, `git diff`.
+  - Shell utilities: `echo` (with `>` and `>>` VFS redirection), `env`, `export`, `clear` / `cls`, `date`, `whoami`, `uname`, `uptime`, `theme`, `history`, `reset`.
+- Added interactive terminal UI features: top status strip with online indicator, working directory tracker, quick-action chips (`npm test`, `npm run build`, `tree`, `ls -la`, `help`), copy logs button, clear screen button, autocomplete on `Tab`, command history cycling with `ArrowUp`/`ArrowDown`, and auto-scrolling log console.
+- Added comprehensive unit test suite `TerminalPanel.test.tsx` with 13 tests covering command parsing, filesystem manipulation, test running, bundling, JS eval, history, and clear controls.
+Decisions: Kept the terminal directly integrated into the main workspace tab bar alongside Files, Chat, Preview, and Settings.
+Deviations: none
+Verified: `compile_applet` builds cleanly; Vitest suite passing with 209 tests across 33 test files.
+Open questions: none
 
 ### [FEAT-FILE-SEARCH] Implement global file search in FileTree panel — 2026-08-22
 Prompt: Implement a global file search feature in the file tree panel that allows users to quickly find and navigate to files by name within the active project.

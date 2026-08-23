@@ -1,5 +1,34 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Folder, FolderOpen, FileText, Download, Trash, Edit2, FilePlus, MessageSquare, Search, X } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { 
+  Folder, 
+  FolderOpen, 
+  ChevronRight,
+  FileText, 
+  FileCode,
+  Code2,
+  Braces,
+  Hash,
+  Globe,
+  Image,
+  FileArchive,
+  FileCog,
+  Key,
+  Lock,
+  Terminal,
+  Boxes,
+  Download, 
+  Trash, 
+  Edit2, 
+  FilePlus, 
+  MessageSquare, 
+  Search, 
+  X, 
+  Copy, 
+  Check, 
+  ChevronsDown,
+  ChevronsUp,
+  FolderPlus
+} from 'lucide-react';
 import type { FileItem } from '../db';
 import { useAppStore } from '../store';
 import { renameFile, deleteFile, createFile, deleteFolder } from '../services/fs/vfs';
@@ -43,6 +72,21 @@ export function buildFileTree(files: FileItem[]): TreeNode {
   return root;
 }
 
+export function getAllFolderPaths(node: TreeNode): string[] {
+  const paths: string[] = [];
+  if (node.path && node.type === 'folder') {
+    paths.push(node.path);
+  }
+  if (node.children) {
+    for (const child of Object.values(node.children)) {
+      if (child.type === 'folder') {
+        paths.push(...getAllFolderPaths(child));
+      }
+    }
+  }
+  return paths;
+}
+
 function countFilesInFolder(node: TreeNode): number {
   if (node.type === 'file') return 1;
   let count = 0;
@@ -79,17 +123,137 @@ function highlightMatch(text: string, query: string): React.ReactNode {
   );
 }
 
-function FileNode({ node, level, onSelectFile, onContextMenu, isActive, isFlashing }: { 
-  key?: string,
+/**
+ * Returns a visually distinct icon based on file name and extension
+ */
+export function getFileIcon(filename: string, className?: string, isFlashing?: boolean) {
+  if (isFlashing) {
+    return <FileCode size={14} className={`text-accent shrink-0 ${className || ''}`} />;
+  }
+
+  const lowerName = filename.toLowerCase();
+  const parts = lowerName.split('.');
+  const ext = parts.length > 1 ? parts.pop() || '' : '';
+
+  // Special exact filenames
+  if (lowerName === 'package.json') {
+    return <Boxes size={14} className={`text-amber-400 shrink-0 ${className || ''}`} />;
+  }
+  if (lowerName.startsWith('tsconfig') || lowerName.includes('vite.config') || lowerName.includes('tailwind.config') || lowerName.includes('eslint') || lowerName.includes('prettier')) {
+    return <FileCog size={14} className={`text-sky-400 shrink-0 ${className || ''}`} />;
+  }
+  if (lowerName.startsWith('.env') || lowerName.endsWith('.env')) {
+    return <Key size={14} className={`text-yellow-400 shrink-0 ${className || ''}`} />;
+  }
+  if (lowerName.endsWith('.lock') || lowerName === 'bun.lockb') {
+    return <Lock size={14} className={`text-muted shrink-0 ${className || ''}`} />;
+  }
+  if (lowerName.endsWith('.test.ts') || lowerName.endsWith('.test.tsx') || lowerName.endsWith('.spec.ts') || lowerName.endsWith('.spec.tsx')) {
+    return <FileCode size={14} className={`text-emerald-400 shrink-0 ${className || ''}`} />;
+  }
+
+  // Extensions
+  switch (ext) {
+    case 'tsx':
+    case 'jsx':
+      return <Code2 size={14} className={`text-cyan-400 shrink-0 ${className || ''}`} />;
+    case 'ts':
+    case 'mts':
+    case 'cts':
+      return <FileCode size={14} className={`text-blue-400 shrink-0 ${className || ''}`} />;
+    case 'js':
+    case 'mjs':
+    case 'cjs':
+      return <FileCode size={14} className={`text-yellow-300 shrink-0 ${className || ''}`} />;
+    case 'json':
+    case 'json5':
+    case 'jsonc':
+      return <Braces size={14} className={`text-amber-400 shrink-0 ${className || ''}`} />;
+    case 'css':
+    case 'scss':
+    case 'sass':
+    case 'less':
+      return <Hash size={14} className={`text-pink-400 shrink-0 ${className || ''}`} />;
+    case 'html':
+    case 'htm':
+      return <Globe size={14} className={`text-orange-400 shrink-0 ${className || ''}`} />;
+    case 'md':
+    case 'mdx':
+    case 'markdown':
+    case 'txt':
+    case 'log':
+      return <FileText size={14} className={`text-slate-300 shrink-0 ${className || ''}`} />;
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'svg':
+    case 'webp':
+    case 'ico':
+    case 'bmp':
+      return <Image size={14} className={`text-emerald-400 shrink-0 ${className || ''}`} />;
+    case 'zip':
+    case 'tar':
+    case 'gz':
+    case '7z':
+    case 'rar':
+      return <FileArchive size={14} className={`text-purple-400 shrink-0 ${className || ''}`} />;
+    case 'sh':
+    case 'bash':
+    case 'zsh':
+      return <Terminal size={14} className={`text-lime-400 shrink-0 ${className || ''}`} />;
+    default:
+      return <FileText size={14} className={`text-moss/80 shrink-0 ${className || ''}`} />;
+  }
+}
+
+/**
+ * Returns contextual folder icon based on directory name
+ */
+export function getFolderIcon(folderName: string, isOpen: boolean, className?: string) {
+  const lower = folderName.toLowerCase();
+  let colorClass = 'text-accent';
+
+  if (lower === 'src' || lower === 'app') {
+    colorClass = 'text-accent';
+  } else if (lower === 'components' || lower === 'ui') {
+    colorClass = 'text-cyan-400';
+  } else if (lower === 'services' || lower === 'api' || lower === 'db' || lower === 'utils') {
+    colorClass = 'text-amber-400';
+  } else if (lower === 'test' || lower === 'tests' || lower === '__tests__') {
+    colorClass = 'text-emerald-400';
+  } else if (lower === 'public' || lower === 'assets' || lower === 'static') {
+    colorClass = 'text-pink-400';
+  } else if (lower === 'node_modules') {
+    colorClass = 'text-muted';
+  }
+
+  if (isOpen) {
+    return <FolderOpen size={14} className={`${colorClass} shrink-0 ${className || ''}`} />;
+  }
+  return <Folder size={14} className={`${colorClass}/90 shrink-0 ${className || ''}`} />;
+}
+
+function FileNode({ 
+  node, 
+  level, 
+  onSelectFile, 
+  onContextMenu, 
+  isActive, 
+  isFlashing,
+  onCopyPath 
+}: { 
   node: TreeNode, 
   level: number, 
   onSelectFile: (file: FileItem) => void,
   onContextMenu: (e: React.MouseEvent | React.TouchEvent, file: FileItem) => void,
   isActive: boolean,
-  isFlashing?: boolean
+  isFlashing?: boolean,
+  onCopyPath: (path: string, e: React.MouseEvent) => void
 }) {
   const longPressTimer = useRef<any>(null);
   const longPressFired = useRef(false);
+  const [copied, setCopied] = useState(false);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     longPressFired.current = false;
@@ -103,12 +267,21 @@ function FileNode({ node, level, onSelectFile, onContextMenu, isActive, isFlashi
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
   };
 
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (node.file) {
+      onCopyPath(node.file.path, e);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+
   return (
     <div 
-      className={`flex items-center gap-1.5 py-1 px-2 hover:bg-accent/10 cursor-pointer select-none text-muted transition-colors min-w-full w-fit ${
-        isActive ? 'bg-accent/15 text-accent font-medium' : ''
+      className={`group flex items-center justify-between py-1 px-2 hover:bg-accent/10 cursor-pointer select-none text-muted transition-colors min-w-full w-fit rounded-[3px] my-[0.5px] ${
+        isActive ? 'bg-accent/15 text-accent font-medium shadow-xs' : ''
       } ${isFlashing ? 'animate-accent-flash' : ''}`}
-      style={{ paddingLeft: `${level * 12 + 8}px` }}
+      style={{ paddingLeft: `${level * 14 + 18}px` }}
       onClick={() => {
         if (!longPressFired.current) {
           onSelectFile(node.file!);
@@ -119,25 +292,57 @@ function FileNode({ node, level, onSelectFile, onContextMenu, isActive, isFlashi
       onTouchEnd={clearTimer}
       onTouchMove={clearTimer}
     >
-      <FileText size={14} className={`shrink-0 ${isFlashing ? 'text-accent' : 'text-moss/80'}`} />
-      <span className="font-mono text-[12px] truncate max-w-[240px] sm:max-w-none">{node.name}</span>
+      <div className="flex items-center gap-1.5 min-w-0 pr-2">
+        {getFileIcon(node.name, undefined, isFlashing)}
+        <span className={`font-mono text-[12px] truncate max-w-[200px] sm:max-w-[280px] ${isActive ? 'text-text font-semibold' : 'text-text/90'}`}>
+          {node.name}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 hover:text-accent hover:bg-surface rounded transition-all cursor-pointer shrink-0 ml-1.5"
+        title={`Copy path "${node.file?.path}"`}
+        aria-label={`Copy path ${node.file?.path}`}
+      >
+        {copied ? (
+          <Check size={12} className="text-accent" />
+        ) : (
+          <Copy size={12} className="text-muted hover:text-accent" />
+        )}
+      </button>
     </div>
   );
 }
 
-function FolderNode({ node, level, onSelectFile, onContextMenu, onFolderContextMenu, activeFileId, flashingPaths }: { 
-  key?: string,
+function FolderNode({ 
+  node, 
+  level, 
+  onSelectFile, 
+  onContextMenu, 
+  onFolderContextMenu, 
+  activeFileId, 
+  flashingPaths,
+  onCopyPath,
+  expandedFolders,
+  onToggleExpand
+}: { 
   node: TreeNode, 
   level: number, 
   onSelectFile: (file: FileItem) => void, 
   onContextMenu: (e: React.MouseEvent | React.TouchEvent, file: FileItem) => void,
   onFolderContextMenu: (e: React.MouseEvent | React.TouchEvent, node: TreeNode) => void,
   activeFileId: string | null,
-  flashingPaths: string[]
+  flashingPaths: string[],
+  onCopyPath: (path: string, e: React.MouseEvent) => void,
+  expandedFolders: Set<string>,
+  onToggleExpand: (path: string) => void
 }) {
-  const [isOpen, setIsOpen] = useState(true);
   const longPressTimer = useRef<any>(null);
   const longPressFired = useRef(false);
+
+  const isExpanded = expandedFolders.has(node.path);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     longPressFired.current = false;
@@ -156,28 +361,71 @@ function FolderNode({ node, level, onSelectFile, onContextMenu, onFolderContextM
     return a.name.localeCompare(b.name);
   });
 
+  const childCount = Object.keys(node.children || {}).length;
+
   return (
-    <div>
+    <div className="select-none">
+      {/* Folder Header Item */}
       <div 
-        className="flex items-center gap-1.5 py-1 px-2 hover:bg-accent/10 cursor-pointer select-none text-muted min-w-full w-fit"
-        style={{ paddingLeft: `${level * 12 + 8}px` }}
+        className="group flex items-center justify-between py-1 px-2 hover:bg-accent/10 cursor-pointer select-none text-muted min-w-full w-fit transition-colors rounded-[3px] my-[0.5px]"
+        style={{ paddingLeft: `${level * 14 + 6}px` }}
         onClick={() => {
           if (!longPressFired.current) {
-            setIsOpen(!isOpen);
+            onToggleExpand(node.path);
           }
         }}
         onContextMenu={(e) => onFolderContextMenu(e, node)}
         onTouchStart={handleTouchStart}
         onTouchEnd={clearTimer}
         onTouchMove={clearTimer}
+        role="button"
+        aria-expanded={isExpanded}
+        aria-label={`Folder ${node.name}, ${isExpanded ? 'expanded' : 'collapsed'}`}
       >
-        {isOpen ? <FolderOpen size={14} className="text-accent/80 shrink-0" /> : <Folder size={14} className="text-accent/80 shrink-0" />}
-        <span className="font-mono text-[12px] truncate max-w-[240px] sm:max-w-none">{node.name}</span>
+        <div className="flex items-center gap-1 min-w-0 pr-2">
+          {/* Rotating Chevron Indicator */}
+          <ChevronRight 
+            size={12} 
+            className={`text-muted/60 group-hover:text-text transition-transform duration-200 ease-in-out shrink-0 ${
+              isExpanded ? 'rotate-90 text-accent/90' : 'rotate-0'
+            }`} 
+          />
+          
+          {/* Distinct Folder Icon */}
+          {getFolderIcon(node.name, isExpanded)}
+          
+          <span className="font-mono text-[12px] font-medium text-text truncate max-w-[220px] sm:max-w-none">
+            {node.name}
+          </span>
+        </div>
+
+        {/* Subtree item count badge */}
+        <span className="text-[10px] font-mono text-muted/50 group-hover:text-muted/80 transition-colors ml-1 px-1 py-0.2 rounded">
+          {childCount}
+        </span>
       </div>
-      {isOpen && (
-        <div>
+
+      {/* Smoothly animated collapsible child container */}
+      <div 
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${
+          isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="min-h-0 overflow-hidden">
           {entries.map(child => child.type === 'folder' 
-            ? <FolderNode key={child.path} node={child} level={level + 1} onSelectFile={onSelectFile} onContextMenu={onContextMenu} onFolderContextMenu={onFolderContextMenu} activeFileId={activeFileId} flashingPaths={flashingPaths} />
+            ? <FolderNode 
+                key={child.path} 
+                node={child} 
+                level={level + 1} 
+                onSelectFile={onSelectFile} 
+                onContextMenu={onContextMenu} 
+                onFolderContextMenu={onFolderContextMenu} 
+                activeFileId={activeFileId} 
+                flashingPaths={flashingPaths}
+                onCopyPath={onCopyPath}
+                expandedFolders={expandedFolders}
+                onToggleExpand={onToggleExpand}
+              />
             : <FileNode 
                 key={child.path} 
                 node={child} 
@@ -186,10 +434,11 @@ function FolderNode({ node, level, onSelectFile, onContextMenu, onFolderContextM
                 onContextMenu={onContextMenu} 
                 isActive={child.file?.id === activeFileId} 
                 isFlashing={flashingPaths.includes(child.path) || (child.file ? flashingPaths.includes(child.file.path) : false)}
+                onCopyPath={onCopyPath}
               />
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -197,17 +446,102 @@ function FolderNode({ node, level, onSelectFile, onContextMenu, onFolderContextM
 export function FileTree({ 
   files, 
   projectId,
-  onFilesChanged 
+  onFilesChanged,
+  autoFocusSearch
 }: { 
   files: FileItem[], 
   projectId?: string,
-  onFilesChanged?: () => void 
+  onFilesChanged?: () => void,
+  autoFocusSearch?: boolean
 }) {
   const { activeFileId, setActiveFileId, flashingPaths, setActiveTab, addToast } = useAppStore();
+
+  const copyFilePath = (path: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    navigator.clipboard.writeText(path).then(() => {
+      addToast(`Copied path: ${path}`, 'success');
+    }).catch(() => {
+      addToast(`Failed to copy path`, 'error');
+    });
+  };
+
   const tree = useMemo(() => buildFileTree(files), [files]);
+  const allFolderPaths = useMemo(() => getAllFolderPaths(tree), [tree]);
+
+  // State to hold set of expanded folder paths
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    return new Set<string>(allFolderPaths);
+  });
+
+  // Keep expanded folders updated when new folders appear
+  useEffect(() => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      for (const p of allFolderPaths) {
+        if (!prev.has(p)) {
+          next.add(p);
+        }
+      }
+      return next;
+    });
+  }, [allFolderPaths]);
+
+  // Expand parent folders of active file when active file changes
+  useEffect(() => {
+    if (activeFileId) {
+      const activeFile = files.find(f => f.id === activeFileId);
+      if (activeFile) {
+        const parts = activeFile.path.split('/').filter(Boolean);
+        parts.pop(); // remove file name
+        let cur = '';
+        setExpandedFolders(prev => {
+          let modified = false;
+          const next = new Set(prev);
+          for (const part of parts) {
+            cur += '/' + part;
+            if (!next.has(cur)) {
+              next.add(cur);
+              modified = true;
+            }
+          }
+          return modified ? next : prev;
+        });
+      }
+    }
+  }, [activeFileId, files]);
+
+  const toggleFolder = useCallback((path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  const expandAll = useCallback(() => {
+    setExpandedFolders(new Set(allFolderPaths));
+  }, [allFolderPaths]);
+
+  const collapseAll = useCallback(() => {
+    setExpandedFolders(new Set());
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocusSearch) {
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }, 50);
+    }
+  }, [autoFocusSearch]);
 
   const [menu, setMenu] = useState<{ file: FileItem, x: number, y: number } | null>(null);
   const [folderMenu, setFolderMenu] = useState<{ node: TreeNode, x: number, y: number } | null>(null);
@@ -227,32 +561,41 @@ export function FileTree({
     return () => window.removeEventListener('click', handleClick);
   }, []);
 
-  // Global shortcut to focus file search
+  // Global '/' keyboard shortcut to focus search
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      if (e.key === '/' || ((e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'f'))) {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        (activeEl as HTMLElement).isContentEditable ||
+        activeEl.closest('.cm-editor') !== null
+      );
+
+      if (e.key === '/' && !isInput && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Filtered files for search
   const filteredFiles = useMemo(() => {
+    if (!searchQuery.trim()) return [];
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return [];
-
     return files
-      .filter(file => file.path.toLowerCase().includes(query))
+      .filter(file => {
+        const parts = file.path.split('/').filter(Boolean);
+        const fileName = parts.pop() || '';
+        return fileName.toLowerCase().includes(query) || file.path.toLowerCase().includes(query);
+      })
       .sort((a, b) => {
-        const aName = (a.path.split('/').pop() || '').toLowerCase();
-        const bName = (b.path.split('/').pop() || '').toLowerCase();
-        
+        const aName = a.path.split('/').pop()?.toLowerCase() || '';
+        const bName = b.path.split('/').pop()?.toLowerCase() || '';
         const aExact = aName === query;
         const bExact = bName === query;
         if (aExact && !bExact) return -1;
@@ -305,8 +648,8 @@ export function FileTree({
     }
     
     // Clamp to viewport so menu never overflows screen boundaries
-    const menuWidth = 136;
-    const menuHeight = 120;
+    const menuWidth = 160;
+    const menuHeight = 160;
     const x = Math.max(8, Math.min(clientX, window.innerWidth - menuWidth - 8));
     const y = Math.max(8, Math.min(clientY, window.innerHeight - menuHeight - 8));
 
@@ -493,8 +836,8 @@ export function FileTree({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative w-full">
-      {/* File Search Header */}
-      <div className="px-2 py-1.5 border-b border-border/80 bg-surface/50 shrink-0">
+      {/* File Search Header & Quick Tree Controls */}
+      <div className="px-2 py-1.5 border-b border-border/80 bg-surface/50 shrink-0 space-y-1.5">
         <div className="relative flex items-center">
           <Search size={13} className="absolute left-2.5 text-muted pointer-events-none" />
           <input
@@ -525,16 +868,53 @@ export function FileTree({
             </button>
           )}
         </div>
-        {isSearching && (
-          <div className="flex items-center justify-between mt-1 px-1 text-[10px] font-mono text-muted">
-            <span className="text-accent font-medium">
-              {filteredFiles.length} {filteredFiles.length === 1 ? 'file found' : 'files found'}
-            </span>
-            <span className="text-[9px] text-muted/80">
-              <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-[9px]">↑↓</kbd> navigate <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-[9px]">↵</kbd> open
-            </span>
-          </div>
-        )}
+
+        {/* Tree controls bar: Expand All, Collapse All & Stats */}
+        <div className="flex items-center justify-between px-1 text-[10px] font-mono text-muted">
+          {isSearching ? (
+            <>
+              <span className="text-accent font-medium">
+                {filteredFiles.length} {filteredFiles.length === 1 ? 'file found' : 'files found'}
+              </span>
+              <span className="text-[9px] text-muted/80">
+                <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-[9px]">↑↓</kbd> navigate <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-[9px]">↵</kbd> open
+              </span>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 text-muted/80">
+                <span>{files.length} files</span>
+                <span>•</span>
+                <span>{allFolderPaths.length} folders</span>
+              </div>
+
+              {allFolderPaths.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={expandAll}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 hover:bg-surface-elevated text-muted hover:text-accent rounded transition-colors cursor-pointer border border-transparent hover:border-border"
+                    title="Expand all folders"
+                    aria-label="Expand all folders"
+                  >
+                    <ChevronsDown size={11} />
+                    <span className="text-[9px]">Expand</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={collapseAll}
+                    className="flex items-center gap-0.5 px-1.5 py-0.5 hover:bg-surface-elevated text-muted hover:text-accent rounded transition-colors cursor-pointer border border-transparent hover:border-border"
+                    title="Collapse all folders"
+                    aria-label="Collapse all folders"
+                  >
+                    <ChevronsUp size={11} />
+                    <span className="text-[9px]">Collapse</span>
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Main File Content: Search Results vs Tree View */}
@@ -576,7 +956,7 @@ export function FileTree({
                   key={file.id}
                   role="option"
                   aria-selected={isSelected}
-                  className={`flex items-center justify-between gap-2 px-3 py-2 cursor-pointer select-none transition-colors border-l-2 ${
+                  className={`group flex items-center justify-between gap-2 px-3 py-2 cursor-pointer select-none transition-colors border-l-2 ${
                     isSelected 
                       ? 'bg-accent/15 border-accent text-text' 
                       : isActive
@@ -590,10 +970,7 @@ export function FileTree({
                   onMouseEnter={() => setSelectedIndex(idx)}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <FileText 
-                      size={14} 
-                      className={`shrink-0 ${isActive || isSelected ? 'text-accent' : 'text-moss/80'}`} 
-                    />
+                    {getFileIcon(fileName, undefined, isActive || isSelected)}
                     <div className="flex flex-col min-w-0 flex-1">
                       <span className="font-mono text-[12px] font-medium truncate text-text">
                         {highlightMatch(fileName, searchQuery)}
@@ -603,19 +980,42 @@ export function FileTree({
                       </span>
                     </div>
                   </div>
-                  <span className="font-mono text-[10px] text-muted/70 shrink-0">
-                    {formatFileSize(file.content)}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => copyFilePath(file.path, e)}
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 hover:text-accent hover:bg-surface rounded transition-all cursor-pointer"
+                      title={`Copy path "${file.path}"`}
+                      aria-label={`Copy path ${file.path}`}
+                    >
+                      <Copy size={12} />
+                    </button>
+                    <span className="font-mono text-[10px] text-muted/70">
+                      {formatFileSize(file.content)}
+                    </span>
+                  </div>
                 </div>
               );
             })}
           </div>
         )
       ) : (
-        <div className="py-2 flex-1 overflow-auto relative w-full scrollbar-thin">
+        <div className="py-2 px-1 flex-1 overflow-auto relative w-full scrollbar-thin">
           <div className="min-w-full w-max">
             {entries.map(child => child.type === 'folder' 
-              ? <FolderNode key={child.path} node={child} level={0} onSelectFile={(f) => setActiveFileId(f.id)} onContextMenu={handleContextMenu} onFolderContextMenu={handleFolderContextMenu} activeFileId={activeFileId} flashingPaths={flashingPaths} />
+              ? <FolderNode 
+                  key={child.path} 
+                  node={child} 
+                  level={0} 
+                  onSelectFile={(f) => setActiveFileId(f.id)} 
+                  onContextMenu={handleContextMenu} 
+                  onFolderContextMenu={handleFolderContextMenu} 
+                  activeFileId={activeFileId} 
+                  flashingPaths={flashingPaths}
+                  onCopyPath={copyFilePath}
+                  expandedFolders={expandedFolders}
+                  onToggleExpand={toggleFolder}
+                />
               : <FileNode 
                   key={child.path} 
                   node={child} 
@@ -624,6 +1024,7 @@ export function FileTree({
                   onContextMenu={handleContextMenu} 
                   isActive={child.file?.id === activeFileId} 
                   isFlashing={flashingPaths.includes(child.path) || (child.file ? flashingPaths.includes(child.file.path) : false)}
+                  onCopyPath={copyFilePath}
                 />
             )}
           </div>
@@ -633,12 +1034,31 @@ export function FileTree({
       {/* Context Menu */}
       {menu && (
         <div 
-          className="fixed bg-surface border border-border rounded shadow-xl flex flex-col z-50 text-[11px] font-mono w-32 overflow-hidden"
+          className="fixed bg-surface border border-border rounded shadow-xl flex flex-col z-50 text-[11px] font-mono w-40 overflow-hidden"
           style={{ top: menu.y, left: menu.x }}
           onClick={(e) => e.stopPropagation()}
         >
           <button 
-            className="flex items-center gap-2 px-3 py-2 hover:bg-black/5 text-left text-muted cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 hover:bg-accent/10 text-left text-muted hover:text-text cursor-pointer transition-colors"
+            onClick={(e) => {
+              copyFilePath(menu.file.path, e);
+              setMenu(null);
+            }}
+          >
+            <Copy size={12} className="text-accent" /> Copy Path
+          </button>
+          <button 
+            className="flex items-center gap-2 px-3 py-2 hover:bg-accent/10 text-left text-muted hover:text-text cursor-pointer transition-colors"
+            onClick={(e) => {
+              const rel = menu.file.path.replace(/^\//, '');
+              copyFilePath(rel, e);
+              setMenu(null);
+            }}
+          >
+            <FileCode size={12} className="text-accent" /> Copy Relative Path
+          </button>
+          <button 
+            className="flex items-center gap-2 px-3 py-2 hover:bg-accent/10 text-left text-muted hover:text-text cursor-pointer transition-colors border-t border-border/40"
             onClick={() => {
               setRenaming(menu.file);
               setNewName(menu.file.path.split('/').pop() || '');
@@ -648,13 +1068,13 @@ export function FileTree({
             <Edit2 size={12} /> Rename
           </button>
           <button 
-            className="flex items-center gap-2 px-3 py-2 hover:bg-black/5 text-left text-muted cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 hover:bg-accent/10 text-left text-muted hover:text-text cursor-pointer transition-colors"
             onClick={() => handleDownload(menu.file)}
           >
             <Download size={12} /> Download
           </button>
           <button 
-            className="flex items-center gap-2 px-3 py-2 hover:bg-red-500/20 text-left text-red-400 cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 hover:bg-error/20 text-left text-error cursor-pointer transition-colors border-t border-border/40"
             onClick={() => {
               setDeleting(menu.file);
               setMenu(null);
@@ -673,7 +1093,7 @@ export function FileTree({
           onClick={(e) => e.stopPropagation()}
         >
           <button 
-            className="flex items-center gap-2 px-3 py-2 hover:bg-red-500/20 text-left text-red-400 cursor-pointer"
+            className="flex items-center gap-2 px-3 py-2 hover:bg-error/20 text-left text-error cursor-pointer transition-colors"
             onClick={() => {
               setDeletingFolder(folderMenu.node);
               setFolderMenu(null);
@@ -688,7 +1108,7 @@ export function FileTree({
       {renaming && (
         <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-surface border border-border p-4 rounded-lg shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <h3 className="text-muted text-xs font-mono  mb-3">Rename File</h3>
+            <h3 className="text-muted text-xs font-mono mb-3">Rename File</h3>
             <input 
               type="text" 
               value={newName} 
@@ -722,7 +1142,7 @@ export function FileTree({
       {deleting && (
         <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-surface border border-red-500/30 p-4 rounded-lg shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
-            <h3 className="text-red-400 text-xs font-mono  mb-3">Confirm Delete</h3>
+            <h3 className="text-red-400 text-xs font-mono mb-3">Confirm Delete</h3>
             <p className="text-muted text-sm mb-4">
               Are you sure you want to delete <span className="font-mono text-text">{deleting.path}</span>?
             </p>
@@ -772,4 +1192,3 @@ export function FileTree({
     </div>
   );
 }
-
