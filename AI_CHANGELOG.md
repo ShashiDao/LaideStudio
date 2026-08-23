@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-29
-- Last verified working: Build timeout errors surface the `lastStatus` (e.g. nested worker bundling, dependency resolution) instead of generic messages, making hangs debuggable. Checkpoints added before nested worker builds to isolate recursive bundling hangs.
+- Phase: FEAT-FILE-SEARCH
+- Last verified working: Global file search implemented in the FileTree component. Users can filter files across the entire project by filename and directory path with live match highlighting, keyboard navigation (Arrow keys + Enter), shortcuts (/ and Cmd+P/Ctrl+P), and quick clear buttons.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,24 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [FEAT-FILE-SEARCH] Implement global file search in FileTree panel — 2026-08-22
+Prompt: Implement a global file search feature in the file tree panel that allows users to quickly find and navigate to files by name within the active project.
+Files touched:
+- `src/components/FileTree.tsx` (modified)
+- `src/components/FileTree.test.tsx` (created)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added a search input bar at the top of the file tree panel with a search icon, clear button, match count indicator, and keyboard navigation instructions.
+- Implemented smart case-insensitive filtering with exact/prefix/basename ranking and substring matching.
+- Added live visual highlighting (`highlightMatch`) for matching characters in filenames and directory paths with accent styling.
+- Added full keyboard accessibility support: `ArrowDown`/`ArrowUp` to navigate options, `Enter` to open the highlighted file, `Escape` to clear search, and global keyboard shortcuts (`/`, `Ctrl+P`/`Cmd+P`, `Ctrl+F`/`Cmd+F`) to instantly focus file search.
+- Added empty search state when no files match with a one-click "Clear Search" button.
+- Added unit test suite `FileTree.test.tsx` validating tree building, global search filtering, match counters, keyboard navigation, clear controls, and click-to-open actions.
+Decisions: Kept the collapsible directory tree view active when search is empty, and switched to a ranked flat search list view when a query is entered. Integrated context menu actions seamlessly in search results.
+Deviations: none
+Verified: `compile_applet` builds cleanly; full Vitest suite passing with 195 tests.
+Open questions: none
 
 ### [HOTFIX-29] Surface last known build status on timeout & nested worker checkpoint — 2026-08-22
 Prompt: Expose the actual build status when the 45s bundler timeout fires instead of generic text. Add a status checkpoint right before nested worker bundling begins to isolate recursive build hangs.

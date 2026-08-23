@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Folder, FolderOpen, FileText, Download, Trash, Edit2, FilePlus, MessageSquare } from 'lucide-react';
+import { Folder, FolderOpen, FileText, Download, Trash, Edit2, FilePlus, MessageSquare, Search, X } from 'lucide-react';
 import type { FileItem } from '../db';
 import { useAppStore } from '../store';
 import { renameFile, deleteFile, createFile, deleteFolder } from '../services/fs/vfs';
@@ -50,6 +50,33 @@ function countFilesInFolder(node: TreeNode): number {
     count += countFilesInFolder(child);
   }
   return count;
+}
+
+function formatFileSize(content: string): string {
+  const bytes = new Blob([content]).size;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function highlightMatch(text: string, query: string): React.ReactNode {
+  if (!query.trim()) return text;
+  const q = query.trim().toLowerCase();
+  const lower = text.toLowerCase();
+  const index = lower.indexOf(q);
+  if (index === -1) return text;
+
+  const before = text.slice(0, index);
+  const match = text.slice(index, index + q.length);
+  const after = text.slice(index + q.length);
+
+  return (
+    <>
+      {before}
+      <span className="bg-accent/25 text-accent font-semibold px-0.5 rounded-[2px]">{match}</span>
+      {highlightMatch(after, query)}
+    </>
+  );
 }
 
 function FileNode({ node, level, onSelectFile, onContextMenu, isActive, isFlashing }: { 
@@ -178,6 +205,10 @@ export function FileTree({
 }) {
   const { activeFileId, setActiveFileId, flashingPaths, setActiveTab, addToast } = useAppStore();
   const tree = useMemo(() => buildFileTree(files), [files]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const [menu, setMenu] = useState<{ file: FileItem, x: number, y: number } | null>(null);
   const [folderMenu, setFolderMenu] = useState<{ node: TreeNode, x: number, y: number } | null>(null);
   
@@ -195,6 +226,70 @@ export function FileTree({
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, []);
+
+  // Global shortcut to focus file search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (e.key === '/' || ((e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'f'))) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const filteredFiles = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return [];
+
+    return files
+      .filter(file => file.path.toLowerCase().includes(query))
+      .sort((a, b) => {
+        const aName = (a.path.split('/').pop() || '').toLowerCase();
+        const bName = (b.path.split('/').pop() || '').toLowerCase();
+        
+        const aExact = aName === query;
+        const bExact = bName === query;
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+
+        const aStarts = aName.startsWith(query);
+        const bStarts = bName.startsWith(query);
+        if (aStarts && !bStarts) return -1;
+        if (!aStarts && bStarts) return 1;
+
+        const aIncludesName = aName.includes(query);
+        const bIncludesName = bName.includes(query);
+        if (aIncludesName && !bIncludesName) return -1;
+        if (!aIncludesName && bIncludesName) return 1;
+
+        return a.path.localeCompare(b.path);
+      });
+  }, [files, searchQuery]);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => (filteredFiles.length > 0 ? (prev + 1) % filteredFiles.length : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => (filteredFiles.length > 0 ? (prev - 1 + filteredFiles.length) % filteredFiles.length : 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredFiles[selectedIndex]) {
+        setActiveFileId(filteredFiles[selectedIndex].id);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setSearchQuery('');
+      searchInputRef.current?.blur();
+    }
+  };
 
   const handleContextMenu = (e: React.MouseEvent | React.TouchEvent, file: FileItem) => {
     e.preventDefault();
@@ -394,22 +489,146 @@ export function FileTree({
     return a.name.localeCompare(b.name);
   });
 
+  const isSearching = searchQuery.trim().length > 0;
+
   return (
-    <div className="py-2 flex-1 overflow-auto relative w-full scrollbar-thin">
-      <div className="min-w-full w-max">
-        {entries.map(child => child.type === 'folder' 
-          ? <FolderNode key={child.path} node={child} level={0} onSelectFile={(f) => setActiveFileId(f.id)} onContextMenu={handleContextMenu} onFolderContextMenu={handleFolderContextMenu} activeFileId={activeFileId} flashingPaths={flashingPaths} />
-          : <FileNode 
-              key={child.path} 
-              node={child} 
-              level={0} 
-              onSelectFile={(f) => setActiveFileId(f.id)} 
-              onContextMenu={handleContextMenu} 
-              isActive={child.file?.id === activeFileId} 
-              isFlashing={flashingPaths.includes(child.path) || (child.file ? flashingPaths.includes(child.file.path) : false)}
-            />
+    <div className="flex-1 flex flex-col overflow-hidden relative w-full">
+      {/* File Search Header */}
+      <div className="px-2 py-1.5 border-b border-border/80 bg-surface/50 shrink-0">
+        <div className="relative flex items-center">
+          <Search size={13} className="absolute left-2.5 text-muted pointer-events-none" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSelectedIndex(0);
+            }}
+            onKeyDown={handleSearchKeyDown}
+            placeholder="Search files... (/)"
+            aria-label="Search files by name or path"
+            className="w-full pl-8 pr-7 py-1 bg-surface-elevated/70 border border-border rounded text-[11px] font-mono text-text placeholder:text-muted/60 focus:outline-none focus:border-accent transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedIndex(0);
+                searchInputRef.current?.focus();
+              }}
+              className="absolute right-2 text-muted hover:text-text p-0.5 rounded cursor-pointer transition-colors"
+              aria-label="Clear search"
+              title="Clear search"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        {isSearching && (
+          <div className="flex items-center justify-between mt-1 px-1 text-[10px] font-mono text-muted">
+            <span className="text-accent font-medium">
+              {filteredFiles.length} {filteredFiles.length === 1 ? 'file found' : 'files found'}
+            </span>
+            <span className="text-[9px] text-muted/80">
+              <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-[9px]">↑↓</kbd> navigate <kbd className="px-1 py-0.5 bg-surface-elevated border border-border rounded text-[9px]">↵</kbd> open
+            </span>
+          </div>
         )}
       </div>
+
+      {/* Main File Content: Search Results vs Tree View */}
+      {isSearching ? (
+        filteredFiles.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-muted">
+            <div className="w-8 h-8 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-muted mb-2">
+              <Search size={14} />
+            </div>
+            <p className="font-mono text-xs font-semibold text-text mb-1">No matching files</p>
+            <p className="font-sans text-[11px] text-muted mb-3 max-w-[220px]">
+              No files match &ldquo;<span className="font-mono text-accent">{searchQuery}</span>&rdquo;
+            </p>
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedIndex(0);
+              }}
+              className="px-3 py-1 text-[11px] font-mono bg-surface-elevated border border-border hover:border-accent/40 rounded text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+            >
+              Clear Search
+            </button>
+          </div>
+        ) : (
+          <div 
+            className="flex-1 overflow-auto py-1 scrollbar-thin divide-y divide-border/20" 
+            role="listbox" 
+            aria-label="File search results"
+          >
+            {filteredFiles.map((file, idx) => {
+              const isSelected = idx === selectedIndex;
+              const isActive = file.id === activeFileId;
+              const parts = file.path.split('/').filter(Boolean);
+              const fileName = parts.pop() || file.path;
+              const dirPath = parts.length > 0 ? '/' + parts.join('/') : '/';
+
+              return (
+                <div
+                  key={file.id}
+                  role="option"
+                  aria-selected={isSelected}
+                  className={`flex items-center justify-between gap-2 px-3 py-2 cursor-pointer select-none transition-colors border-l-2 ${
+                    isSelected 
+                      ? 'bg-accent/15 border-accent text-text' 
+                      : isActive
+                      ? 'bg-surface-elevated border-accent/60 text-text'
+                      : 'border-transparent hover:bg-surface-elevated/70 text-muted hover:text-text'
+                  }`}
+                  onClick={() => {
+                    setActiveFileId(file.id);
+                  }}
+                  onContextMenu={(e) => handleContextMenu(e, file)}
+                  onMouseEnter={() => setSelectedIndex(idx)}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <FileText 
+                      size={14} 
+                      className={`shrink-0 ${isActive || isSelected ? 'text-accent' : 'text-moss/80'}`} 
+                    />
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="font-mono text-[12px] font-medium truncate text-text">
+                        {highlightMatch(fileName, searchQuery)}
+                      </span>
+                      <span className="font-mono text-[10px] text-muted truncate">
+                        {highlightMatch(dirPath, searchQuery)}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="font-mono text-[10px] text-muted/70 shrink-0">
+                    {formatFileSize(file.content)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : (
+        <div className="py-2 flex-1 overflow-auto relative w-full scrollbar-thin">
+          <div className="min-w-full w-max">
+            {entries.map(child => child.type === 'folder' 
+              ? <FolderNode key={child.path} node={child} level={0} onSelectFile={(f) => setActiveFileId(f.id)} onContextMenu={handleContextMenu} onFolderContextMenu={handleFolderContextMenu} activeFileId={activeFileId} flashingPaths={flashingPaths} />
+              : <FileNode 
+                  key={child.path} 
+                  node={child} 
+                  level={0} 
+                  onSelectFile={(f) => setActiveFileId(f.id)} 
+                  onContextMenu={handleContextMenu} 
+                  isActive={child.file?.id === activeFileId} 
+                  isFlashing={flashingPaths.includes(child.path) || (child.file ? flashingPaths.includes(child.file.path) : false)}
+                />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Context Menu */}
       {menu && (
