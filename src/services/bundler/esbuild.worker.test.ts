@@ -260,9 +260,13 @@ describe('esbuild.worker bundler plugins and loaders', () => {
         }
       ];
 
+      const preBundledWorkers = new Map<string, string>();
+      preBundledWorkers.set('/src/esbuild.worker.ts', 'console.log("I am a worker");');
+
       const vfsPlugin = createVfsPlugin({
         files,
-        entryPoint: '/src/bundler.ts'
+        entryPoint: '/src/bundler.ts',
+        preBundledWorkers
       });
 
       const result = await esbuild.build({

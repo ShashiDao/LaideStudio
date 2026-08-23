@@ -160,11 +160,11 @@ export interface VfsPluginOptions {
   cache?: Cache | null;
   activeNetworkFetches?: Set<string>;
   onStatus?: (status: string) => void;
-  _nestedWorkerPaths?: Set<string>;
+  preBundledWorkers?: Map<string, string>;
 }
 
 export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
-  const { files, entryPoint, wasmUrl, cache, activeNetworkFetches, onStatus } = options;
+  const { files, entryPoint, wasmUrl, cache, activeNetworkFetches, onStatus, preBundledWorkers } = options;
   const deps = extractDependenciesFromFiles(files);
 
   return {
@@ -282,13 +282,12 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
             loader = ext as esbuild.Loader;
          }
          
-         let contents = file.content;
+          let contents = file.content;
          
          const workerPattern = /new\s+Worker\s*\(\s*new\s+URL\s*\(\s*(['"`])(.*?)\1\s*,\s*import\.meta\.url\s*\)\s*(?:,\s*(\{[^}]*\}))?\s*\)/g;
          if (workerPattern.test(contents)) {
            workerPattern.lastIndex = 0;
            
-           const nestedWorkerPaths = options._nestedWorkerPaths || new Set<string>();
            let match;
            let rewrittenContents = '';
            let lastIndex = 0;
@@ -319,41 +318,15 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
              }
              
              if (matchedFile) {
-               if (nestedWorkerPaths.has(resolvePath)) {
+               if (preBundledWorkers && preBundledWorkers.has(resolvePath)) {
+                 const bundledWorkerCode = preBundledWorkers.get(resolvePath)!;
+                 rewrittenContents += contents.substring(lastIndex, match.index);
+                 rewrittenContents += `new Worker(URL.createObjectURL(new Blob([${JSON.stringify(bundledWorkerCode)}], { type: 'text/javascript' })), ${optionsObj})`;
+                 lastIndex = workerPattern.lastIndex;
+               } else {
                  rewrittenContents += contents.substring(lastIndex, match.index);
                  rewrittenContents += `/* nested/circular worker bundling isn't supported yet */ ${fullMatch}`;
                  lastIndex = workerPattern.lastIndex;
-               } else {
-                 nestedWorkerPaths.add(resolvePath);
-                 
-                 try {
-
-                   options.onStatus?.(`Bundling worker module: ${resolvePath}`);
-                    const result = await esbuild.build({
-                     entryPoints: [resolvePath],
-                     bundle: true,
-                     write: false,
-                     format: 'esm',
-                     plugins: [createVfsPlugin({
-                       ...options,
-                       entryPoint: resolvePath,
-                       _nestedWorkerPaths: nestedWorkerPaths
-                     })]
-                   });
-                   
-                   const bundledWorkerCode = result.outputFiles?.[0]?.text || '';
-                   
-                   rewrittenContents += contents.substring(lastIndex, match.index);
-                   rewrittenContents += `new Worker(URL.createObjectURL(new Blob([${JSON.stringify(bundledWorkerCode)}], { type: 'text/javascript' })), ${optionsObj})`;
-                   lastIndex = workerPattern.lastIndex;
-                 } catch (err) {
-                   console.error('Failed to bundle worker', err);
-                   rewrittenContents += contents.substring(lastIndex, match.index);
-                   rewrittenContents += fullMatch;
-                   lastIndex = workerPattern.lastIndex;
-                 }
-                 
-                 nestedWorkerPaths.delete(resolvePath);
                }
              } else {
                rewrittenContents += contents.substring(lastIndex, match.index);
@@ -521,12 +494,118 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
         const cache = await getDepCache();
         const activeNetworkFetches = new Set<string>();
 
+        // 1. Walk VFS and find all worker specifiers
+        const workerPattern = /new\s+Worker\s*\(\s*new\s+URL\s*\(\s*(['"`])(.*?)\1\s*,\s*import\.meta\.url\s*\)\s*(?:,\s*(\{[^}]*\}))?\s*\)/g;
+        const workerPathsToBundle = new Set<string>();
+
+        for (const file of files) {
+           const contents = file.content;
+           if (!contents) continue;
+           let match;
+           workerPattern.lastIndex = 0;
+           while ((match = workerPattern.exec(contents)) !== null) {
+              const specifier = match[2];
+              let resolvePath = specifier;
+              if (specifier.startsWith('.')) {
+                const parts = file.path.split('/');
+                parts.pop();
+                const dir = parts.join('/');
+                resolvePath = normalizePath((dir ? dir + '/' : '/') + specifier);
+              }
+              
+              let matchedFile = files.find((f: FileItem) => f.path === resolvePath);
+              if (!matchedFile) {
+                const exts = ['.ts', '.tsx', '.js', '.jsx', '.css', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
+                for (const ext of exts) {
+                  matchedFile = files.find((f: FileItem) => f.path === resolvePath + ext);
+                  if (matchedFile) {
+                    resolvePath = resolvePath + ext;
+                    break;
+                  }
+                }
+              }
+              
+              if (matchedFile) {
+                workerPathsToBundle.add(resolvePath);
+              }
+           }
+        }
+
+        // 2. Pre-bundle them sequentially, ensuring dependencies are bundled first
+        const preBundledWorkers = new Map<string, string>();
+        const nestedWorkerPaths = new Set<string>();
+
+        const ensureWorkerBundled = async (resolvePath: string) => {
+          if (preBundledWorkers.has(resolvePath) || nestedWorkerPaths.has(resolvePath)) return;
+          nestedWorkerPaths.add(resolvePath);
+          
+          const file = files.find((f: FileItem) => f.path === resolvePath);
+          if (file && file.content) {
+            let match;
+            workerPattern.lastIndex = 0;
+            while ((match = workerPattern.exec(file.content)) !== null) {
+              const specifier = match[2];
+              let depPath = specifier;
+              if (specifier.startsWith('.')) {
+                const parts = file.path.split('/');
+                parts.pop();
+                const dir = parts.join('/');
+                depPath = normalizePath((dir ? dir + '/' : '/') + specifier);
+              }
+              let matchedDep = files.find((f: FileItem) => f.path === depPath);
+              if (!matchedDep) {
+                const exts = ['.ts', '.tsx', '.js', '.jsx'];
+                for (const ext of exts) {
+                  matchedDep = files.find((f: FileItem) => f.path === depPath + ext);
+                  if (matchedDep) {
+                    depPath = depPath + ext;
+                    break;
+                  }
+                }
+              }
+              if (matchedDep) {
+                await ensureWorkerBundled(depPath);
+              }
+            }
+          }
+
+          self.postMessage({ id, type: 'STATUS', status: `Bundling worker module: ${resolvePath}` });
+          try {
+            const result = await esbuild.build({
+              entryPoints: [resolvePath],
+              bundle: true,
+              write: false,
+              format: 'esm',
+              plugins: [createVfsPlugin({
+                files,
+                entryPoint: resolvePath,
+                wasmUrl,
+                cache,
+                activeNetworkFetches,
+                preBundledWorkers,
+                onStatus: (status) => self.postMessage({ id, type: 'STATUS', status })
+              })]
+            });
+            const code = result.outputFiles?.[0]?.text || '';
+            preBundledWorkers.set(resolvePath, code);
+          } catch (err) {
+            console.error('Failed to pre-bundle worker:', err);
+          }
+          
+          nestedWorkerPaths.delete(resolvePath);
+        };
+
+        for (const workerPath of workerPathsToBundle) {
+          await ensureWorkerBundled(workerPath);
+        }
+
         const vfsPlugin = createVfsPlugin({
           files,
           entryPoint,
           wasmUrl,
           cache,
           activeNetworkFetches,
+          preBundledWorkers,
           onStatus: (status) => self.postMessage({ id, type: 'STATUS', status })
         });
 

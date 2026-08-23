@@ -90,11 +90,22 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
   } = useAppStore();
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [runtimeError, setRuntimeError] = useState<{ message: string; stack?: string } | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const [justCaptured, setJustCaptured] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'XIOM_PREVIEW_RUNTIME_ERROR') {
+        setRuntimeError({ message: e.data.message, stack: e.data.stack });
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleCapture = async () => {
     if (!iframeRef.current || isCapturing) return;
@@ -123,6 +134,7 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
 
     
     setError(null);
+    setRuntimeError(null);
     setStatus('Building preview...');
 
     async function build() {
@@ -328,23 +340,38 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
       </div>
       
       <div className="flex-1 relative bg-white overflow-hidden">
-        {error ? (
+        {error || runtimeError ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-bg canvas-grid-pattern">
             <div className="flex flex-col items-center gap-3 text-oxide font-sans text-sm border border-oxide/30 bg-surface/90 p-6 rounded-lg max-w-sm overflow-auto corner-ticks shadow-sm">
               <AlertCircle size={24} className="shrink-0 text-oxide" />
-              <p className="whitespace-pre-wrap text-left break-all font-mono text-xs">{error}</p>
-              {error.includes('No index.html found') && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQueuedPrompt(SUGGESTION_PROMPTS.ADD_INDEX_HTML);
-                    setActiveTab('chat');
-                  }}
-                  className="mt-2 w-full py-2.5 px-3 bg-accent text-accent-text-on font-mono font-bold text-xs rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Sparkles size={14} />
-                  <span>{SUGGESTION_PROMPTS.ADD_INDEX_HTML}</span>
-                </button>
+              {error ? (
+                <>
+                  <p className="whitespace-pre-wrap text-left break-all font-mono text-xs">{error}</p>
+                  {error.includes('No index.html found') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQueuedPrompt(SUGGESTION_PROMPTS.ADD_INDEX_HTML);
+                        setActiveTab('chat');
+                      }}
+                      className="mt-2 w-full py-2.5 px-3 bg-accent text-accent-text-on font-mono font-bold text-xs rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Sparkles size={14} />
+                      <span>{SUGGESTION_PROMPTS.ADD_INDEX_HTML}</span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="text-left w-full">
+                  <p className="font-bold text-xs font-mono text-oxide mb-2">Runtime Error:</p>
+                  <p className="whitespace-pre-wrap break-all font-mono text-xs mb-2">{runtimeError?.message}</p>
+                  {runtimeError?.stack && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-muted text-xs hover:text-oxide transition-colors">View Stack Trace</summary>
+                      <pre className="mt-2 whitespace-pre-wrap break-all text-[10px] text-muted/80">{runtimeError.stack}</pre>
+                    </details>
+                  )}
+                </div>
               )}
             </div>
           </div>
