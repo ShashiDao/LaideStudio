@@ -4,9 +4,10 @@ import { AnthropicProvider } from './providers/anthropic';
 import { OpenAIProvider } from './providers/openai';
 import { GoogleProvider } from './providers/google';
 import { OpenAICompatibleProvider } from './providers/openaiCompatible';
-import { decryptData } from '../crypto';
+
 
 export async function createLLMAdapter(profile: ConnectionProfile, aesKey: CryptoKey): Promise<LLMAdapter> {
+  const { decryptData } = await import('../crypto');
   const apiKey = await decryptData(aesKey, profile.encryptedApiKey);
   if (!apiKey) {
     throw new Error('Failed to decrypt API key for profile');

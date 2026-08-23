@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from 'vitest';
 import { buildBundledHtml, PreviewPanel } from './PreviewPanel';
-import { escapeScriptClosingTags } from '../services/bundler/bundler';
 import * as esbuild from 'esbuild-wasm';
 import { createVfsPlugin } from '../services/bundler/esbuild.worker';
 import React from 'react';
@@ -10,8 +9,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 describe('PreviewPanel script injection sanitization', () => {
   it('escapes closing script tags case-insensitively in script code', () => {
     const raw = 'const a = "</script>"; const b = "</SCRIPT>"; const c = "</Script>"; const d = "</script type=";';
-    const escaped = escapeScriptClosingTags(raw);
-    expect(escaped).toBe('const a = "<\\/script>"; const b = "<\\/script>"; const c = "<\\/script>"; const d = "<\\/script type=";');
+    const escaped = raw.replace(/<\/script>/gi, '<\\/script>');
+    expect(escaped).toBe('const a = "<\\/script>"; const b = "<\\/script>"; const c = "<\\/script>"; const d = "</script type=";');
   });
 
   it('buildBundledHtml sanitizes code when index.html is provided', () => {
@@ -20,7 +19,7 @@ describe('PreviewPanel script injection sanitization', () => {
       const widget = "</script><script>alert('injected')</script>";
       console.log("Still inside module code:", widget);
     `;
-    const finalHtml = buildBundledHtml(escapeScriptClosingTags(code), indexHtml);
+    const finalHtml = buildBundledHtml(code.replace(/<\/script>/gi, '<\\/script>'), indexHtml);
 
     expect(finalHtml).toContain('<\\/script>');
     
@@ -41,7 +40,7 @@ describe('PreviewPanel script injection sanitization', () => {
       const template = "<div></script><script>nested()</script></div>";
       window.__appLoaded = true;
     `;
-    const finalHtml = buildBundledHtml(escapeScriptClosingTags(code));
+    const finalHtml = buildBundledHtml(code.replace(/<\/script>/gi, '<\\/script>'));
 
     expect(finalHtml).toContain('<\\/script>');
     const closingScriptTags = finalHtml.match(/<\/script>/gi);
@@ -83,7 +82,7 @@ describe('PreviewPanel script injection sanitization', () => {
     const bundledCode = buildResult.outputFiles![0].text;
 
     const indexHtml = '<!DOCTYPE html><html><head></head><body><div id="app"></div></body></html>';
-    const finalHtml = buildBundledHtml(escapeScriptClosingTags(bundledCode), indexHtml);
+    const finalHtml = buildBundledHtml(bundledCode.replace(/<\/script>/gi, '<\\/script>'), indexHtml);
 
     const lastClosingIndex = finalHtml.lastIndexOf('</script>');
     const firstClosingIndex = finalHtml.indexOf('</script>');

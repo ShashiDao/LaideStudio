@@ -1,5 +1,5 @@
 import { binaryExtensions } from '../fs/zipExport';
-import { decryptData, type KeyMaterial } from '../crypto';
+import type { KeyMaterial } from '../crypto';
 
 export class GithubClient {
   private token: string;
@@ -114,6 +114,7 @@ export class GithubClient {
 }
 
 export async function createGithubClient(keys: KeyMaterial): Promise<GithubClient> {
+  const { decryptData } = await import('../crypto');
   const enc = localStorage.getItem('xiom_github_pat');
   if (!enc) {
     throw new Error('GitHub PAT not configured');

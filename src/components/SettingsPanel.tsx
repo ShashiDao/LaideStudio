@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
-import { encryptData, decryptData } from '../services/crypto';
 import { AnthropicProvider } from '../services/llm/providers/anthropic';
 import { OpenAIProvider } from '../services/llm/providers/openai';
 import { GoogleProvider } from '../services/llm/providers/google';
@@ -104,6 +103,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   } = useAppStore();
 
   const handleAddMcpServer = async (e: React.FormEvent) => {
+    const { encryptData } = await import('../services/crypto');
     e.preventDefault();
     if (!keys || !mcpServerUrlInput.trim()) return;
     try {
@@ -127,6 +127,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       if (newServers.length === 0) {
         localStorage.removeItem('xiom_mcp_servers');
       } else {
+        const { encryptData } = await import('../services/crypto');
         const enc = await encryptData(keys.aesKey, JSON.stringify(newServers));
         localStorage.setItem('xiom_mcp_servers', enc);
       }
@@ -271,6 +272,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   useEffect(() => {
     let active = true;
     async function loadGithub() {
+      const { decryptData } = await import('../services/crypto');
       if (!keys) return;
       const enc = localStorage.getItem('xiom_github_pat');
       if (enc) {
@@ -323,6 +325,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     // Attempt to decrypt to show it, or keep it empty
     if (keys) {
       try {
+        const { decryptData } = await import('../services/crypto');
         const decrypted = await decryptData(keys.aesKey, p.encryptedApiKey);
         setApiKey(decrypted);
       } catch (_e) {
@@ -342,6 +345,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       if (existing) finalEncryptedKey = existing.encryptedApiKey;
     } else {
       // Encrypt new API key
+      const { encryptData } = await import('../services/crypto');
       finalEncryptedKey = await encryptData(keys.aesKey, apiKey);
     }
 
@@ -390,6 +394,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     
     try {
       // Decrypt API key
+      const { decryptData } = await import('../services/crypto');
       const rawKey = await decryptData(keys.aesKey, p.encryptedApiKey);
 
       if (!rawKey) throw new Error('API key could not be decrypted');
@@ -946,6 +951,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         </div>
         
         <form onSubmit={async (e) => {
+          const { encryptData } = await import('../services/crypto');
           e.preventDefault();
           if (!keys) return;
           try {

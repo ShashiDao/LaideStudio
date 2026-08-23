@@ -6,7 +6,6 @@ import { SUGGESTION_PROMPTS } from '../services/agent/prompts';
 import { detectBundledProject } from '../services/bundler/entryDetection';
 import { injectCaptureScriptIntoHtml, captureIframeScreenshot } from '../services/bundler/previewCapture';
 import { stripTailwindDirectives } from '../services/bundler/esbuild.worker';
-import { escapeScriptClosingTags } from '../services/bundler/bundler';
 
 export function buildBundledHtml(code: string, indexHtmlContent?: string): string {
   let finalHtml: string;
@@ -229,7 +228,7 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
               if (script.getAttribute('type') === 'module') {
                 inlineScript.setAttribute('type', 'module');
               }
-              const sanitizedContent = escapeScriptClosingTags(targetFile.content);
+              const sanitizedContent = targetFile.content.replace(/<\/script>/gi, '<\\/script>');
               inlineScript.textContent = sanitizedContent;
               script.replaceWith(inlineScript);
             }

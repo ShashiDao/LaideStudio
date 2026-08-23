@@ -78,7 +78,7 @@ export default function App() {
               console.error('Failed to parse MCP servers', e);
             }
           }).catch(e => console.error('Failed to decrypt MCP servers', e));
-        });
+        }).catch(e => console.error('Failed to load crypto module', e));
       }
     }
   }, [keys, setMcpServers]);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Key, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, Copy, Check, LifeBuoy, ArrowLeft } from 'lucide-react';
 import { getLockConfig, saveLockConfig, type LockConfig } from '../services/lockConfig';
-import { deriveKeys, generateVerifier, verifyPassphrase, importMasterKey, arrayBufferToBase64, base64ToArrayBuffer, type KeyMaterial } from '../services/crypto';
+import type { KeyMaterial } from '../services/crypto';
 import { isPasskeyPrfSupported, enrollPasskey, unlockWithPasskey, type PasskeyData } from '../services/passkeyCrypto';
 import { generateRecoveryPhrase, createRecoveryBundle, unlockWithRecoveryPhrase, validateRecoveryPhrase, type RecoveryData } from '../services/recovery';
 import { useAppStore } from '../store';
@@ -53,6 +53,7 @@ export function LockScreen() {
   const strength = getStrength(passphrase);
   
   const handlePasskeyUnlock = async (c: LockConfig) => {
+    const { importMasterKey } = await import('../services/crypto');
     if (!c.passkeyData) return;
     setBusy(true);
     try {
@@ -98,6 +99,7 @@ export function LockScreen() {
   }, []);
 
   const handleStartSetup = async (e: React.FormEvent) => {
+    const { deriveKeys, generateVerifier } = await import('../services/crypto');
     e.preventDefault();
     if (passphrase.length < 10) {
       setError('Passphrase is too short (minimum 10 characters required)');
@@ -164,6 +166,7 @@ export function LockScreen() {
   };
 
   const finalizeSetup = async (passkeyData: PasskeyData | null) => {
+    const { arrayBufferToBase64 } = await import('../services/crypto');
     if (!pendingSetup) return;
     
     const newConfig: LockConfig = {
@@ -196,6 +199,7 @@ export function LockScreen() {
   };
 
   const handleUnlock = async (e: React.FormEvent) => {
+    const { base64ToArrayBuffer, deriveKeys, verifyPassphrase } = await import('../services/crypto');
     e.preventDefault();
     if (!config) return;
     
@@ -219,6 +223,7 @@ export function LockScreen() {
   };
 
   const handleRecoveryUnlock = async (e: React.FormEvent) => {
+    const { importMasterKey } = await import('../services/crypto');
     e.preventDefault();
     if (!config) return;
     

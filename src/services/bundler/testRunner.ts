@@ -1,4 +1,3 @@
-import { bundle } from './bundler';
 import type { FileItem } from '../../db';
 
 const VITEST_SHIM = `
@@ -142,6 +141,7 @@ __laide_runAllTests().then(res => self.postMessage({ type: 'DONE', data: res }))
   ];
 
   try {
+    const { bundle } = await import('./bundler');
     const bundledCode = await bundle(buildFiles, '/_tests_entry.ts');
 
     return new Promise((resolve, _reject) => {

@@ -21,7 +21,6 @@ import {
   renameFile 
 } from '../services/fs/vfs';
 import { runProjectTests } from '../services/bundler/testRunner';
-import { bundle } from '../services/bundler/bundler';
 import { detectBundledProject } from '../services/bundler/entryDetection';
 
 export interface TerminalOutputItem {
@@ -1009,6 +1008,7 @@ Access: 0644/-rw-r--r--`;
             
             const start = performance.now();
             try {
+              const { bundle } = await import('../services/bundler/bundler');
               const bundleCode = await bundle(files, entryPoint, (status) => {
                 addOutput('info', `  › ${status}`);
               });

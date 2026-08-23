@@ -18,7 +18,7 @@ import { runAgentLoop } from '../services/agent/agentLoop';
 import { createLLMAdapter } from '../services/llm/factory';
 import { db, type FileItem } from '../db';
 import { listFiles } from '../services/fs/vfs';
-import { encode } from 'gpt-tokenizer';
+
 import type { LLMToolCall } from '../services/llm/llmAdapter';
 import { 
   SUGGESTION_PROMPTS, 
@@ -210,6 +210,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
         ? `${BASE_SYSTEM_PROMPT}\n\n<custom_instructions>\n${customInstructions.trim()}\n</custom_instructions>`
         : BASE_SYSTEM_PROMPT;
 
+      const { encode } = await import('gpt-tokenizer');
       const tSystem = encode(effectiveSystem).length;
       const tManifest = encode(manifestText).length;
 
