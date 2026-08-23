@@ -32,6 +32,16 @@ export interface ConnectionProfile {
   model: string;
 }
 
+export interface ProvenanceTestResult {
+  passed: number;
+  failed: number;
+  total: number;
+  failedTests?: string[];
+  output?: string;
+  status: 'passed' | 'failed' | 'no_tests' | 'error';
+  error?: string;
+}
+
 export interface ProvenanceEntry {
   id: string;
   projectId: string;
@@ -45,6 +55,9 @@ export interface ProvenanceEntry {
   timestamp: number;
   prevEntryHash: string;
   entryHash: string;
+  testResult?: ProvenanceTestResult;
+  beforeContent?: string;
+  afterContent?: string;
 }
 
 export class LaideDatabase extends Dexie {
@@ -55,7 +68,7 @@ export class LaideDatabase extends Dexie {
   provenanceEntries!: Table<ProvenanceEntry, string>;
 
   constructor() {
-    super('XiomDatabase');
+    super('LaideDatabase');
     this.version(1).stores({
       projects: 'id, name, createdAt, updatedAt',
       files: 'id, projectId, path, updatedAt',
@@ -73,3 +86,47 @@ export class LaideDatabase extends Dexie {
 }
 
 export const db = new LaideDatabase();
+
+export async function migrateXiomToLaide(): Promise<void> {
+  const exists = await Dexie.exists('XiomDatabase');
+  if (!exists) return;
+
+  const oldDb = new Dexie('XiomDatabase');
+  oldDb.version(1).stores({
+    projects: 'id, name, createdAt, updatedAt',
+    files: 'id, projectId, path, updatedAt',
+    snapshots: 'id, projectId, createdAt',
+    connectionProfiles: 'id, provider, label',
+  });
+  oldDb.version(2).stores({
+    projects: 'id, name, createdAt, updatedAt',
+    files: 'id, projectId, path, updatedAt',
+    snapshots: 'id, projectId, createdAt',
+    connectionProfiles: 'id, provider, label',
+    provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+  });
+
+  try {
+    await oldDb.open();
+    const projects = await oldDb.table('projects').toArray();
+    const files = await oldDb.table('files').toArray();
+    const snapshots = await oldDb.table('snapshots').toArray();
+    const connectionProfiles = await oldDb.table('connectionProfiles').toArray();
+    const provenanceEntries = await oldDb.table('provenanceEntries').toArray();
+
+    await db.transaction('rw', db.projects, db.files, db.snapshots, db.connectionProfiles, db.provenanceEntries, async () => {
+      if (projects.length > 0) await db.projects.bulkPut(projects);
+      if (files.length > 0) await db.files.bulkPut(files);
+      if (snapshots.length > 0) await db.snapshots.bulkPut(snapshots);
+      if (connectionProfiles.length > 0) await db.connectionProfiles.bulkPut(connectionProfiles);
+      if (provenanceEntries.length > 0) await db.provenanceEntries.bulkPut(provenanceEntries);
+    });
+
+    oldDb.close();
+    await Dexie.delete('XiomDatabase');
+  } catch (err) {
+    console.error('Failed to migrate XiomDatabase to LaideDatabase:', err);
+    oldDb.close();
+  }
+}
+

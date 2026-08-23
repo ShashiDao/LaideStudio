@@ -1,4 +1,4 @@
-import type { FileItem } from '../../db';
+import type { FileItem, ProvenanceTestResult } from '../../db';
 
 const VITEST_SHIM = `
 export const tests = [];
@@ -88,7 +88,7 @@ export const beforeAll = (fn) => beforeAllHooks.push(fn);
 export const afterAll = (fn) => afterAllHooks.push(fn);
 `;
 
-export async function runProjectTests(files: FileItem[]): Promise<string> {
+export async function runProjectTestsDetailed(files: FileItem[]): Promise<ProvenanceTestResult> {
   const testFiles = files.filter(f => 
     f.path.endsWith('.test.ts') || 
     f.path.endsWith('.test.tsx') || 
@@ -99,7 +99,13 @@ export async function runProjectTests(files: FileItem[]): Promise<string> {
   );
 
   if (testFiles.length === 0) {
-    return 'No test files found.';
+    return {
+      passed: 0,
+      failed: 0,
+      total: 0,
+      status: 'no_tests',
+      output: 'No test files found.'
+    };
   }
 
   const entryCode = `
@@ -144,40 +150,120 @@ __laide_runAllTests().then(res => self.postMessage({ type: 'DONE', data: res }))
     const { bundle } = await import('./bundler');
     const bundledCode = await bundle(buildFiles, '/_tests_entry.ts');
 
-    return new Promise((resolve, _reject) => {
-      const blob = new Blob([bundledCode], { type: 'application/javascript' });
-      const url = URL.createObjectURL(blob);
-      const worker = new Worker(url, { type: 'module' });
+    if (typeof Worker === 'undefined') {
+      return {
+        passed: 0,
+        failed: 0,
+        total: 0,
+        status: 'error',
+        error: 'Web Workers are not supported in this environment.',
+        output: 'Web Workers are not supported in this environment.'
+      };
+    }
 
-      const timeout = setTimeout(() => {
-        worker.terminate();
-        resolve('Tests timed out after 30 seconds.');
-      }, 30000);
+    return new Promise((resolve) => {
+      let worker: Worker | null = null;
+      let blobUrl = '';
 
-      worker.onmessage = (e) => {
-        if (e.data && e.data.type === 'DONE') {
-          clearTimeout(timeout);
-          worker.terminate();
-          const { passed, failed, results } = e.data.data;
-          let output = `Tests run: ${passed + failed}, Passed: ${passed}, Failed: ${failed}\n\n`;
-          output += results.join('\n');
-          resolve(output);
-        } else if (e.data && e.data.type === 'ERROR') {
-          clearTimeout(timeout);
-          worker.terminate();
-          resolve(`Test execution error: ${e.data.error}`);
+      const cleanup = () => {
+        if (worker) {
+          try { worker.terminate(); } catch { /* ignore */ }
+          worker = null;
+        }
+        if (blobUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+          try { URL.revokeObjectURL(blobUrl); } catch { /* ignore */ }
         }
       };
 
-      worker.onerror = (e) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve({
+          passed: 0,
+          failed: 0,
+          total: 0,
+          status: 'error',
+          error: 'Tests timed out after 30 seconds.',
+          output: 'Tests timed out after 30 seconds.'
+        });
+      }, 30000);
+
+      try {
+        const blob = new Blob([bundledCode], { type: 'application/javascript' });
+        blobUrl = URL.createObjectURL(blob);
+        worker = new Worker(blobUrl, { type: 'module' });
+
+        worker.onmessage = (e) => {
+          clearTimeout(timeout);
+          if (e.data && e.data.type === 'DONE') {
+            cleanup();
+            const { passed, failed, results } = e.data.data;
+            const failedTests = (results as string[])
+              .filter(r => r.startsWith('❌ '))
+              .map(r => r.replace(/^❌\s*/, '').split('\n')[0].trim());
+            const output = `Tests run: ${passed + failed}, Passed: ${passed}, Failed: ${failed}\n\n` + (results as string[]).join('\n');
+            resolve({
+              passed,
+              failed,
+              total: passed + failed,
+              failedTests,
+              status: failed > 0 ? 'failed' : 'passed',
+              output
+            });
+          } else if (e.data && e.data.type === 'ERROR') {
+            cleanup();
+            resolve({
+              passed: 0,
+              failed: 0,
+              total: 0,
+              status: 'error',
+              error: e.data.error,
+              output: `Test execution error: ${e.data.error}`
+            });
+          }
+        };
+
+        worker.onerror = (e) => {
+          clearTimeout(timeout);
+          cleanup();
+          resolve({
+            passed: 0,
+            failed: 0,
+            total: 0,
+            status: 'error',
+            error: e.message || 'Worker execution error',
+            output: `Worker error: ${e.message || 'Unknown error'}`
+          });
+        };
+      } catch (err: unknown) {
         clearTimeout(timeout);
-        worker.terminate();
-        resolve(`Worker error: ${e.message}`);
-      };
+        cleanup();
+        const msg = err instanceof Error ? err.message : String(err);
+        resolve({
+          passed: 0,
+          failed: 0,
+          total: 0,
+          status: 'error',
+          error: msg,
+          output: `Failed to initialize test worker: ${msg}`
+        });
+      }
     });
 
-  } catch (err: any) {
-    return `Failed to bundle tests: ${err.message || String(err)}`;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      passed: 0,
+      failed: 0,
+      total: 0,
+      status: 'error',
+      error: msg,
+      output: `Failed to bundle tests: ${msg}`
+    };
   }
+}
+
+export async function runProjectTests(files: FileItem[]): Promise<string> {
+  const result = await runProjectTestsDetailed(files);
+  return result.output || result.error || 'No output from tests.';
 }
 

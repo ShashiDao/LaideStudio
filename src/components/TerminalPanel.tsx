@@ -59,6 +59,7 @@ const COMMAND_LIST = [
   'npm test',
   'test',
   'vitest',
+  'bisect',
   'npm run build',
   'build',
   'npm list',
@@ -170,11 +171,13 @@ Commands:
 export function TerminalPanel({
   projectId,
   files = [],
-  onFilesChanged
+  onFilesChanged,
+  onOpenBisect
 }: {
   projectId?: string;
   files: FileItem[];
   onFilesChanged?: () => void;
+  onOpenBisect?: (testName?: string) => void;
 }) {
   const { setActiveFileId, addToast, theme, toggleTheme } = useAppStore();
   const [cwd, setCwd] = useState<string>('/');
@@ -990,6 +993,19 @@ Access: 0644/-rw-r--r--`;
           break;
         }
 
+        case 'bisect': {
+          const targetTest = args.join(' ').trim();
+          if (onOpenBisect) {
+            onOpenBisect(targetTest || undefined);
+            outputType = 'info';
+            outputText = `Opening Bisection Finder${targetTest ? ` for test "${targetTest}"` : ''}...`;
+          } else {
+            outputType = 'stderr';
+            outputText = 'Bisection finder is unavailable in current mode.';
+          }
+          break;
+        }
+
         case 'npm':
         case 'test':
         case 'vitest':
@@ -1000,7 +1016,21 @@ Access: 0644/-rw-r--r--`;
             addOutput('info', 'Running project tests via sandbox runner...');
             const result = await runProjectTests(files);
             outputText = result;
-            outputType = result.includes('Failed: 0') || !result.includes('Failed:') ? 'success' : 'stderr';
+            const hasFailed = !result.includes('Failed: 0') && result.includes('Failed:');
+            outputType = hasFailed ? 'stderr' : 'success';
+            if (hasFailed && onOpenBisect) {
+              outputText += '\n💡 Tip: Type "bisect" or open Project Actions > "Find What Broke This" to binary search provenance history and isolate regressions.';
+            }
+          } else if (sub === 'bisect') {
+            const targetTest = args.slice(1).join(' ').trim();
+            if (onOpenBisect) {
+              onOpenBisect(targetTest || undefined);
+              outputType = 'info';
+              outputText = `Opening Bisection Finder${targetTest ? ` for test "${targetTest}"` : ''}...`;
+            } else {
+              outputType = 'stderr';
+              outputText = 'Bisection finder is unavailable in current mode.';
+            }
           } else if (sub === 'run' && args[1] === 'build' || sub === 'build') {
             addOutput('info', 'Building project with ESBuild WebAssembly bundler...');
             const projectInfo = detectBundledProject(files);

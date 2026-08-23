@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Copy, Check, Search } from 'lucide-react';
+import { X, Copy, Check, Search, Sparkles } from 'lucide-react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
@@ -15,10 +15,12 @@ import {
   replaceAll 
 } from '@codemirror/search';
 
-import type { FileItem } from '../db';
+import { db, type FileItem, type ProvenanceEntry } from '../db';
 import { writeFile } from '../services/fs/vfs';
 import { useAppStore } from '../store';
 import { EditorFindReplace } from './EditorFindReplace';
+import { getFileAiBlameCached } from '../services/provenance/blame';
+import { createAiBlameHoverTooltip, createAiBlameCursorListener, AiBlameSidePanel } from './EditorAiBlame';
 
 export const oledEditorTheme = createTheme({
   theme: 'dark',
@@ -130,7 +132,15 @@ export async function getLanguageExtensionAsync(path: string): Promise<Extension
   return null;
 }
 
-export function Editor({ file, onContentChanged }: { file: FileItem, onContentChanged: (newContent: string) => void }) {
+export function Editor({ 
+  file, 
+  onContentChanged,
+  onOpenBisect
+}: { 
+  file: FileItem, 
+  onContentChanged: (newContent: string) => void,
+  onOpenBisect?: (testName?: string) => void
+}) {
   const { setActiveFileId, theme, addToast } = useAppStore();
   const [content, setContent] = useState(file.content);
   const [isUnsaved, setIsUnsaved] = useState(false);
@@ -151,6 +161,38 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
   const [totalMatches, setTotalMatches] = useState(0);
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const [regexError, setRegexError] = useState<string | null>(null);
+
+  // AI Blame States
+  const [provenanceEntries, setProvenanceEntries] = useState<ProvenanceEntry[]>([]);
+  const [isBlameOpen, setIsBlameOpen] = useState(false);
+  const [activeLineNumber, setActiveLineNumber] = useState<number | null>(1);
+
+  // Fetch provenance entries for this file
+  useEffect(() => {
+    let active = true;
+    const fetchEntries = async () => {
+      try {
+        const raw = await db.provenanceEntries.where('projectId').equals(file.projectId).toArray();
+        if (active) {
+          const fileEntries = raw.filter(e => e.filePath === file.path);
+          setProvenanceEntries(fileEntries);
+        }
+      } catch (err) {
+        console.warn('Failed to load provenance entries for file:', err);
+      }
+    };
+    fetchEntries();
+    return () => {
+      active = false;
+    };
+  }, [file.projectId, file.path]);
+
+  // Compute line-by-line AI blame with memoized caching for 0 typing lag
+  const blameResult = useMemo(() => {
+    return getFileAiBlameCached(file.path, provenanceEntries, content);
+  }, [file.path, provenanceEntries, content]);
+
+  const activeBlameEntry = blameResult.blameMap.get(activeLineNumber ?? 1) || null;
 
   const handleCopyPath = () => {
     navigator.clipboard.writeText(file.path).then(() => {
@@ -476,7 +518,26 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
   ], [isFindOpen]);
 
   const activeCmTheme = theme === 'paper' ? paperEditorTheme : oledEditorTheme;
-  const combinedExtensions = useMemo(() => [...languageExt, ...searchExt], [languageExt, searchExt]);
+
+  // CodeMirror AI blame extensions (hover tooltip and cursor line listener)
+  const aiBlameExtensions = useMemo(() => {
+    const hoverExt = createAiBlameHoverTooltip(
+      (lineNum) => blameResult.blameMap.get(lineNum) || null,
+      theme
+    );
+    const cursorExt = createAiBlameCursorListener(
+      (lineNum) => {
+        setActiveLineNumber(lineNum);
+      },
+      (lineNum) => blameResult.blameMap.get(lineNum) || null
+    );
+    return [hoverExt, cursorExt];
+  }, [blameResult, theme]);
+
+  const combinedExtensions = useMemo(
+    () => [...languageExt, ...searchExt, ...aiBlameExtensions],
+    [languageExt, searchExt, aiBlameExtensions]
+  );
 
   return (
     <div className="absolute inset-0 bg-code-bg canvas-grid-pattern flex flex-col z-10 overflow-hidden">
@@ -486,6 +547,20 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
           {file.path}
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsBlameOpen(prev => !prev)}
+            aria-label="AI Blame"
+            title="Toggle AI Blame Inspector"
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono border transition-colors cursor-pointer ${
+              isBlameOpen 
+                ? 'bg-accent text-accent-text-on border-accent font-bold shadow-xs' 
+                : 'border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent'
+            }`}
+          >
+            <Sparkles size={13} />
+            <span className="hidden sm:inline text-[10px]">AI Blame</span>
+          </button>
           <button
             type="button"
             onClick={handleToggleFind}
@@ -549,41 +624,53 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
         focusTarget={focusTarget}
       />
 
-      {/* CodeMirror Editor Area */}
-      <div className="flex-1 overflow-auto bg-code-bg canvas-grid-pattern [&_.cm-editor]:h-auto [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-[13px] [&_.cm-gutters]:border-r [&_.cm-gutters]:border-border [&_.cm-gutters]:bg-code-bg [&_.cm-lineNumbers]:min-w-[2.5em]">
-        <CodeMirror
-          ref={editorRef}
-          value={content}
-          extensions={combinedExtensions}
-          theme={activeCmTheme}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          basicSetup={{
-            lineNumbers: true,
-            highlightActiveLineGutter: true,
-            highlightSpecialChars: true,
-            history: true,
-            foldGutter: true,
-            drawSelection: true,
-            dropCursor: true,
-            allowMultipleSelections: true,
-            indentOnInput: true,
-            syntaxHighlighting: true,
-            bracketMatching: true,
-            closeBrackets: true,
-            autocompletion: true,
-            rectangularSelection: true,
-            crosshairCursor: true,
-            highlightActiveLine: true,
-            highlightSelectionMatches: true,
-            closeBracketsKeymap: true,
-            defaultKeymap: true,
-            searchKeymap: false,
-            historyKeymap: true,
-            foldKeymap: true,
-            completionKeymap: true,
-            lintKeymap: true,
-          }}
+      {/* CodeMirror Editor Area & AI Blame SidePanel */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        <div className="flex-1 overflow-auto bg-code-bg canvas-grid-pattern [&_.cm-editor]:h-auto [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-[13px] [&_.cm-gutters]:border-r [&_.cm-gutters]:border-border [&_.cm-gutters]:bg-code-bg [&_.cm-lineNumbers]:min-w-[2.5em]">
+          <CodeMirror
+            ref={editorRef}
+            value={content}
+            extensions={combinedExtensions}
+            theme={activeCmTheme}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            basicSetup={{
+              lineNumbers: true,
+              highlightActiveLineGutter: true,
+              highlightSpecialChars: true,
+              history: true,
+              foldGutter: true,
+              drawSelection: true,
+              dropCursor: true,
+              allowMultipleSelections: true,
+              indentOnInput: true,
+              syntaxHighlighting: true,
+              bracketMatching: true,
+              closeBrackets: true,
+              autocompletion: true,
+              rectangularSelection: true,
+              crosshairCursor: true,
+              highlightActiveLine: true,
+              highlightSelectionMatches: true,
+              closeBracketsKeymap: true,
+              defaultKeymap: true,
+              searchKeymap: false,
+              historyKeymap: true,
+              foldKeymap: true,
+              completionKeymap: true,
+              lintKeymap: true,
+            }}
+          />
+        </div>
+        <AiBlameSidePanel
+          isOpen={isBlameOpen}
+          onClose={() => setIsBlameOpen(false)}
+          activeLineNumber={activeLineNumber}
+          activeEntry={activeBlameEntry}
+          totalAiLines={blameResult.blameMap.size}
+          totalDocLines={blameResult.lines.length}
+          theme={theme}
+          onOpenBisect={onOpenBisect}
         />
       </div>
     </div>

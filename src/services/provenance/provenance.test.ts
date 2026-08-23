@@ -10,7 +10,9 @@ import {
   recordProvenanceEntry,
   getProvenanceEntries,
   getLatestProvenanceEntry,
-  verifyProvenanceChain
+  verifyProvenanceChain,
+  attachTestResultToEntry,
+  runBackgroundTestsForProvenance
 } from './provenance';
 
 describe('Provenance Ledger Service', () => {
@@ -348,6 +350,49 @@ describe('Provenance Ledger Service', () => {
       const res = await verifyProvenanceChain(projectId);
       expect(res.valid).toBe(false);
       expect(res.error).toMatch(/Chain broken/i);
+    });
+
+    it('attaches test result to entry and updates in Dexie', async () => {
+      const entry = await recordProvenanceEntry({
+        projectId,
+        filePath: '/src/utils.ts',
+        beforeContent: 'a',
+        afterContent: 'b'
+      });
+
+      expect(entry.testResult).toBeUndefined();
+
+      await attachTestResultToEntry(entry.id, {
+        passed: 3,
+        failed: 0,
+        total: 3,
+        status: 'passed',
+        output: '3 passed'
+      });
+
+      const updated = await db.provenanceEntries.get(entry.id);
+      expect(updated?.testResult?.status).toBe('passed');
+      expect(updated?.testResult?.passed).toBe(3);
+
+      // Verify cryptographic chain validity remains intact
+      const verification = await verifyProvenanceChain(projectId);
+      expect(verification.valid).toBe(true);
+    });
+
+    it('runs background tests for project provenance entries with no test files gracefully', async () => {
+      const entry = await recordProvenanceEntry({
+        projectId,
+        filePath: '/src/main.ts',
+        beforeContent: '',
+        afterContent: 'console.log(1);'
+      });
+
+      const result = await runBackgroundTestsForProvenance(projectId, [entry.id]);
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe('no_tests');
+
+      const updated = await db.provenanceEntries.get(entry.id);
+      expect(updated?.testResult?.status).toBe('no_tests');
     });
   });
 });

@@ -11,10 +11,13 @@ import {
   Sparkles, 
   AlertCircle,
   Eye,
-  X
+  X,
+  GitMerge
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { runAgentLoop } from '../services/agent/agentLoop';
+import { runEnsembleDualEvaluation, type EnsembleEvaluationResult, type CandidateExecutionResult } from '../services/agent/ensemble';
+import { EnsembleCandidatePickerModal } from './EnsembleCandidatePickerModal';
 import { createLLMAdapter } from '../services/llm/factory';
 import { db, type FileItem } from '../db';
 import { listFiles } from '../services/fs/vfs';
@@ -52,11 +55,16 @@ export function ChatPanel({ projectId }: { projectId: string }) {
     manifestExcludePatterns,
     lastPreviewScreenshot,
     attachPreviewVision,
-    setAttachPreviewVision
+    setAttachPreviewVision,
+    ensembleModeEnabled,
+    ensembleCandidateBProfileId,
+    setPendingPatches
   } = useAppStore();
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [ensembleEvaluation, setEnsembleEvaluation] = useState<EnsembleEvaluationResult | null>(null);
   const [profileName, setProfileName] = useState('No Profile Selected');
   const [profileLabel, setProfileLabel] = useState('');
   const [contextFiles, setContextFiles] = useState<FileItem[]>([]);
@@ -73,16 +81,25 @@ export function ChatPanel({ projectId }: { projectId: string }) {
       setInput('');
     }
     setLoading(true);
+    setStatusMessage(null);
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
     try {
-      const profile = await db.connectionProfiles.get(activeProfileId);
-      if (!profile) throw new Error('Active profile not found');
-      
-      const activeModelName = profile.label || profile.model || profile.provider || 'Assistant';
-      const adapter = await createLLMAdapter(profile, keys.aesKey);
+      const allProfiles = await db.connectionProfiles.toArray();
+      const profileA = allProfiles.find(p => p.id === activeProfileId);
+      if (!profileA) throw new Error('Active profile not found');
+
+      // Check if ensemble mode is enabled and secondary profile is available
+      const candidateBProfile = ensembleModeEnabled
+        ? (ensembleCandidateBProfileId
+            ? allProfiles.find(p => p.id === ensembleCandidateBProfileId && p.id !== activeProfileId)
+            : allProfiles.find(p => p.id !== activeProfileId))
+        : null;
+
+      const isEnsembleActive = ensembleModeEnabled && !!candidateBProfile;
+
       const files = await listFiles(projectId);
       const manifestFiles = files.filter(f => !isPathExcludedFromManifest(f.path, manifestExcludePatterns));
       const systemPrompt = buildSystemPrompt(manifestFiles, customInstructions);
@@ -94,36 +111,103 @@ export function ChatPanel({ projectId }: { projectId: string }) {
           }
         : null;
 
-      const finalMessages = await runAgentLoop(
-        messageToSend,
-        chatHistory,
-        adapter,
-        projectId,
-        systemPrompt,
-        (updatedMessages) => {
-          setChatHistory(updatedMessages);
-        },
-        abortController.signal,
-        maxAgentSteps,
-        {
-          temperature,
-          maxTokens: maxOutputTokens,
-          screenshot: screenshotToPass,
-          modelName: activeModelName,
-          model: profile.model,
-          provider: profile.provider
-        }
-      );
+      if (isEnsembleActive && candidateBProfile) {
+        setStatusMessage(`Ensemble dispatching to ${profileA.label || profileA.model} & ${candidateBProfile.label || candidateBProfile.model}...`);
 
-      if (finalMessages.length > 0) {
-        const lastMsg = finalMessages[finalMessages.length - 1];
-        if (lastMsg.role === 'assistant' && !lastMsg.content && (!lastMsg.toolCalls || lastMsg.toolCalls.length === 0)) {
-          const fixedMessages = [...finalMessages];
-          fixedMessages[fixedMessages.length - 1] = {
-            ...lastMsg,
-            content: '⚠️ No response received from the model — try again'
-          };
-          setChatHistory(fixedMessages);
+        const adapterA = await createLLMAdapter(profileA, keys.aesKey);
+        const adapterB = await createLLMAdapter(candidateBProfile, keys.aesKey);
+
+        const candProfileA = {
+          id: profileA.id,
+          label: profileA.label || profileA.model || profileA.provider,
+          provider: profileA.provider,
+          model: profileA.model,
+          adapter: adapterA
+        };
+
+        const candProfileB = {
+          id: candidateBProfile.id,
+          label: candidateBProfile.label || candidateBProfile.model || candidateBProfile.provider,
+          provider: candidateBProfile.provider,
+          model: candidateBProfile.model,
+          adapter: adapterB
+        };
+
+        const result = await runEnsembleDualEvaluation(
+          messageToSend,
+          chatHistory,
+          candProfileA,
+          candProfileB,
+          projectId,
+          systemPrompt,
+          files,
+          abortController.signal,
+          {
+            temperature,
+            maxTokens: maxOutputTokens,
+            screenshot: screenshotToPass,
+            maxSteps: maxAgentSteps
+          },
+          (msg) => setStatusMessage(msg)
+        );
+
+        if (abortController.signal.aborted) return;
+
+        if (result.requiresUserSelection) {
+          // Surface both candidate diffs in comparison modal
+          setEnsembleEvaluation(result);
+        } else if (result.chosenCandidate) {
+          // Exactly 1 passed or 1 proposed patches: apply candidate's patches & update chat history
+          const chosen = result.chosenCandidate;
+          if (chosen.patches.length > 0) {
+            setPendingPatches(chosen.patches);
+          }
+          const chosenMessages = chosen.messages;
+          setChatHistory(chosenMessages);
+        } else {
+          // No patches or errors
+          setChatHistory([
+            ...chatHistory,
+            { role: 'user', content: messageToSend },
+            { role: 'assistant', content: result.summary || 'Ensemble completed without candidate patches.' }
+          ]);
+        }
+      } else {
+        // Standard single-provider execution
+        const activeModelName = profileA.label || profileA.model || profileA.provider || 'Assistant';
+        const adapter = await createLLMAdapter(profileA, keys.aesKey);
+
+        const finalMessages = await runAgentLoop(
+          messageToSend,
+          chatHistory,
+          adapter,
+          projectId,
+          systemPrompt,
+          (updatedMessages) => {
+            setChatHistory(updatedMessages);
+          },
+          abortController.signal,
+          maxAgentSteps,
+          {
+            temperature,
+            maxTokens: maxOutputTokens,
+            screenshot: screenshotToPass,
+            modelName: activeModelName,
+            model: profileA.model,
+            provider: profileA.provider
+          }
+        );
+
+        if (finalMessages.length > 0) {
+          const lastMsg = finalMessages[finalMessages.length - 1];
+          if (lastMsg.role === 'assistant' && !lastMsg.content && (!lastMsg.toolCalls || lastMsg.toolCalls.length === 0)) {
+            const fixedMessages = [...finalMessages];
+            fixedMessages[fixedMessages.length - 1] = {
+              ...lastMsg,
+              content: '⚠️ No response received from the model — try again'
+            };
+            setChatHistory(fixedMessages);
+          }
         }
       }
     } catch (e: any) {
@@ -137,6 +221,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
       }
     } finally {
       setLoading(false);
+      setStatusMessage(null);
       abortControllerRef.current = null;
     }
   };
@@ -601,11 +686,23 @@ export function ChatPanel({ projectId }: { projectId: string }) {
                   <span>Preview Vision</span>
                 </button>
               )}
+
+              {/* Ensemble Mode Indicator */}
+              {ensembleModeEnabled && (
+                <div 
+                  onClick={() => setActiveTab('settings')}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-accent/15 border border-accent/30 text-accent text-[10px] font-sans font-semibold cursor-pointer hover:bg-accent/25 transition-colors"
+                  title="Dual-LLM Ensemble Mode Active: coding requests are sent to two models in parallel and verified with sandboxed tests"
+                >
+                  <GitMerge size={11} />
+                  <span>Ensemble Mode</span>
+                </div>
+              )}
             </div>
 
             {loading && (
               <span className="text-[10px] font-sans text-accent animate-pulse">
-                Agent working...
+                {statusMessage || 'Agent working...'}
               </span>
             )}
           </div>
@@ -655,6 +752,22 @@ export function ChatPanel({ projectId }: { projectId: string }) {
           </div>
         </div>
       </div>
+
+      {/* Candidate Picker Modal for Ensemble Dual Pass */}
+      {ensembleEvaluation && (
+        <EnsembleCandidatePickerModal
+          evaluationResult={ensembleEvaluation}
+          onSelectCandidate={(chosenCandidate) => {
+            if (chosenCandidate.patches.length > 0) {
+              setPendingPatches(chosenCandidate.patches);
+            }
+            const chosenMessages = chosenCandidate.messages;
+            setChatHistory(chosenMessages);
+            setEnsembleEvaluation(null);
+          }}
+          onDismiss={() => setEnsembleEvaluation(null)}
+        />
+      )}
     </div>
   );
 }

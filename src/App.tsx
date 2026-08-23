@@ -28,6 +28,7 @@ import { ProjectActionsMenu } from './components/ProjectActionsMenu';
 import { ProjectMetadataPanel } from './components/ProjectMetadataPanel';
 import { GithubImportModal } from './components/GithubImportModal';
 import { GithubPushModal } from './components/GithubPushModal';
+import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
 import { ReloadPrompt } from './components/ReloadPrompt';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Toaster } from './components/Toaster';
@@ -93,9 +94,16 @@ export default function App() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [showProjectStats, setShowProjectStats] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
+  const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0] || null;
+
+  const handleOpenBisect = (testName?: string) => {
+    setBisectInitialTestName(testName);
+    setShowFindWhatBrokeModal(true);
+  };
 
   const activeProjectMetadata = useMemo(() => {
     return calculateProjectMetadata(files);
@@ -488,6 +496,7 @@ export default function App() {
                       onOpenGithubImport={handleOpenGithubImport}
                       onOpenGithubPush={handleOpenGithubPush}
                       onOpenAnalytics={() => setShowProjectStats(true)}
+                      onOpenBisect={() => handleOpenBisect()}
                       onRenameClick={() => setShowRenameModal(true)}
                       onUploadClick={() => fileInputRef.current?.click()}
                       onExportClick={async () => {
@@ -589,7 +598,8 @@ export default function App() {
             <TerminalPanel 
               projectId={activeProject?.id} 
               files={files} 
-              onFilesChanged={refreshFiles} 
+              onFilesChanged={refreshFiles}
+              onOpenBisect={handleOpenBisect}
             />
           )}
           {activeTab === 'settings' && (
@@ -602,7 +612,8 @@ export default function App() {
               file={activeFile} 
               onContentChanged={(newContent) => {
                 setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: newContent } : f));
-              }} 
+              }}
+              onOpenBisect={handleOpenBisect}
             />
           )}
         </main>
@@ -710,6 +721,16 @@ export default function App() {
             isOpen={showRenameModal}
             onClose={() => setShowRenameModal(false)}
             onRename={handleRenameProject}
+          />
+        )}
+
+        {/* Find What Broke This (Bisection) Modal */}
+        {activeProject && (
+          <FindWhatBrokeModal
+            projectId={activeProject.id}
+            isOpen={showFindWhatBrokeModal}
+            onClose={() => setShowFindWhatBrokeModal(false)}
+            initialTestName={bisectInitialTestName}
           />
         )}
 

@@ -82,6 +82,10 @@ export interface ChatSlice {
   setAttachPreviewVision: (attach: boolean) => void;
   autoVisionOnPatch: boolean;
   setAutoVisionOnPatch: (auto: boolean) => void;
+  ensembleModeEnabled: boolean;
+  setEnsembleModeEnabled: (enabled: boolean) => void;
+  ensembleCandidateBProfileId: string | null;
+  setEnsembleCandidateBProfileId: (id: string | null) => void;
 }
 
 export interface PWASlice {
@@ -304,6 +308,24 @@ const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set) => ({
       localStorage.setItem('xiom_auto_vision_on_patch', String(autoVisionOnPatch));
     }
     set({ autoVisionOnPatch });
+  },
+  ensembleModeEnabled: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_ensemble_mode') === 'true' : false,
+  setEnsembleModeEnabled: (ensembleModeEnabled) => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('xiom_ensemble_mode', String(ensembleModeEnabled));
+    }
+    set({ ensembleModeEnabled });
+  },
+  ensembleCandidateBProfileId: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_ensemble_candidate_b_id') : null,
+  setEnsembleCandidateBProfileId: (ensembleCandidateBProfileId) => {
+    if (typeof localStorage !== 'undefined') {
+      if (ensembleCandidateBProfileId) {
+        localStorage.setItem('xiom_ensemble_candidate_b_id', ensembleCandidateBProfileId);
+      } else {
+        localStorage.removeItem('xiom_ensemble_candidate_b_id');
+      }
+    }
+    set({ ensembleCandidateBProfileId });
   },
 });
 

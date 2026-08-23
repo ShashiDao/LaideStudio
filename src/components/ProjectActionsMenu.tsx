@@ -6,7 +6,8 @@ import {
   GitPullRequest, 
   Trash2, 
   BarChart3, 
-  Edit2 
+  Edit2,
+  GitBranch
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';
@@ -21,6 +22,7 @@ export interface ProjectActionsMenuProps {
   onDeleteClick: () => void;
   onRenameClick?: () => void;
   onOpenAnalytics?: () => void;
+  onOpenBisect?: () => void;
   className?: string;
 }
 
@@ -34,6 +36,7 @@ export function ProjectActionsMenu({
   onDeleteClick,
   onRenameClick,
   onOpenAnalytics,
+  onOpenBisect,
   className = ''
 }: ProjectActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -149,6 +152,28 @@ export function ProjectActionsMenu({
                   <div className="flex-1 min-w-0">
                     <div className="text-[11px] font-medium leading-tight">Project Analytics</div>
                     <div className="text-[9px] text-muted truncate">Lines of code & languages</div>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {onOpenBisect && (
+              <div className="py-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onOpenBisect();
+                  }}
+                  className="w-full text-left px-3 py-2 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                  role="menuitem"
+                >
+                  <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
+                    <GitBranch size={13} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-medium leading-tight">Find What Broke This</div>
+                    <div className="text-[9px] text-muted truncate">Bisect failing test in history</div>
                   </div>
                 </button>
               </div>

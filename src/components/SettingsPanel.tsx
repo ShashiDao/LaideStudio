@@ -3,7 +3,7 @@ import {
   Settings, Plus, Save, Trash2, ShieldCheck, ShieldAlert, Activity, CheckCircle2, 
   ChevronDown, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
   Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
-  Database, Cpu, ExternalLink
+  Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
@@ -71,7 +71,11 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     tokenUsage,
     setTokenUsage,
     theme,
-    setTheme
+    setTheme,
+    ensembleModeEnabled,
+    setEnsembleModeEnabled,
+    ensembleCandidateBProfileId,
+    setEnsembleCandidateBProfileId
   } = useAppStore();
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
   const [showLockConfirmModal, setShowLockConfirmModal] = useState(false);
@@ -891,6 +895,81 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
             {editingId ? 'Save Profile' : 'Add Profile'}
           </button>
         </form>
+      </div>
+
+      {/* Dual-LLM Ensemble Mode Configuration Card */}
+      <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-accent">
+            <GitMerge size={18} />
+            <h3 className="text-sm font-sans font-bold">Dual-LLM Ensemble Mode</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEnsembleModeEnabled(!ensembleModeEnabled)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-sans font-semibold transition-colors cursor-pointer border ${
+              ensembleModeEnabled
+                ? 'bg-accent text-surface border-accent'
+                : 'bg-bg text-muted border-border hover:text-text'
+            }`}
+          >
+            {ensembleModeEnabled ? (
+              <>
+                <ToggleRight size={16} />
+                <span>Enabled (Opt-In)</span>
+              </>
+            ) : (
+              <>
+                <ToggleLeft size={16} />
+                <span>Disabled (Off)</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        <p className="text-xs text-muted font-sans mb-3 leading-relaxed">
+          When enabled and multiple profiles are configured, your coding task is dispatched to two models concurrently. Both candidate patches are executed against the sandboxed Vitest runner. Only the patch that passes test verification is presented to you; if both pass, you can compare diffs and pick.
+        </p>
+
+        <div className="p-3 bg-oxide/10 border border-oxide/20 rounded text-[11px] text-oxide flex items-start gap-2 mb-3">
+          <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+          <span>
+            <strong>Token Cost Notice:</strong> Running two LLM providers in parallel roughly doubles token consumption per request. This mode defaults to disabled.
+          </span>
+        </div>
+
+        {ensembleModeEnabled && (
+          <div className="space-y-3 pt-2 border-t border-border">
+            {profiles.length < 2 ? (
+              <div className="p-3 bg-bg border border-border rounded text-xs text-muted">
+                ⚠️ You need at least two connection profiles configured to run Dual-LLM Ensemble mode. Please add a second profile above.
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-sans text-muted mb-1.5">
+                  Secondary Candidate Model (Candidate B)
+                </label>
+                <select
+                  value={ensembleCandidateBProfileId || ''}
+                  onChange={(e) => setEnsembleCandidateBProfileId(e.target.value || null)}
+                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-xs focus:border-accent focus:outline-none"
+                >
+                  <option value="">-- Auto-select first alternate profile --</option>
+                  {profiles
+                    .filter((p) => p.id !== activeProfileId)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label || p.provider} ({p.model})
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-muted mt-1">
+                  Primary model (Candidate A) is your active default profile: <strong>{profiles.find(p => p.id === activeProfileId)?.label || 'Default Profile'}</strong>.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Custom Instructions Panel */}

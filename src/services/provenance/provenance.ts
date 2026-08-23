@@ -29,6 +29,7 @@ export interface RecordProvenanceParams {
   rationale?: string;
   timestamp?: number;
   id?: string;
+  testResult?: import('../../db').ProvenanceTestResult;
 }
 
 export interface ProvenanceVerificationResult {
@@ -167,11 +168,47 @@ export async function recordProvenanceEntry(params: RecordProvenanceParams): Pro
   const entryHash = await computeEntryHash(entryWithoutHash);
   const fullEntry: ProvenanceEntry = {
     ...entryWithoutHash,
-    entryHash
+    entryHash,
+    beforeContent: params.beforeContent ?? undefined,
+    afterContent: params.afterContent ?? undefined,
+    testResult: params.testResult
   };
 
   await db.provenanceEntries.add(fullEntry);
   return fullEntry;
+}
+
+/**
+ * Attaches a test result to a specific provenance entry in the database.
+ */
+export async function attachTestResultToEntry(
+  entryId: string,
+  testResult: import('../../db').ProvenanceTestResult
+): Promise<void> {
+  await db.provenanceEntries.update(entryId, { testResult });
+}
+
+/**
+ * Runs the project test suite in the background and attaches the test result to the specified provenance entry IDs.
+ */
+export async function runBackgroundTestsForProvenance(
+  projectId: string,
+  entryIds: string[]
+): Promise<import('../../db').ProvenanceTestResult | null> {
+  if (!entryIds || entryIds.length === 0) return null;
+  try {
+    const files = await db.files.where('projectId').equals(projectId).toArray();
+    const { runProjectTestsDetailed } = await import('../bundler/testRunner');
+    const testResult = await runProjectTestsDetailed(files);
+
+    for (const entryId of entryIds) {
+      await db.provenanceEntries.update(entryId, { testResult });
+    }
+    return testResult;
+  } catch (err) {
+    console.warn('Background test runner for provenance failed:', err);
+    return null;
+  }
 }
 
 /**

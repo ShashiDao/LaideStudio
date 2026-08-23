@@ -1,6 +1,6 @@
 ## Current State
-- Phase: FEAT-PROVENANCE-1
-- Last verified working: `npm run lint` exits 0 with 0 errors. All 42 test suites and 279 unit/integration tests pass cleanly. `compile_applet` (`npm run build`) builds the application bundle with zero errors.
+- Phase: REBRAND-2
+- Last verified working: Full test suite passes cleanly with 49 test files and 315 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,96 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [REBRAND-2] Migrate IndexedDB from XiomDatabase to LaideDatabase — 2026-08-23
+Prompt: Rename the underlying Dexie database from 'XiomDatabase' to 'LaideDatabase'. Copy all existing rows (projects, files, snapshots, connectionProfiles, provenanceEntries) from any existing XiomDatabase into the new LaideDatabase, preserving project data. Delete the old database only if the copy succeeds.
+Files touched:
+- `src/db.ts` (modified)
+- `src/main.tsx` (modified)
+- `src/db.test.ts` (new)
+Changed:
+- Renamed the `XiomDatabase` argument in `super('XiomDatabase')` to `'LaideDatabase'` inside `LaideDatabase` constructor.
+- Implemented `migrateXiomToLaide()` in `src/db.ts` which uses `Dexie.exists()` to check for the old `'XiomDatabase'`, opens it with the correct schema, copies all rows to `LaideDatabase` via `db.transaction` and `bulkPut`, and deletes the old database on success.
+- Exported and awaited `migrateXiomToLaide()` inside `src/main.tsx` before invoking React `createRoot`, ensuring data is fully migrated before the app accesses `db`.
+- Added `src/db.test.ts` with `fake-indexeddb` to simulate an old `XiomDatabase` with records in each table, execute the migration, and assert the old DB is deleted while the new DB successfully imported the data.
+Decisions: Leveraged Dexie's `.bulkPut` combined with a single transaction block for the new DB insert phase to maintain atomicity and speed. The old DB is explicitly retained if any error is caught during the data copy phase.
+Deviations: none
+Verified: `src/db.test.ts` passes cleanly in Vitest.
+Open questions: none
+
+### [FEAT-ENSEMBLE-1] Dual-LLM Ensemble Mode with Sandboxed Test Verification — 2026-08-23
+Prompt: When the user has more than one LLM provider configured, add an opt-in mode where a coding task is sent to two providers at once, both candidate patches are run through the sandboxed test runner, and only the patch that passes is shown to the user (if both pass, show both diffs and let the user pick). Reuses the existing LLMAdapter abstraction, defaults to off in Settings.
+Files touched:
+- `src/services/agent/ensemble.ts` (new)
+- `src/services/agent/ensemble.test.ts` (new)
+- `src/components/EnsembleCandidatePickerModal.tsx` (new)
+- `src/components/EnsembleCandidatePickerModal.test.tsx` (new)
+- `src/store.ts` (modified)
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/ChatPanel.tsx` (modified)
+Changed:
+- Implemented `runSimulatedAgentCandidate`, `evaluateCandidatePatches`, and `runEnsembleDualEvaluation` in `src/services/agent/ensemble.ts` using the unified `LLMAdapter` abstraction with no provider-specific branching.
+- Created `EnsembleCandidatePickerModal.tsx` to display dual candidate comparison columns, pass/fail test indicators, test logs, and patch diff lists when user selection is needed.
+- Added `ensembleModeEnabled` and `ensembleCandidateBProfileId` configuration in `store.ts` with local storage persistence, defaulting to false/disabled.
+- Added Dual-LLM Ensemble Mode opt-in toggle card with token cost notice and secondary candidate selector to `SettingsPanel.tsx`.
+- Integrated parallel ensemble execution and candidate resolution into `ChatPanel.tsx`, including bottom bar status indicator and auto-selection when a single candidate passes tests.
+- Added unit tests in `ensemble.test.ts` and UI test in `EnsembleCandidatePickerModal.test.tsx`.
+Decisions: Defaulted ensemble mode to off with a clear token cost warning. Executed candidate generation in simulated in-memory containers so that intermediate tool calls do not touch the user's live VFS or active pending patches list until test verification and selection complete.
+Deviations: none
+Verified: All 48 test files and 314 tests pass in Vitest (`npm test`). Application build succeeds (`compile_applet`).
+Open questions: none
+
+### [FEAT-PROVENANCE-3] Historical Provenance Bisection ("Find What Broke This") Action — 2026-08-23
+Prompt: Add a "Find what broke this" action that walks backward through provenance chain snapshots, binary-searches to identify the earliest patch introducing a test failure, surfaces patch diff and model rationale, and offers a one-click action to pre-fill chat for the agent to fix.
+Files touched:
+- `src/services/provenance/bisect.ts` (new)
+- `src/services/provenance/bisect.test.ts` (new)
+- `src/services/provenance/index.ts` (modified)
+- `src/components/FindWhatBrokeModal.tsx` (new)
+- `src/components/FindWhatBrokeModal.test.tsx` (new)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/EditorAiBlame.tsx` (modified)
+- `src/components/Editor.tsx` (modified)
+- `src/components/TerminalPanel.tsx` (modified)
+- `src/App.tsx` (modified)
+Changed:
+- Implemented `bisectBrokenTest` in `src/services/provenance/bisect.ts` using logarithmic binary search ($O(\log N)$ historical test runs) across ordered provenance entries.
+- Implemented in-memory historical file state reconstruction (`reconstructHistoricalFiles`) without mutating the live project VFS, deep-cloning files and rewinding patch diffs down to candidate revision indices.
+- Added support for `AbortSignal` for instant user cancellation of in-flight bisection runs and progress callback instrumentation.
+- Created `FindWhatBrokeModal.tsx` displaying step-by-step progress, binary-search bounds, candidate tests selector, offending patch metadata (model, provider, timestamp, rationale), before/after unified diff, and historical test runner failure logs.
+- Added one-click "Send to Agent to Fix" action pre-filling `queuedPrompt` and routing to the Chat tab with full failure context, rationale, and diff.
+- Wired "Find What Broke This" affordances into `ProjectActionsMenu`, `EditorAiBlame` side panel, `TerminalPanel` (via `bisect` command and failed test prompts), and `App.tsx`.
+- Added unit and integration tests in `bisect.test.ts` (synthetic history, $O(\log N)$ step assertion, abort signal, diff formatting) and `FindWhatBrokeModal.test.tsx`.
+Decisions: Kept all bisection runs strictly in-memory against cloned snapshot states so the user's active file editor and live VFS state are never touched or modified during analysis.
+Deviations: none
+Verified: Full Vitest test suite passes (46 test files, 308 tests). ESLint exits with 0 errors (`npx eslint . --quiet`). TypeScript checks clean (`npx tsc --noEmit`). Applet build succeeds (`compile_applet`).
+Open questions: none
+
+### [FEAT-PROVENANCE-2] Background Test Suite Runner & Editor AI Blame Affordance — 2026-08-23
+Prompt: Automatically run the sandboxed project test suite after patch application in the background and attach results to provenance ledger entries; add an AI blame affordance to the CodeMirror editor displaying model, provider, timestamp, rationale, and test status.
+Files touched:
+- `src/db.ts` (modified)
+- `src/services/bundler/testRunner.ts` (modified)
+- `src/services/provenance/provenance.ts` (modified)
+- `src/services/provenance/blame.ts` (new)
+- `src/services/provenance/index.ts` (modified)
+- `src/components/PatchReviewSheet.tsx` (modified)
+- `src/components/EditorAiBlame.tsx` (new)
+- `src/components/Editor.tsx` (modified)
+- `src/services/provenance/blame.test.ts` (new)
+- `src/services/provenance/provenance.test.ts` (modified)
+- `src/components/EditorAiBlame.test.tsx` (new)
+Changed:
+- Extended `ProvenanceEntry` with `ProvenanceTestResult` and optional before/after snapshots in `db.ts`.
+- Implemented `runProjectTestsDetailed` in `src/services/bundler/testRunner.ts` to return structured test execution metrics (passed, failed, total, failed test names, status, and output).
+- Added `runBackgroundTestsForProvenance` and `attachTestResultToEntry` in `src/services/provenance/provenance.ts` and triggered it asynchronously from `PatchReviewSheet.tsx` after patch application without blocking UI.
+- Implemented `computeFileAiBlame` and `getFileAiBlameCached` with LRU-style cache in `src/services/provenance/blame.ts` to trace per-line attribution with zero typing lag.
+- Created CodeMirror 6 extensions (`createAiBlameHoverTooltip`, `createAiBlameCursorListener`) and `AiBlameSidePanel` inspector in `src/components/EditorAiBlame.tsx` and integrated them into `src/components/Editor.tsx` with header action toggle.
+- Added comprehensive unit and integration tests covering line blame calculation, multi-patch sequential histories, background test execution, test result formatting, and inspector rendering.
+Decisions: Kept the blame lookup memoized/cached per file path and content hash to guarantee zero perceptible typing lag; ran test suite in Web Worker asynchronously after patch application to keep the UI completely non-blocking.
+Deviations: none
+Verified: All 297 tests pass across 44 test suites (`npm test`). ESLint quiet passes with 0 errors (`npx eslint . --quiet`). Applet compilation passes (`compile_applet`).
+Open questions: none
 
 ### [FEAT-PROVENANCE-1] Local Tamper-Evident Provenance Ledger for Applied AI Patches — 2026-08-23
 Prompt: Add a local, tamper-evident history of every applied AI patch (provenance ledger) with Dexie schema migration, hash chaining, model/provider metadata threading, and verification utilities.

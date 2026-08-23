@@ -3,7 +3,7 @@ import { useAppStore, type PendingPatch } from '../store';
 import { computeHunks, type DiffHunk } from '../services/agent/patchSchema';
 import { writeFile, createFile, deleteFile, listFiles } from '../services/fs/vfs';
 import { createSnapshot } from '../services/fs/snapshot';
-import { recordProvenanceEntry } from '../services/provenance/provenance';
+import { recordProvenanceEntry, runBackgroundTestsForProvenance } from '../services/provenance';
 import { structuredPatch, applyPatch } from 'diff';
 import { CheckSquare, Square, ChevronUp, ChevronDown, Check, Eye, AlertTriangle, Trash2, X } from 'lucide-react';
 
@@ -107,6 +107,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
 
     const files = await listFiles(projectId);
     const appliedPaths: string[] = [];
+    const recordedEntryIds: string[] = [];
     const errors: string[] = [];
 
     // Group hunks by patch
@@ -187,7 +188,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
         }
 
         // Record provenance ledger entry for the applied patch
-        await recordProvenanceEntry({
+        const recordedEntry = await recordProvenanceEntry({
           projectId,
           filePath: patch.path,
           beforeContent,
@@ -197,6 +198,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
           messageId: patch.messageId,
           rationale: patch.rationale
         });
+        recordedEntryIds.push(recordedEntry.id);
 
         // Only push to appliedPaths after write and provenance operation actually succeeds
         appliedPaths.push(patch.path);
@@ -209,6 +211,12 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
     if (appliedPaths.length > 0) {
       flashPatchedPaths(appliedPaths);
       triggerInstallEngagement();
+      // Asynchronously run background test suite and attach results to ledger entries
+      if (recordedEntryIds.length > 0) {
+        runBackgroundTestsForProvenance(projectId, recordedEntryIds).catch(err => {
+          console.warn('Background test runner for provenance failed:', err);
+        });
+      }
     }
 
     if (errors.length > 0) {
