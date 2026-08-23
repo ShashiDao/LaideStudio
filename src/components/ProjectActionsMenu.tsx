@@ -5,13 +5,8 @@ import {
   Download, 
   GitPullRequest, 
   Trash2, 
-  FolderDown, 
-  Sparkles,
-  FileCode,
-  Check,
-  ChevronDown,
-  BarChart3,
-  Edit2
+  BarChart3, 
+  Edit2 
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';

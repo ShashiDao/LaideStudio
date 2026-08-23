@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { buildBundledHtml, PreviewPanel } from './PreviewPanel';
 import { escapeScriptClosingTags } from '../services/bundler/bundler';
 import * as esbuild from 'esbuild-wasm';

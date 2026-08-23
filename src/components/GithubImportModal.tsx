@@ -55,7 +55,7 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         owner = parts[0];
         repo = parts[1];
       } catch (err) {
-        throw new Error('Please enter a valid GitHub repository URL (e.g. https://github.com/owner/repo)');
+        throw new Error('Please enter a valid GitHub repository URL (e.g. https://github.com/owner/repo)', { cause: err });
       }
 
       const client = await createGithubClient(keys);

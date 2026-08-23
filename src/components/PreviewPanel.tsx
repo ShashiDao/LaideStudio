@@ -9,7 +9,7 @@ import { stripTailwindDirectives } from '../services/bundler/esbuild.worker';
 import { escapeScriptClosingTags } from '../services/bundler/bundler';
 
 export function buildBundledHtml(code: string, indexHtmlContent?: string): string {
-  let finalHtml = '';
+  let finalHtml: string;
 
   if (indexHtmlContent) {
     const parser = new DOMParser();
@@ -128,16 +128,12 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
   useEffect(() => {
     let active = true;
 
-    const cleanup = () => {
-      
-    };
-
-    
-    setError(null);
-    setRuntimeError(null);
-    setStatus('Building preview...');
-
     async function build() {
+      if (!active) return;
+      setError(null);
+      setRuntimeError(null);
+      setStatus('Building preview...');
+
       // 1. Detect bundled project vs static project
       const projectInfo = detectBundledProject(files);
 
@@ -229,10 +225,6 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
             const targetPath = resolvePath(indexFile.path, src);
             const targetFile = files.find(f => f.path === targetPath);
             if (targetFile) {
-              let mimeType = 'application/javascript';
-              if (script.getAttribute('type') === 'module') {
-                mimeType = 'text/javascript';
-              }
               const inlineScript = doc.createElement('script');
               if (script.getAttribute('type') === 'module') {
                 inlineScript.setAttribute('type', 'module');
@@ -289,7 +281,7 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
           if (screenshot) {
             setLastPreviewScreenshot(screenshot);
           }
-        } catch (e) {
+        } catch (_e) {
           // ignore background capture errors
         }
       }, 350);

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
-import { encryptData, decryptData, arrayBufferToBase64, base64ToArrayBuffer } from '../services/crypto';
+import { encryptData, decryptData } from '../services/crypto';
 import { AnthropicProvider } from '../services/llm/providers/anthropic';
 import { OpenAIProvider } from '../services/llm/providers/openai';
 import { GoogleProvider } from '../services/llm/providers/google';
@@ -151,25 +151,81 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   const [dbStats, setDbStats] = useState<{ projectCount: number; fileCount: number } | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
+  const loadProfiles = async () => {
+    const all = await db.connectionProfiles.toArray();
+    setProfiles(all);
+  };
+
+  const loadCacheInfo = async () => {
+    try {
+      const { getDependencyCacheInfo } = await import('../services/bundler/bundler');
+      const info = await getDependencyCacheInfo();
+      setCachedDepCount(info.count);
+    } catch {
+      setCachedDepCount(0);
+    }
+  };
+
   useEffect(() => {
+    let active = true;
     async function loadStats() {
       try {
         const pCount = await db.projects.count();
         const fCount = await db.files.count();
-        setDbStats({ projectCount: pCount, fileCount: fCount });
+        if (active) {
+          setDbStats({ projectCount: pCount, fileCount: fCount });
+        }
       } catch {
-        setDbStats(null);
+        if (active) setDbStats(null);
       }
     }
     loadStats();
+    return () => {
+      active = false;
+    };
   }, [profiles]);
 
   useEffect(() => {
-    setInstructionsDraft(customInstructions);
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) {
+        setInstructionsDraft(customInstructions);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [customInstructions]);
 
   useEffect(() => {
-    loadProfiles();
+    let active = true;
+    async function initProfiles() {
+      const all = await db.connectionProfiles.toArray();
+      if (active) {
+        setProfiles(all);
+      }
+    }
+    initProfiles();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function initCache() {
+      try {
+        const { getDependencyCacheInfo } = await import('../services/bundler/bundler');
+        const info = await getDependencyCacheInfo();
+        if (active) setCachedDepCount(info.count);
+      } catch {
+        if (active) setCachedDepCount(0);
+      }
+    }
+    initCache();
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Close model dropdown on click outside
@@ -213,39 +269,24 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
 
   // Load GitHub PAT
   useEffect(() => {
+    let active = true;
     async function loadGithub() {
       if (!keys) return;
       const enc = localStorage.getItem('xiom_github_pat');
       if (enc) {
         try {
           const dec = await decryptData(keys.aesKey, enc);
-          setGithubPatInput(dec);
-        } catch (e) {
+          if (active) setGithubPatInput(dec);
+        } catch (_e) {
           console.warn('Could not decrypt GitHub PAT');
         }
       }
     }
     loadGithub();
+    return () => {
+      active = false;
+    };
   }, [keys]);
-
-  const loadProfiles = async () => {
-    const all = await db.connectionProfiles.toArray();
-    setProfiles(all);
-  };
-
-  const loadCacheInfo = async () => {
-    try {
-      const { getDependencyCacheInfo } = await import('../services/bundler/bundler');
-      const info = await getDependencyCacheInfo();
-      setCachedDepCount(info.count);
-    } catch {
-      setCachedDepCount(0);
-    }
-  };
-
-  useEffect(() => {
-    loadCacheInfo();
-  }, []);
 
   const handleClearDepCache = async () => {
     try {
@@ -284,7 +325,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       try {
         const decrypted = await decryptData(keys.aesKey, p.encryptedApiKey);
         setApiKey(decrypted);
-      } catch (e) {
+      } catch (_e) {
         console.warn('Could not decrypt API key for display');
       }
     }

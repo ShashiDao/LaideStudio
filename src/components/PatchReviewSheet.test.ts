@@ -164,8 +164,8 @@ describe('PatchReviewSheet', () => {
   });
 
   it('delete-confirmation modal blocks delete-type patches until explicitly confirmed', async () => {
-    const fileToDelete = await createFile(projectId, '/src/legacy.ts', 'export const deprecated = true;\n');
-    const safeFile = await createFile(projectId, '/src/safe.ts', 'export const keepMe = true;\n');
+    await createFile(projectId, '/src/legacy.ts', 'export const deprecated = true;\n');
+    await createFile(projectId, '/src/safe.ts', 'export const keepMe = true;\n');
 
     const patches: PendingPatch[] = [
       {

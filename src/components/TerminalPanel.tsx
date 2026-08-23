@@ -1,16 +1,12 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Terminal, 
   Trash2, 
   Copy, 
   Check, 
   CornerDownLeft, 
-  RotateCcw, 
   Play, 
-  CheckCircle2, 
-  XCircle, 
   Folder, 
-  FileText, 
   HelpCircle, 
   Sparkles,
   Loader2
@@ -143,6 +139,35 @@ function tokenize(input: string): string[] {
   return tokens;
 }
 
+function getCommandManual(cmd: string): string {
+  switch (cmd) {
+    case 'grep':
+      return `Usage: grep [-i] [-n] [-v] [-c] <pattern> [file]
+Options:
+  -i  Case-insensitive search
+  -n  Print line number with output lines
+  -v  Invert match (select non-matching lines)
+  -c  Only print a count of matching lines`;
+    case 'ls':
+      return `Usage: ls [-l] [-a] [dir]
+Options:
+  -l  Use long listing format (permissions, size, date)
+  -a  Include hidden/dot files (. and ..)`;
+    case 'tree':
+      return `Usage: tree [-L level] [dir]
+Options:
+  -L  Max display depth of the directory tree`;
+    case 'npm':
+      return `Usage: npm <test|run build|list>
+Commands:
+  test       Execute test suites with in-browser Vitest runner
+  run build  Compile project bundle with WebAssembly ESBuild
+  list       Show package.json dependency tree`;
+    default:
+      return `Command "${cmd}": Refer to general "help" for syntax and flags.`;
+  }
+}
+
 export function TerminalPanel({
   projectId,
   files = [],
@@ -188,7 +213,15 @@ Type "help" for a list of available commands or click quick actions below.`,
 
   // Keep PWD in sync with cwd
   useEffect(() => {
-    setEnv(prev => ({ ...prev, PWD: cwd }));
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) {
+        setEnv(prev => ({ ...prev, PWD: cwd }));
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [cwd]);
 
   const addOutput = useCallback((
@@ -310,7 +343,7 @@ Type "help" for a list of available commands or click quick actions below.`,
     }
   };
 
-  const executeCommand = async (rawCommand: string) => {
+  const executeCommand = useCallback(async (rawCommand: string) => {
     const trimmed = rawCommand.trim();
     if (!trimmed) return;
 
@@ -1236,7 +1269,7 @@ Access: 0644/-rw-r--r--`;
     } finally {
       setIsRunning(false);
     }
-  };
+  }, [addOutput, cwd, dirExists, env, files, getDirEntries, isRunning, projectId]);
 
   const handleCopyLogs = () => {
     const raw = history.map(h => {
@@ -1249,35 +1282,6 @@ Access: 0644/-rw-r--r--`;
       setTimeout(() => setCopied(false), 2000);
       addToast('Terminal output copied to clipboard', 'info');
     });
-  };
-
-  const getCommandManual = (cmd: string): string => {
-    switch (cmd) {
-      case 'grep':
-        return `Usage: grep [-i] [-n] [-v] [-c] <pattern> [file]
-Options:
-  -i  Case-insensitive search
-  -n  Print line number with output lines
-  -v  Invert match (select non-matching lines)
-  -c  Only print a count of matching lines`;
-      case 'ls':
-        return `Usage: ls [-l] [-a] [dir]
-Options:
-  -l  Use long listing format (permissions, size, date)
-  -a  Include hidden/dot files (. and ..)`;
-      case 'tree':
-        return `Usage: tree [-L level] [dir]
-Options:
-  -L  Max display depth of the directory tree`;
-      case 'npm':
-        return `Usage: npm <test|run build|list>
-Commands:
-  test       Execute test suites with in-browser Vitest runner
-  run build  Compile project bundle with WebAssembly ESBuild
-  list       Show package.json dependency tree`;
-      default:
-        return `Command "${cmd}": Refer to general "help" for syntax and flags.`;
-    }
   };
 
   return (

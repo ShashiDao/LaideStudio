@@ -1,6 +1,6 @@
 ## Current State
-- Phase: FEAT-PROJECT-ANALYTICS
-- Last verified working: Integrated active project detailed metadata and language distribution analytics using Recharts. Displays Total Lines of Code (LOC), file counts, uncompressed codebase size, dominant language, and interactive Donut/Bar charts with metric toggles directly in the active project header.
+- Phase: HOTFIX-30
+- Last verified working: `npm run lint` (`tsc --noEmit && eslint .`) exits 0 with 0 errors across all TypeScript files and React components. All 63 Vitest tests pass cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,38 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-30] Fix CodeMirror SearchCursor TypeScript errors and resolve all ESLint errors — 2026-08-23
+Prompt: Fix CodeMirror SearchCursor TypeScript errors in Editor.tsx and resolve all 83 ESLint errors across components and services so npm run lint exits 0 cleanly.
+Files touched:
+- `src/components/Editor.tsx` (modified)
+- `src/components/App.tsx` (modified)
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/FileTree.tsx` (modified)
+- `src/components/GithubImportModal.tsx` (modified)
+- `src/components/GithubPushModal.tsx` (modified)
+- `src/components/LockScreen.tsx` (modified)
+- `src/components/PatchReviewSheet.tsx` (modified)
+- `src/components/PatchReviewSheet.test.ts` (modified)
+- `src/components/PreviewPanel.tsx` (modified)
+- `src/components/PreviewPanel.test.tsx` (modified)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/ProjectMetadataPanel.tsx` (modified)
+- `src/components/ProjectMetadataPanel.test.tsx` (modified)
+- `src/components/RenameProjectModal.tsx` (modified)
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/TerminalPanel.tsx` (modified)
+- `src/components/TopStrip.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Corrected TypeScript types in `Editor.tsx` by using CodeMirror's `SearchCursor` type directly instead of generic `Iterator`.
+- Eliminated synchronous `setState` within `useEffect` hooks across components using deferred promise microtasks (`Promise.resolve()`) and component mount cancellation flags.
+- Resolved React Compiler purity and component-in-render issues by lifting nested components (`CustomTooltip`), wrapping event handlers in `useCallback`, and ensuring pure render lifecycles.
+- Cleaned up all unused variables, parameters, and imports, and attached cause chains to rethrown errors.
+Decisions: Retained existing behavior and interfaces without introducing breaking API changes while achieving zero TypeScript and ESLint errors.
+Deviations: none
+Verified: `npx tsc --noEmit` and `npx eslint . --quiet` passed with 0 errors; full Vitest suite (63 tests) passed; `compile_applet` passed.
+Open questions: none
 
 ### [FEAT-PROJECT-ANALYTICS] Add active project detailed metadata & Recharts language distribution charts — 2026-08-22
 Prompt: Update the project header to display more detailed metadata like total lines of code or language distribution charts using recharts, only for the active project.

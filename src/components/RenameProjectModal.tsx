@@ -15,21 +15,29 @@ export function RenameProjectModal({
   onClose,
   onRename,
 }: RenameProjectModalProps) {
-  const [name, setName] = useState('');
+  const [name, setName] = useState(project?.name || '');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [prevProject, setPrevProject] = useState(project);
+
+  if (project !== prevProject) {
+    setPrevProject(project);
+    setName(project?.name || '');
+    setError(null);
+  }
 
   useEffect(() => {
     if (project && isOpen) {
-      setName(project.name);
-      setError(null);
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus();
           inputRef.current.select();
         }
       }, 50);
+      return () => {
+        clearTimeout(timer);
+      };
     }
   }, [project, isOpen]);
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAppStore, type PendingPatch } from '../store';
 import { computeHunks, type DiffHunk } from '../services/agent/patchSchema';
 import { writeFile, createFile, deleteFile, listFiles } from '../services/fs/vfs';
@@ -23,10 +23,6 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
     triggerInstallEngagement,
     flashPatchedPaths
   } = useAppStore();
-  const [hunkStates, setHunkStates] = useState<HunkState[]>([]);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [applyErrors, setApplyErrors] = useState<string[]>([]);
-
   // Compute all hunks on mount or when patches change
   const computedData = useMemo(() => {
     const data: { patch: PendingPatch, hunks: DiffHunk[] }[] = [];
@@ -68,9 +64,15 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
     return { data, stateList };
   }, [pendingPatches]);
 
-  useEffect(() => {
+  const [prevPatches, setPrevPatches] = useState(pendingPatches);
+  const [hunkStates, setHunkStates] = useState<HunkState[]>(() => computedData.stateList);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [applyErrors, setApplyErrors] = useState<string[]>([]);
+
+  if (pendingPatches !== prevPatches) {
+    setPrevPatches(pendingPatches);
     setHunkStates(computedData.stateList);
-  }, [computedData.stateList]);
+  }
 
   if (pendingPatches.length === 0) return null;
 
@@ -108,7 +110,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
 
     // Group hunks by patch
     for (let pIdx = 0; pIdx < computedData.data.length; pIdx++) {
-      const { patch, hunks } = computedData.data[pIdx];
+      const { patch } = computedData.data[pIdx];
       const patchHunkStates = hunkStates.filter(s => s.patchIndex === pIdx);
       
       const anyChecked = patchHunkStates.some(s => s.checked);

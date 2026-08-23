@@ -19,7 +19,7 @@ import { createLLMAdapter } from '../services/llm/factory';
 import { db, type FileItem } from '../db';
 import { listFiles } from '../services/fs/vfs';
 import { encode } from 'gpt-tokenizer';
-import type { LLMMessage, LLMToolCall } from '../services/llm/llmAdapter';
+import type { LLMToolCall } from '../services/llm/llmAdapter';
 import { 
   SUGGESTION_PROMPTS, 
   BASE_SYSTEM_PROMPT, 
@@ -64,120 +64,6 @@ export function ChatPanel({ projectId }: { projectId: string }) {
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    if (activeProfileId) {
-      db.connectionProfiles.get(activeProfileId).then(p => {
-        if (p) {
-          setProfileName(`${p.label || p.provider} (${p.model})`);
-          setProfileLabel(p.label || p.model || p.provider || '');
-        }
-      });
-    } else {
-      setProfileName('No Profile Selected');
-      setProfileLabel('');
-    }
-  }, [activeProfileId]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [chatHistory]);
-
-  // Handle queued prompt from other panels (e.g. PreviewPanel CTA)
-  useEffect(() => {
-    if (!queuedPrompt) return;
-    const prompt = queuedPrompt;
-    setQueuedPrompt(null);
-    if (activeProfileId && keys && !loading) {
-      handleSend(prompt);
-    } else {
-      setInput(prompt);
-    }
-  }, [queuedPrompt, activeProfileId, keys, loading]);
-
-  // Update context files & token usage
-  useEffect(() => {
-    let active = true;
-
-    async function updateContextAndTokens() {
-      const files = await listFiles(projectId);
-      if (!active) return;
-      setContextFiles(files);
-
-      const manifestFiles = files.filter(f => !isPathExcludedFromManifest(f.path, manifestExcludePatterns));
-      const manifestText = buildFileManifest(manifestFiles);
-      const effectiveSystem = customInstructions.trim()
-        ? `${BASE_SYSTEM_PROMPT}\n\n<custom_instructions>\n${customInstructions.trim()}\n</custom_instructions>`
-        : BASE_SYSTEM_PROMPT;
-
-      const tSystem = encode(effectiveSystem).length;
-      const tManifest = encode(manifestText).length;
-
-      let chatText = '';
-      for (const m of chatHistory) chatText += `${m.role}\n${m.content}\n`;
-      const tChat = encode(chatText).length + (chatHistory.length * 4);
-
-      let maxTokens = 32000;
-      if (activeProfileId) {
-        try {
-          const profile = await db.connectionProfiles.get(activeProfileId);
-          if (profile) {
-            maxTokens = getModelContextWindow(profile.provider, profile.model);
-          }
-        } catch {
-          // fallback
-        }
-      }
-
-      setTokenUsage({
-        system: tSystem,
-        codebase: tManifest,
-        chat: tChat,
-        max: maxTokens,
-        isEstimate: false
-      });
-    }
-
-    updateContextAndTokens();
-    return () => {
-      active = false;
-    };
-  }, [chatHistory, projectId, pendingPatches, setTokenUsage, customInstructions, activeProfileId, manifestExcludePatterns]);
-
-  // Dynamic suggestion chips based on real project state
-  const suggestionChips = useMemo(() => {
-    const chips: string[] = [SUGGESTION_PROMPTS.WHAT_IS_IN_PROJECT];
-
-    if (lastBuildError) {
-      chips.push(SUGGESTION_PROMPTS.EXPLAIN_LAST_ERROR);
-    }
-
-    const hasIndex = contextFiles.some(f => f.path === '/index.html' || f.path === '/public/index.html');
-    if (!hasIndex) {
-      chips.push(SUGGESTION_PROMPTS.ADD_INDEX_HTML);
-    }
-
-    if (contextFiles.length === 0) {
-      chips.push(SUGGESTION_PROMPTS.SCAFFOLD_STARTER);
-    } else {
-      const hasPackageJson = contextFiles.some(f => f.path === '/package.json');
-      const hasReadme = contextFiles.some(f => f.path.toLowerCase().includes('readme'));
-      if (hasPackageJson && !hasReadme) {
-        chips.push(SUGGESTION_PROMPTS.ADD_README);
-      }
-
-      const hasComponents = contextFiles.some(f => f.path.endsWith('.tsx') || f.path.endsWith('.jsx'));
-      if (hasComponents) {
-        chips.push(SUGGESTION_PROMPTS.ADD_COMPONENT);
-      } else if (hasIndex && !lastBuildError) {
-        chips.push(SUGGESTION_PROMPTS.ADD_TAILWIND);
-      }
-    }
-
-    return chips;
-  }, [contextFiles, lastBuildError]);
 
   const handleSend = async (overrideMessage?: string) => {
     const messageToSend = (overrideMessage !== undefined ? overrideMessage : input).trim();
@@ -267,6 +153,130 @@ export function ChatPanel({ projectId }: { projectId: string }) {
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    if (activeProfileId) {
+      db.connectionProfiles.get(activeProfileId).then(p => {
+        if (active && p) {
+          setProfileName(`${p.label || p.provider} (${p.model})`);
+          setProfileLabel(p.label || p.model || p.provider || '');
+        }
+      });
+    } else {
+      Promise.resolve().then(() => {
+        if (active) {
+          setProfileName('No Profile Selected');
+          setProfileLabel('');
+        }
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [activeProfileId]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [chatHistory]);
+
+  // Handle queued prompt from other panels (e.g. PreviewPanel CTA)
+  useEffect(() => {
+    if (!queuedPrompt) return;
+    const prompt = queuedPrompt;
+    Promise.resolve().then(() => {
+      setQueuedPrompt(null);
+      if (activeProfileId && keys && !loading) {
+        handleSend(prompt);
+      } else {
+        setInput(prompt);
+      }
+    });
+  }, [queuedPrompt, activeProfileId, keys, loading]);
+
+  // Update context files & token usage
+  useEffect(() => {
+    let active = true;
+
+    async function updateContextAndTokens() {
+      const files = await listFiles(projectId);
+      if (!active) return;
+      setContextFiles(files);
+
+      const manifestFiles = files.filter(f => !isPathExcludedFromManifest(f.path, manifestExcludePatterns));
+      const manifestText = buildFileManifest(manifestFiles);
+      const effectiveSystem = customInstructions.trim()
+        ? `${BASE_SYSTEM_PROMPT}\n\n<custom_instructions>\n${customInstructions.trim()}\n</custom_instructions>`
+        : BASE_SYSTEM_PROMPT;
+
+      const tSystem = encode(effectiveSystem).length;
+      const tManifest = encode(manifestText).length;
+
+      let chatText = '';
+      for (const m of chatHistory) chatText += `${m.role}\n${m.content}\n`;
+      const tChat = encode(chatText).length + (chatHistory.length * 4);
+
+      let maxTokens = 32000;
+      if (activeProfileId) {
+        try {
+          const profile = await db.connectionProfiles.get(activeProfileId);
+          if (profile) {
+            maxTokens = getModelContextWindow(profile.provider, profile.model);
+          }
+        } catch {
+          // fallback
+        }
+      }
+
+      setTokenUsage({
+        system: tSystem,
+        codebase: tManifest,
+        chat: tChat,
+        max: maxTokens,
+        isEstimate: false
+      });
+    }
+
+    updateContextAndTokens();
+    return () => {
+      active = false;
+    };
+  }, [chatHistory, projectId, pendingPatches, setTokenUsage, customInstructions, activeProfileId, manifestExcludePatterns]);
+
+  // Dynamic suggestion chips based on real project state
+  const suggestionChips = useMemo(() => {
+    const chips: string[] = [SUGGESTION_PROMPTS.WHAT_IS_IN_PROJECT];
+
+    if (lastBuildError) {
+      chips.push(SUGGESTION_PROMPTS.EXPLAIN_LAST_ERROR);
+    }
+
+    const hasIndex = contextFiles.some(f => f.path === '/index.html' || f.path === '/public/index.html');
+    if (!hasIndex) {
+      chips.push(SUGGESTION_PROMPTS.ADD_INDEX_HTML);
+    }
+
+    if (contextFiles.length === 0) {
+      chips.push(SUGGESTION_PROMPTS.SCAFFOLD_STARTER);
+    } else {
+      const hasPackageJson = contextFiles.some(f => f.path === '/package.json');
+      const hasReadme = contextFiles.some(f => f.path.toLowerCase().includes('readme'));
+      if (hasPackageJson && !hasReadme) {
+        chips.push(SUGGESTION_PROMPTS.ADD_README);
+      }
+
+      const hasComponents = contextFiles.some(f => f.path.endsWith('.tsx') || f.path.endsWith('.jsx'));
+      if (hasComponents) {
+        chips.push(SUGGESTION_PROMPTS.ADD_COMPONENT);
+      } else if (hasIndex && !lastBuildError) {
+        chips.push(SUGGESTION_PROMPTS.ADD_TAILWIND);
+      }
+    }
+
+    return chips;
+  }, [contextFiles, lastBuildError]);
+
   const renderToolCall = (tc: LLMToolCall) => {
     if (tc.name === 'write_file') {
       try {
@@ -281,7 +291,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
             <div className="text-muted italic text-xs">{args.rationale}</div>
           </div>
         );
-      } catch (e) {
+      } catch (_e) {
         return null;
       }
     }
@@ -418,16 +428,16 @@ export function ChatPanel({ projectId }: { projectId: string }) {
                     <div className="text-sm space-y-3">
                       <ReactMarkdown
                         components={{
-                          p: ({ node, ...props }) => <p className="leading-relaxed" {...props} />,
-                          a: ({ node, ...props }) => <a className="text-accent underline hover:no-underline" {...props} />,
-                          strong: ({ node, ...props }) => <strong className="font-semibold text-text" {...props} />,
-                          h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2 text-text" {...props} />,
-                          h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-4 mb-2 text-text" {...props} />,
-                          h3: ({ node, ...props }) => <h3 className="text-base font-bold mt-3 mb-2 text-text" {...props} />,
-                          ul: ({ node, ...props }) => <ul className="list-disc pl-5 space-y-1 my-2" {...props} />,
-                          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 space-y-1 my-2" {...props} />,
-                          li: ({ node, ...props }) => <li className="leading-relaxed" {...props} />,
-                          code: ({ node, inline, className, children, ...props }: any) => {
+                          p: ({ node: _node, ...props }) => <p className="leading-relaxed" {...props} />,
+                          a: ({ node: _node, ...props }) => <a className="text-accent underline hover:no-underline" {...props} />,
+                          strong: ({ node: _node, ...props }) => <strong className="font-semibold text-text" {...props} />,
+                          h1: ({ node: _node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2 text-text" {...props} />,
+                          h2: ({ node: _node, ...props }) => <h2 className="text-lg font-bold mt-4 mb-2 text-text" {...props} />,
+                          h3: ({ node: _node, ...props }) => <h3 className="text-base font-bold mt-3 mb-2 text-text" {...props} />,
+                          ul: ({ node: _node, ...props }) => <ul className="list-disc pl-5 space-y-1 my-2" {...props} />,
+                          ol: ({ node: _node, ...props }) => <ol className="list-decimal pl-5 space-y-1 my-2" {...props} />,
+                          li: ({ node: _node, ...props }) => <li className="leading-relaxed" {...props} />,
+                          code: ({ node: _node, inline, className, children, ...props }: any) => {
                             const match = /language-(\w+)/.exec(className || '');
                             const strChildren = String(children || '');
                             // Inline code spans (single backtick) render inline; only multi-line / language blocks render full cards
@@ -450,8 +460,8 @@ export function ChatPanel({ projectId }: { projectId: string }) {
                               </div>
                             );
                           },
-                          hr: ({ node, ...props }) => <hr className="border-border my-4" {...props} />,
-                          blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-border pl-3 text-muted italic my-3" {...props} />,
+                          hr: ({ node: _node, ...props }) => <hr className="border-border my-4" {...props} />,
+                          blockquote: ({ node: _node, ...props }) => <blockquote className="border-l-4 border-border pl-3 text-muted italic my-3" {...props} />,
                         }}
                       >
                         {cleanedText}

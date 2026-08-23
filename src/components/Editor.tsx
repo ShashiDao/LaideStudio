@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Copy, Check, Search, Replace } from 'lucide-react';
+import { X, Copy, Check, Search } from 'lucide-react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
@@ -164,8 +164,16 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
 
   // Sync state if file changes
   useEffect(() => {
-    setContent(file.content);
-    setIsUnsaved(false);
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) {
+        setContent(file.content);
+        setIsUnsaved(false);
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [file.id, file.content]);
 
   // Dynamically load language extension for file type
@@ -251,12 +259,14 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
         let activeIdx = 0;
         const sel = view.state.selection.main;
 
-        while (!cursor.next().done) {
+        let matchResult = cursor.next();
+        while (!matchResult.done) {
           count++;
-          const { from, to } = cursor.value;
+          const { from, to } = matchResult.value;
           if (sel.from <= to && sel.to >= from) {
             activeIdx = count;
           }
+          matchResult = cursor.next();
         }
         setTotalMatches(count);
         setCurrentMatchIndex(count > 0 ? (activeIdx > 0 ? activeIdx : 1) : 0);
@@ -290,14 +300,22 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
   }, [searchTerm, replaceTerm, caseSensitive, useRegex, matchWholeWord, content]);
 
   useEffect(() => {
+    let active = true;
     if (isFindOpen) {
-      updateSearchQuery();
+      Promise.resolve().then(() => {
+        if (active) {
+          updateSearchQuery();
+        }
+      });
     } else {
       const view = editorRef.current?.view;
       if (view) {
         view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
       }
     }
+    return () => {
+      active = false;
+    };
   }, [isFindOpen, updateSearchQuery]);
 
   const updateActiveMatchIndex = () => {
@@ -317,12 +335,14 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
       let activeIdx = 0;
       const sel = view.state.selection.main;
 
-      while (!cursor.next().done) {
+      let matchResult = cursor.next();
+      while (!matchResult.done) {
         count++;
-        const { from, to } = cursor.value;
+        const { from, to } = matchResult.value;
         if (sel.from <= to && sel.to >= from) {
           activeIdx = count;
         }
+        matchResult = cursor.next();
       }
       setTotalMatches(count);
       if (count > 0) {

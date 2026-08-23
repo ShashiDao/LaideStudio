@@ -24,7 +24,7 @@ export function getStrength(p: string) {
 export function LockScreen() {
   const { setKeys } = useAppStore();
   
-  const [config, setConfig] = useState<LockConfig | null>(null);
+  const [config] = useState<LockConfig | null>(() => getLockConfig());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   
@@ -52,20 +52,6 @@ export function LockScreen() {
   
   const strength = getStrength(passphrase);
   
-  useEffect(() => {
-    const existing = getLockConfig();
-    setConfig(existing);
-    
-    // Auto-prompt passkey if available
-    if (existing && existing.passkeyData) {
-      setUnlockMode('passkey');
-      handlePasskeyUnlock(existing);
-    } else {
-      setUnlockMode('passphrase');
-      setLoading(false);
-    }
-  }, []);
-
   const handlePasskeyUnlock = async (c: LockConfig) => {
     if (!c.passkeyData) return;
     setBusy(true);
@@ -87,6 +73,29 @@ export function LockScreen() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    let active = true;
+    const existing = getLockConfig();
+    
+    // Auto-prompt passkey if available
+    if (existing && existing.passkeyData) {
+      Promise.resolve().then(() => {
+        if (!active) return;
+        setUnlockMode('passkey');
+        handlePasskeyUnlock(existing);
+      });
+    } else {
+      Promise.resolve().then(() => {
+        if (!active) return;
+        setUnlockMode('passphrase');
+        setLoading(false);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleStartSetup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,7 +211,7 @@ export function LockScreen() {
       } else {
         setError('Incorrect passphrase');
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Decryption failed');
     } finally {
       setBusy(false);
@@ -234,7 +243,7 @@ export function LockScreen() {
       } else {
         setError('Incorrect recovery phrase or corrupted backup payload');
       }
-    } catch (err) {
+    } catch (_err) {
       setError('Recovery unlock failed');
     } finally {
       setBusy(false);

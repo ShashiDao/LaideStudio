@@ -1,0 +1,555 @@
+
+/app/applet/src/App.tsx
+    6:48   error  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+    6:62   error  'Database' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+    6:72   error  'Download' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+    6:118  error  'GitPullRequest' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+  360:5    error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/App.tsx:360:5
+  358 |
+  359 |   useEffect(() => {
+> 360 |     refreshFiles();
+      |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  361 |   }, [activeProject?.id]);
+  362 |
+  363 |   const activeFile = useMemo(() => files.find(f => f.id === activeFileId), [files, activeFileId]);  react-hooks/set-state-in-effect
+
+/app/applet/src/components/ChatPanel.tsx
+   22:15  error  'LLMMessage' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+   77:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/ChatPanel.tsx:77:7
+  75 |       });
+  76 |     } else {
+> 77 |       setProfileName('No Profile Selected');
+     |       ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  78 |       setProfileLabel('');
+  79 |     }
+  80 |   }, [activeProfileId]);                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/set-state-in-effect
+   94:7   error  Error: Cannot access variable before it is declared
+
+`handleSend` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/app/applet/src/components/ChatPanel.tsx:94:7
+  92 |     setQueuedPrompt(null);
+  93 |     if (activeProfileId && keys && !loading) {
+> 94 |       handleSend(prompt);
+     |       ^^^^^^^^^^ `handleSend` accessed before it is declared
+  95 |     } else {
+  96 |       setInput(prompt);
+  97 |     }
+
+/app/applet/src/components/ChatPanel.tsx:182:3
+  180 |   }, [contextFiles, lastBuildError]);
+  181 |
+> 182 |   const handleSend = async (overrideMessage?: string) => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 183 |     const messageToSend = (overrideMessage !== undefined ? overrideMessage : input).trim();
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 184 |     if (!messageToSend || !activeProfileId || !keys || loading) return;
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 253 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 254 |   };
+      | ^^^^^ `handleSend` is declared here
+  255 |
+  256 |   const handleStop = () => {
+  257 |     if (abortControllerRef.current) {  react-hooks/immutability
+   96:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/ChatPanel.tsx:96:7
+  94 |       handleSend(prompt);
+  95 |     } else {
+> 96 |       setInput(prompt);
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  97 |     }
+  98 |   }, [queuedPrompt, activeProfileId, keys, loading]);
+  99 |                                                                                                                                                                                                                                                                                                                                                                                                             react-hooks/set-state-in-effect
+  284:16  error  'e' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  421:33  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  422:33  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  423:38  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  424:34  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  425:34  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  426:34  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  427:34  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  428:34  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  429:34  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  430:36  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  453:34  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  454:42  error  'node' is defined but never used. Allowed unused args must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/Editor.tsx
+    2:34  error  'Replace' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  167:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/Editor.tsx:167:5
+  165 |   // Sync state if file changes
+  166 |   useEffect(() => {
+> 167 |     setContent(file.content);
+      |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  168 |     setIsUnsaved(false);
+  169 |   }, [file.id, file.content]);
+  170 |                 react-hooks/set-state-in-effect
+  294:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/Editor.tsx:294:7
+  292 |   useEffect(() => {
+  293 |     if (isFindOpen) {
+> 294 |       updateSearchQuery();
+      |       ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  295 |     } else {
+  296 |       const view = editorRef.current?.view;
+  297 |       if (view) {  react-hooks/set-state-in-effect
+
+/app/applet/src/components/FileTree.tsx
+   30:3   error  'FolderPlus' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  478:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/FileTree.tsx:478:5
+  476 |   // Keep expanded folders updated when new folders appear
+  477 |   useEffect(() => {
+> 478 |     setExpandedFolders(prev => {
+      |     ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  479 |       const next = new Set(prev);
+  480 |       for (const p of allFolderPaths) {
+  481 |         if (!prev.has(p)) {  react-hooks/set-state-in-effect
+  497:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/FileTree.tsx:497:9
+  495 |         parts.pop(); // remove file name
+  496 |         let cur = '';
+> 497 |         setExpandedFolders(prev => {
+      |         ^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  498 |           let modified = false;
+  499 |           const next = new Set(prev);
+  500 |           for (const part of parts) {    react-hooks/set-state-in-effect
+  641:9   error  The value assigned to 'clientX' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-useless-assignment
+  641:22  error  The value assigned to 'clientY' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-useless-assignment
+  664:9   error  The value assigned to 'clientX' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-useless-assignment
+  664:22  error  The value assigned to 'clientY' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      no-useless-assignment
+
+/app/applet/src/components/GithubImportModal.tsx
+  57:16  error  'err' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+  58:9   error  There is no `cause` attached to the symptom error being thrown                  preserve-caught-error
+
+/app/applet/src/components/GithubPushModal.tsx
+   85:27  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/GithubPushModal.tsx:85:27
+  83 |       try {
+  84 |         const parsed = JSON.parse(syncData);
+> 85 |         if (parsed.owner) setOwner(parsed.owner);
+     |                           ^^^^^^^^ Avoid calling setState() directly within an effect
+  86 |         if (parsed.repo) setRepo(parsed.repo);
+  87 |         if (parsed.branch) {
+  88 |           setBaseBranch(parsed.branch);  react-hooks/set-state-in-effect
+   91:16  error  'e' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+  107:16  error  'e' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+  184:9   error  Error: This value cannot be modified
+
+Modifying a value returned from 'useState()', which should not be modified directly. Use the setter function to update instead.
+
+/app/applet/src/components/GithubPushModal.tsx:184:9
+  182 |       // Any remaining files in remoteFiles were deleted locally
+  183 |       for (const deletedPath of remoteFiles.keys()) {
+> 184 |         treeEntries.push({
+      |         ^^^^^^^^^^^ `baseBranch` cannot be modified
+  185 |           path: deletedPath,
+  186 |           mode: '100644',
+  187 |           type: 'blob',                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       react-hooks/immutability
+  216:11  error  There is no `cause` attached to the symptom error being thrown                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 preserve-caught-error
+
+/app/applet/src/components/LockScreen.tsx
+   57:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/LockScreen.tsx:57:5
+  55 |   useEffect(() => {
+  56 |     const existing = getLockConfig();
+> 57 |     setConfig(existing);
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  58 |     
+  59 |     // Auto-prompt passkey if available
+  60 |     if (existing && existing.passkeyData) {                                                                                                       react-hooks/set-state-in-effect
+   62:7   error  Error: Cannot access variable before it is declared
+
+`handlePasskeyUnlock` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/app/applet/src/components/LockScreen.tsx:62:7
+  60 |     if (existing && existing.passkeyData) {
+  61 |       setUnlockMode('passkey');
+> 62 |       handlePasskeyUnlock(existing);
+     |       ^^^^^^^^^^^^^^^^^^^ `handlePasskeyUnlock` accessed before it is declared
+  63 |     } else {
+  64 |       setUnlockMode('passphrase');
+  65 |       setLoading(false);
+
+/app/applet/src/components/LockScreen.tsx:69:3
+  67 |   }, []);
+  68 |
+> 69 |   const handlePasskeyUnlock = async (c: LockConfig) => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 70 |     if (!c.passkeyData) return;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 71 |     setBusy(true);
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 88 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 89 |   };
+     | ^^^^^ `handlePasskeyUnlock` is declared here
+  90 |
+  91 |   const handleStartSetup = async (e: React.FormEvent) => {
+  92 |     e.preventDefault();  react-hooks/immutability
+  205:14  error  'err' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  237:14  error  'err' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/PatchReviewSheet.test.ts
+  167:11  error  'fileToDelete' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  168:11  error  'safeFile' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/PatchReviewSheet.tsx
+   72:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/PatchReviewSheet.tsx:72:5
+  70 |
+  71 |   useEffect(() => {
+> 72 |     setHunkStates(computedData.stateList);
+     |     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  73 |   }, [computedData.stateList]);
+  74 |
+  75 |   if (pendingPatches.length === 0) return null;  react-hooks/set-state-in-effect
+  111:22  error  'hunks' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/PreviewPanel.test.tsx
+  2:32  error  'vi' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/PreviewPanel.tsx
+   12:7   error  The value assigned to 'finalHtml' is not used in subsequent statements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-useless-assignment
+  131:11  error  'cleanup' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  136:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/PreviewPanel.tsx:136:5
+  134 |
+  135 |     
+> 136 |     setError(null);
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  137 |     setRuntimeError(null);
+  138 |     setStatus('Building preview...');
+  139 |  react-hooks/set-state-in-effect
+  234:17  error  'mimeType' is assigned a value but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  292:18  error  'e' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/ProjectActionsMenu.tsx
+   8:3  error  'FolderDown' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+   9:3  error  'Sparkles' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  10:3  error  'FileCode' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  11:3  error  'Check' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  12:3  error  'ChevronDown' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/ProjectMetadataPanel.test.tsx
+  2:47  error  'beforeEach' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/ProjectMetadataPanel.tsx
+    8:3   error  'Sparkles' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   10:3   error  'ChevronRight' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unused-vars
+  238:46  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+/app/applet/src/components/ProjectMetadataPanel.tsx:238:46
+  236 |                     ))}
+  237 |                   </Pie>
+> 238 |                   <RechartsTooltip content={<CustomTooltip />} />
+      |                                              ^^^^^^^^^^^^^ This component is created during render
+  239 |                 </PieChart>
+  240 |               ) : (
+  241 |                 <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+
+/app/applet/src/components/ProjectMetadataPanel.tsx:61:25
+  59 |
+  60 |   // Custom tooltip for recharts
+> 61 |   const CustomTooltip = ({ active, payload }: any) => {
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 62 |     if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 63 |       const data = payload[0].payload;
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 78 |     return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 79 |   };
+     | ^^^^ The component is created during render here
+  80 |
+  81 |   return (
+  82 |     <div                                      react-hooks/static-components
+  251:46  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+/app/applet/src/components/ProjectMetadataPanel.tsx:251:46
+  249 |                     tickLine={false}
+  250 |                   />
+> 251 |                   <RechartsTooltip content={<CustomTooltip />} />
+      |                                              ^^^^^^^^^^^^^ This component is created during render
+  252 |                   <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+  253 |                     {chartData.map((entry, index) => (
+  254 |                       <Cell key={`bar-${index}`} fill={entry.color} />
+
+/app/applet/src/components/ProjectMetadataPanel.tsx:61:25
+  59 |
+  60 |   // Custom tooltip for recharts
+> 61 |   const CustomTooltip = ({ active, payload }: any) => {
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 62 |     if (active && payload && payload.length) {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 63 |       const data = payload[0].payload;
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 78 |     return null;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 79 |   };
+     | ^^^^ The component is created during render here
+  80 |
+  81 |   return (
+  82 |     <div   react-hooks/static-components
+
+/app/applet/src/components/RenameProjectModal.tsx
+  25:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/RenameProjectModal.tsx:25:7
+  23 |   useEffect(() => {
+  24 |     if (project && isOpen) {
+> 25 |       setName(project.name);
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  26 |       setError(null);
+  27 |       setTimeout(() => {
+  28 |         if (inputRef.current) {  react-hooks/set-state-in-effect
+
+/app/applet/src/components/SettingsPanel.tsx
+   10:36  error  'arrayBufferToBase64' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+   10:57  error  'base64ToArrayBuffer' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  168:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/SettingsPanel.tsx:168:5
+  166 |
+  167 |   useEffect(() => {
+> 168 |     setInstructionsDraft(customInstructions);
+      |     ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  169 |   }, [customInstructions]);
+  170 |
+  171 |   useEffect(() => {  react-hooks/set-state-in-effect
+  172:5   error  Error: Cannot access variable before it is declared
+
+`loadProfiles` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+/app/applet/src/components/SettingsPanel.tsx:172:5
+  170 |
+  171 |   useEffect(() => {
+> 172 |     loadProfiles();
+      |     ^^^^^^^^^^^^ `loadProfiles` accessed before it is declared
+  173 |   }, []);
+  174 |
+  175 |   // Close model dropdown on click outside
+
+/app/applet/src/components/SettingsPanel.tsx:231:3
+  229 |   }, [keys]);
+  230 |
+> 231 |   const loadProfiles = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 232 |     const all = await db.connectionProfiles.toArray();
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 233 |     setProfiles(all);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 234 |   };
+      | ^^^^^ `loadProfiles` is declared here
+  235 |
+  236 |   const loadCacheInfo = async () => {
+  237 |     try {                  react-hooks/immutability
+  223:18  error  'e' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+  247:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/SettingsPanel.tsx:247:5
+  245 |
+  246 |   useEffect(() => {
+> 247 |     loadCacheInfo();
+      |     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  248 |   }, []);
+  249 |
+  250 |   const handleClearDepCache = async () => {                            react-hooks/set-state-in-effect
+  287:16  error  'e' is defined but never used. Allowed unused caught errors must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+
+/app/applet/src/components/TerminalPanel.tsx
+     1:46  error  'useMemo' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+     8:3   error  'RotateCcw' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-unused-vars
+    10:3   error  'CheckCircle2' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+    11:3   error  'XCircle' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+    13:3   error  'FileText' is defined but never used. Allowed unused vars must match /^_/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+   191:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/app/applet/src/components/TerminalPanel.tsx:191:5
+  189 |   // Keep PWD in sync with cwd
+  190 |   useEffect(() => {
+> 191 |     setEnv(prev => ({ ...prev, PWD: cwd }));
+      |     ^^^^^^ Avoid calling setState() directly within an effect
+  192 |   }, [cwd]);
+  193 |
+  194 |   const addOutput = useCallback((  react-hooks/set-state-in-effect
+   877:58  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/app/applet/src/components/TerminalPanel.tsx:877:58
+  875 |             const lines = found.content.split('\n').length;
+  876 |             const words = found.content.trim() ? found.content.trim().split(/\s+/).length : 0;
+> 877 |             const modified = new Date(found.updatedAt || Date.now()).toISOString();
+      |                                                          ^^^^^^^^^^ Cannot call impure function
+  878 |
+  879 |             outputText = `  File: ${found.path}
+  880 |   Size: ${size} bytes (${formatBytes(size)})  Lines: ${lines}  Words: ${words}                                                                                                                    react-hooks/purity
+   977:27  error  Error: Cannot call impure function during render
+
+`performance.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/app/applet/src/components/TerminalPanel.tsx:977:27
+  975 |             const entryPoint = projectInfo.entryPoint || '/src/main.tsx';
+  976 |             
+> 977 |             const start = performance.now();
+      |                           ^^^^^^^^^^^^^^^^^ Cannot call impure function
+  978 |             try {
+  979 |               const bundleCode = await bundle(files, entryPoint, (status) => {
+  980 |                 addOutput('info', `  › ${status}`);                                                                                                                                                                                                                          react-hooks/purity
+   982:34  error  Error: Cannot call impure function during render
+
+`performance.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/app/applet/src/components/TerminalPanel.tsx:982:34
+  980 |                 addOutput('info', `  › ${status}`);
+  981 |               });
+> 982 |               const duration = ((performance.now() - start) / 1000).toFixed(2);
+      |                                  ^^^^^^^^^^^^^^^^^ Cannot call impure function
+  983 |               const bundleBytes = new Blob([bundleCode]).size;
+  984 |               
+  985 |               outputText = `✨ Build succeeded in ${duration}s!                                                                                                                                                                                                         react-hooks/purity
+  1160:38  error  Error: Cannot call impure function during render
+
+`performance.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/app/applet/src/components/TerminalPanel.tsx:1160:38
+  1158 |
+  1159 |         case 'uptime': {
+> 1160 |           const seconds = Math.floor(performance.now() / 1000);
+       |                                      ^^^^^^^^^^^^^^^^^ Cannot call impure function
+  1161 |           const mins = Math.floor(seconds / 60);
+  1162 |           const hrs = Math.floor(mins / 60);
+  1163 |           outputText = `up ${hrs} hours, ${mins % 60} mins, ${seconds % 60} secs, 1 user, load average: 0.05, 0.02, 0.00`;                                                                                                                                                                              react-hooks/purity
+  1196:23  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/app/applet/src/components/TerminalPanel.tsx:1196:23
+  1194 |             PWD: '/'
+  1195 |           });
+> 1196 |           const now = Date.now();
+       |                       ^^^^^^^^^^ Cannot call impure function
+  1197 |           setHistory([
+  1198 |             {
+  1199 |               id: `reset-${now}`,                                                                                                                                                                                                                                                                                                                                                                                 react-hooks/purity
+
+/app/applet/src/components/TopStrip.tsx
+  5:28  error  'onOpenShortcuts' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 83 problems (83 errors, 0 warnings)
+

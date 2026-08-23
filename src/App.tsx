@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { FileText, MessageSquare, MonitorPlay, CheckCircle2, Database, Download, Upload, FolderPlus, Plus, Settings, GitPullRequest, ChevronDown, Trash2, AlertTriangle, X, Terminal, BarChart3 } from 'lucide-react';
+import { FileText, MessageSquare, MonitorPlay, Upload, FolderPlus, Plus, Settings, ChevronDown, Trash2, AlertTriangle, X, Terminal, BarChart3 } from 'lucide-react';
 import { useAppStore, type TabId } from './store';
 import { testDatabaseReadback } from './seed';
 import { db, type FileItem, type Project } from './db';
@@ -357,7 +357,17 @@ export default function App() {
   }, [activeFileId, showShortcutsModal, setActiveTab, setActiveFileId, toggleTheme, lockVault]);
 
   useEffect(() => {
-    refreshFiles();
+    let ignore = false;
+    if (activeProject) {
+      listFiles(activeProject.id).then(fileList => {
+        if (!ignore) {
+          setFiles(fileList);
+        }
+      });
+    }
+    return () => {
+      ignore = true;
+    };
   }, [activeProject?.id]);
 
   const activeFile = useMemo(() => files.find(f => f.id === activeFileId), [files, activeFileId]);

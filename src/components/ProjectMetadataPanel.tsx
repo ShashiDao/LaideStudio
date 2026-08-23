@@ -5,11 +5,9 @@ import {
   Code2, 
   FileText, 
   HardDrive, 
-  Sparkles, 
   X, 
-  ChevronRight,
-  TrendingUp,
-  Layers
+  TrendingUp, 
+  Layers 
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -30,6 +28,27 @@ export interface ProjectMetadataPanelProps {
   files: FileItem[];
   isOpen: boolean;
   onClose: () => void;
+}
+
+// Custom tooltip for recharts
+function CustomTooltip({ active, payload }: any) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-surface border border-border/80 px-2.5 py-1.5 rounded shadow-xl font-mono text-[11px] z-50">
+        <div className="flex items-center gap-1.5 font-bold" style={{ color: data.color }}>
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: data.color }} />
+          <span>{data.name}</span>
+        </div>
+        <div className="text-text/90 mt-1 flex flex-col gap-0.5 text-[10px]">
+          <div>Lines of Code: <span className="font-semibold text-accent">{data.linesOfCode.toLocaleString()}</span> ({data.percentage}%)</div>
+          <div>Files: <span className="font-semibold text-accent">{data.filesCount}</span></div>
+          <div>Size: <span className="text-muted">{formatBytes(data.bytes)}</span></div>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 export function ProjectMetadataPanel({
@@ -56,27 +75,6 @@ export function ProjectMetadataPanel({
     bytes: l.bytes,
     color: l.color
   }));
-
-  // Custom tooltip for recharts
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-surface border border-border/80 px-2.5 py-1.5 rounded shadow-xl font-mono text-[11px] z-50">
-          <div className="flex items-center gap-1.5 font-bold" style={{ color: data.color }}>
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: data.color }} />
-            <span>{data.name}</span>
-          </div>
-          <div className="text-text/90 mt-1 flex flex-col gap-0.5 text-[10px]">
-            <div>Lines of Code: <span className="font-semibold text-accent">{data.linesOfCode.toLocaleString()}</span> ({data.percentage}%)</div>
-            <div>Files: <span className="font-semibold text-accent">{data.filesCount}</span></div>
-            <div>Size: <span className="text-muted">{formatBytes(data.bytes)}</span></div>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div 

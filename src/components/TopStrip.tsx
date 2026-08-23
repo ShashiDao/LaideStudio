@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, X, Moon, Sun, Terminal } from 'lucide-react';
 import { useAppStore } from '../store';
 
-export function TopStrip({ onOpenShortcuts }: { dbTested?: boolean; onOpenShortcuts?: () => void }) {
+export function TopStrip(_props: { dbTested?: boolean; onOpenShortcuts?: () => void } = {}) {
   const { pendingPatches, setKeys, setChatHistory, lockVault, theme, toggleTheme } = useAppStore();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 

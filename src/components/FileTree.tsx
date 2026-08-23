@@ -26,8 +26,7 @@ import {
   Copy, 
   Check, 
   ChevronsDown,
-  ChevronsUp,
-  FolderPlus
+  ChevronsUp
 } from 'lucide-react';
 import type { FileItem } from '../db';
 import { useAppStore } from '../store';
@@ -475,39 +474,55 @@ export function FileTree({
 
   // Keep expanded folders updated when new folders appear
   useEffect(() => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev);
-      for (const p of allFolderPaths) {
-        if (!prev.has(p)) {
-          next.add(p);
-        }
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) {
+        setExpandedFolders(prev => {
+          const next = new Set(prev);
+          for (const p of allFolderPaths) {
+            if (!prev.has(p)) {
+              next.add(p);
+            }
+          }
+          return next;
+        });
       }
-      return next;
     });
+    return () => {
+      active = false;
+    };
   }, [allFolderPaths]);
 
   // Expand parent folders of active file when active file changes
   useEffect(() => {
+    let active = true;
     if (activeFileId) {
       const activeFile = files.find(f => f.id === activeFileId);
       if (activeFile) {
         const parts = activeFile.path.split('/').filter(Boolean);
         parts.pop(); // remove file name
         let cur = '';
-        setExpandedFolders(prev => {
-          let modified = false;
-          const next = new Set(prev);
-          for (const part of parts) {
-            cur += '/' + part;
-            if (!next.has(cur)) {
-              next.add(cur);
-              modified = true;
-            }
+        Promise.resolve().then(() => {
+          if (active) {
+            setExpandedFolders(prev => {
+              let modified = false;
+              const next = new Set(prev);
+              for (const part of parts) {
+                cur += '/' + part;
+                if (!next.has(cur)) {
+                  next.add(cur);
+                  modified = true;
+                }
+              }
+              return modified ? next : prev;
+            });
           }
-          return modified ? next : prev;
         });
       }
     }
+    return () => {
+      active = false;
+    };
   }, [activeFileId, files]);
 
   const toggleFolder = useCallback((path: string) => {
@@ -638,14 +653,8 @@ export function FileTree({
     e.preventDefault();
     e.stopPropagation();
     
-    let clientX = 0, clientY = 0;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = (e as React.MouseEvent).clientX;
-      clientY = (e as React.MouseEvent).clientY;
-    }
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
     
     // Clamp to viewport so menu never overflows screen boundaries
     const menuWidth = 160;
@@ -661,14 +670,8 @@ export function FileTree({
     e.preventDefault();
     e.stopPropagation();
     
-    let clientX = 0, clientY = 0;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = (e as React.MouseEvent).clientX;
-      clientY = (e as React.MouseEvent).clientY;
-    }
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
     
     // Clamp to viewport so menu never overflows screen boundaries
     const menuWidth = 136;

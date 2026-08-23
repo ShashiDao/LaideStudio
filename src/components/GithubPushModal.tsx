@@ -74,6 +74,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   const { keys } = useAppStore();
 
   useEffect(() => {
+    let active = true;
     const syncData = 
       localStorage.getItem(`xiom_github_sync_${projectId}`) || 
       sessionStorage.getItem('xiom_last_imported_repo') ||
@@ -82,16 +83,22 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
     if (syncData) {
       try {
         const parsed = JSON.parse(syncData);
-        if (parsed.owner) setOwner(parsed.owner);
-        if (parsed.repo) setRepo(parsed.repo);
-        if (parsed.branch) {
-          setBaseBranch(parsed.branch);
-          setIsBaseBranchEdited(true);
-        }
-      } catch (e) {
+        Promise.resolve().then(() => {
+          if (!active) return;
+          if (parsed.owner) setOwner(parsed.owner);
+          if (parsed.repo) setRepo(parsed.repo);
+          if (parsed.branch) {
+            setBaseBranch(parsed.branch);
+            setIsBaseBranchEdited(true);
+          }
+        });
+      } catch (_e) {
         // ignore
       }
     }
+    return () => {
+      active = false;
+    };
   }, [projectId]);
 
   useEffect(() => {
@@ -104,7 +111,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
         if (repoData.default_branch) {
           setBaseBranch(repoData.default_branch);
         }
-      } catch (e) {
+      } catch (_e) {
         // ignore
       }
     }, 800);
@@ -143,19 +150,19 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       const baseTreeSha = commitData.tree.sha;
       
       setProgress('Fetching base tree...');
-      const treeData = await client.getRepoTree(owner, repo, baseBranch);
+      const treeData = await client.getRepoTree(owner, repo, finalBaseBranch);
       const remoteFiles = new Map(treeData.tree.filter((t: any) => t.type === 'blob').map((t: any) => [t.path, t.sha]));
       
       setProgress('Analyzing local changes...');
       const localFiles = await listFiles(projectId);
       
-      const treeEntries: any[] = [];
+      const createdEntries: any[] = [];
       let uploadCount = 0;
       
       const CONCURRENCY = 5;
       for (let i = 0; i < localFiles.length; i += CONCURRENCY) {
         const batch = localFiles.slice(i, i + CONCURRENCY);
-        await Promise.all(batch.map(async (file) => {
+        const batchResults = await Promise.all(batch.map(async (file) => {
           const relativePath = file.path.startsWith('/') ? file.path.substring(1) : file.path;
           const isBinary = binaryExtensions.some(ext => relativePath.toLowerCase().endsWith(ext));
           
@@ -165,29 +172,40 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
           if (localSha !== remoteSha) {
             // File changed or is new
             const blobData = await client.createBlob(owner, repo, file.content, isBinary ? 'base64' : 'utf-8');
-            treeEntries.push({
-              path: relativePath,
-              mode: '100644',
-              type: 'blob',
-              sha: blobData.sha
-            });
+            return {
+              entry: {
+                path: relativePath,
+                mode: '100644',
+                type: 'blob',
+                sha: blobData.sha
+              },
+              relativePath,
+              isUpload: true
+            };
+          }
+          return { entry: null, relativePath, isUpload: false };
+        }));
+
+        for (const res of batchResults) {
+          if (res.entry) {
+            createdEntries.push(res.entry);
+          }
+          if (res.isUpload) {
             uploadCount++;
           }
-          
-          // Remove from map so we can detect deleted files
-          remoteFiles.delete(relativePath);
-        }));
+          remoteFiles.delete(res.relativePath);
+        }
       }
       
       // Any remaining files in remoteFiles were deleted locally
-      for (const deletedPath of remoteFiles.keys()) {
-        treeEntries.push({
-          path: deletedPath,
-          mode: '100644',
-          type: 'blob',
-          sha: null
-        });
-      }
+      const deletedEntries: any[] = Array.from(remoteFiles.keys()).map(deletedPath => ({
+        path: deletedPath,
+        mode: '100644',
+        type: 'blob',
+        sha: null
+      }));
+      
+      const treeEntries = [...createdEntries, ...deletedEntries];
       
       if (treeEntries.length === 0) {
         throw new Error('No changes detected to push.');
@@ -213,7 +231,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
             nextBranch = targetBranch + '-2';
           }
           setNewBranch(nextBranch);
-          throw new Error(`Branch '${targetBranch}' already exists. We've updated the name to '${nextBranch}', click push again to retry.`);
+          throw new Error(`Branch '${targetBranch}' already exists. We've updated the name to '${nextBranch}', click push again to retry.`, { cause: branchErr });
         }
         throw branchErr;
       }
