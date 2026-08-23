@@ -109,7 +109,9 @@ export function ChatPanel({ projectId }: { projectId: string }) {
           temperature,
           maxTokens: maxOutputTokens,
           screenshot: screenshotToPass,
-          modelName: activeModelName
+          modelName: activeModelName,
+          model: profile.model,
+          provider: profile.provider
         }
       );
 

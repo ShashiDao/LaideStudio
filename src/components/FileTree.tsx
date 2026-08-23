@@ -32,6 +32,9 @@ import type { FileItem } from '../db';
 import { useAppStore } from '../store';
 import { renameFile, deleteFile, createFile, deleteFolder } from '../services/fs/vfs';
 import { binaryExtensions } from '../services/fs/zipExport';
+import { ImageViewerModal, isImageFile } from './ImageViewerModal';
+
+export { ImageViewerModal, isImageFile };
 
 export type TreeNode = {
   name: string;
@@ -565,6 +568,15 @@ export function FileTree({
   const [deletingFolder, setDeletingFolder] = useState<TreeNode | null>(null);
   const [renaming, setRenaming] = useState<FileItem | null>(null);
   const [newName, setNewName] = useState('');
+  const [viewingImageFile, setViewingImageFile] = useState<FileItem | null>(null);
+
+  const handleFileSelect = useCallback((file: FileItem) => {
+    if (isImageFile(file.path)) {
+      setViewingImageFile(file);
+    } else {
+      setActiveFileId(file.id);
+    }
+  }, [setActiveFileId]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -640,7 +652,7 @@ export function FileTree({
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (filteredFiles[selectedIndex]) {
-        setActiveFileId(filteredFiles[selectedIndex].id);
+        handleFileSelect(filteredFiles[selectedIndex]);
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -967,7 +979,7 @@ export function FileTree({
                       : 'border-transparent hover:bg-surface-elevated/70 text-muted hover:text-text'
                   }`}
                   onClick={() => {
-                    setActiveFileId(file.id);
+                    handleFileSelect(file);
                   }}
                   onContextMenu={(e) => handleContextMenu(e, file)}
                   onMouseEnter={() => setSelectedIndex(idx)}
@@ -1010,7 +1022,7 @@ export function FileTree({
                   key={child.path} 
                   node={child} 
                   level={0} 
-                  onSelectFile={(f) => setActiveFileId(f.id)} 
+                  onSelectFile={handleFileSelect} 
                   onContextMenu={handleContextMenu} 
                   onFolderContextMenu={handleFolderContextMenu} 
                   activeFileId={activeFileId} 
@@ -1023,7 +1035,7 @@ export function FileTree({
                   key={child.path} 
                   node={child} 
                   level={0} 
-                  onSelectFile={(f) => setActiveFileId(f.id)} 
+                  onSelectFile={handleFileSelect} 
                   onContextMenu={handleContextMenu} 
                   isActive={child.file?.id === activeFileId} 
                   isFlashing={flashingPaths.includes(child.path) || (child.file ? flashingPaths.includes(child.file.path) : false)}
@@ -1041,6 +1053,17 @@ export function FileTree({
           style={{ top: menu.y, left: menu.x }}
           onClick={(e) => e.stopPropagation()}
         >
+          {isImageFile(menu.file.path) && (
+            <button 
+              className="flex items-center gap-2 px-3 py-2 hover:bg-accent/10 text-left text-muted hover:text-text cursor-pointer transition-colors"
+              onClick={() => {
+                setViewingImageFile(menu.file);
+                setMenu(null);
+              }}
+            >
+              <Image size={12} className="text-accent" /> Preview Image
+            </button>
+          )}
           <button 
             className="flex items-center gap-2 px-3 py-2 hover:bg-accent/10 text-left text-muted hover:text-text cursor-pointer transition-colors"
             onClick={(e) => {
@@ -1191,6 +1214,15 @@ export function FileTree({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Zoomable Image Viewer Modal */}
+      {viewingImageFile && (
+        <ImageViewerModal
+          file={viewingImageFile}
+          onClose={() => setViewingImageFile(null)}
+          onDownload={handleDownload}
+        />
       )}
     </div>
   );

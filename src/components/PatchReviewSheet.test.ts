@@ -7,6 +7,7 @@ import { PatchReviewSheet } from './PatchReviewSheet';
 import { db } from '../db';
 import { useAppStore, type PendingPatch } from '../store';
 import { listFiles, createFile, readFile } from '../services/fs/vfs';
+import { getProvenanceEntries, verifyProvenanceChain } from '../services/provenance/provenance';
 
 describe('PatchReviewSheet', () => {
   const projectId = 'test-proj-patches';
@@ -17,6 +18,7 @@ describe('PatchReviewSheet', () => {
     await db.projects.clear();
     await db.files.clear();
     await db.snapshots.clear();
+    await db.provenanceEntries.clear();
     localStorage.clear();
     sessionStorage.clear();
 
@@ -274,5 +276,63 @@ describe('PatchReviewSheet', () => {
     await waitFor(async () => {
       expect(screen.getByText(/has been modified since this patch was generated/i)).toBeDefined();
     });
+  });
+
+  it('records tamper-evident provenance ledger entries for all applied patches', async () => {
+    await createFile(projectId, '/src/index.ts', 'console.log("v1");\n');
+
+    const patches: PendingPatch[] = [
+      {
+        path: '/src/index.ts',
+        type: 'replace',
+        oldContent: 'console.log("v1");\n',
+        newContent: 'console.log("v2");\n',
+        rationale: 'Update log version',
+        model: 'gemini-1.5-pro',
+        provider: 'google',
+        messageId: 'msg-patch-1'
+      },
+      {
+        path: '/src/utils.ts',
+        type: 'create',
+        newContent: 'export const add = (a: number, b: number) => a + b;\n',
+        rationale: 'Add math utility',
+        model: 'gemini-1.5-pro',
+        provider: 'google',
+        messageId: 'msg-patch-2'
+      }
+    ];
+
+    useAppStore.getState().setPendingPatches(patches);
+
+    render(React.createElement(PatchReviewSheet, { projectId }));
+
+    const applyBtn = screen.getByRole('button', { name: /apply selected/i });
+    fireEvent.click(applyBtn);
+
+    await waitFor(() => {
+      expect(useAppStore.getState().pendingPatches).toHaveLength(0);
+    });
+
+    const entries = await getProvenanceEntries(projectId);
+    expect(entries).toHaveLength(2);
+
+    expect(entries[0].filePath).toBe('/src/index.ts');
+    expect(entries[0].model).toBe('gemini-1.5-pro');
+    expect(entries[0].provider).toBe('google');
+    expect(entries[0].messageId).toBe('msg-patch-1');
+    expect(entries[0].rationale).toBe('Update log version');
+    expect(entries[0].prevEntryHash).toBe('0'.repeat(64));
+
+    expect(entries[1].filePath).toBe('/src/utils.ts');
+    expect(entries[1].model).toBe('gemini-1.5-pro');
+    expect(entries[1].provider).toBe('google');
+    expect(entries[1].messageId).toBe('msg-patch-2');
+    expect(entries[1].rationale).toBe('Add math utility');
+    expect(entries[1].prevEntryHash).toBe(entries[0].entryHash);
+
+    const verifyResult = await verifyProvenanceChain(projectId);
+    expect(verifyResult.valid).toBe(true);
+    expect(verifyResult.totalEntries).toBe(2);
   });
 });

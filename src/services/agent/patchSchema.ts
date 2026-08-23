@@ -8,7 +8,10 @@ export const patchSchema = z.object({
   type: patchTypeSchema,
   oldContent: z.string().optional(),
   newContent: z.string(),
-  rationale: z.string()
+  rationale: z.string(),
+  model: z.string().optional(),
+  provider: z.string().optional(),
+  messageId: z.string().optional()
 });
 
 export type PatchType = z.infer<typeof patchTypeSchema>;

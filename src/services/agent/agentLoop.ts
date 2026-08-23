@@ -11,6 +11,8 @@ export interface RunAgentLoopOptions {
     data: string;
   } | null;
   modelName?: string;
+  model?: string;
+  provider?: string;
 }
 
 export async function runAgentLoop(
@@ -190,7 +192,13 @@ export async function runAgentLoop(
           resultStr = `Error executing MCP tool: ${e instanceof Error ? e.message : String(e)}`;
         }
       } else {
-        resultStr = await executeAgentTool(tc.name, tc.args, projectId);
+        const currentAssistantMsg = currentMessages[assistantMsgIndex];
+        const toolContext = {
+          model: currentAssistantMsg?.model || options?.model || options?.modelName,
+          provider: options?.provider,
+          messageId: tc.id
+        };
+        resultStr = await executeAgentTool(tc.name, tc.args, projectId, toolContext);
       }
 
       currentMessages.push({

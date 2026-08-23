@@ -3,6 +3,7 @@ import { useAppStore, type PendingPatch } from '../store';
 import { computeHunks, type DiffHunk } from '../services/agent/patchSchema';
 import { writeFile, createFile, deleteFile, listFiles } from '../services/fs/vfs';
 import { createSnapshot } from '../services/fs/snapshot';
+import { recordProvenanceEntry } from '../services/provenance/provenance';
 import { structuredPatch, applyPatch } from 'diff';
 import { CheckSquare, Square, ChevronUp, ChevronDown, Check, Eye, AlertTriangle, Trash2, X } from 'lucide-react';
 
@@ -117,8 +118,13 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
       if (!anyChecked) continue; // Skip completely
 
       try {
+        let beforeContent = '';
+        let afterContent = '';
+
         if (patch.type === 'create') {
           const existing = files.find(f => f.path === patch.path);
+          beforeContent = existing ? existing.content : '';
+          afterContent = patch.newContent;
           if (existing) {
             await writeFile(existing.id, patch.newContent);
             existing.content = patch.newContent;
@@ -128,6 +134,8 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
           }
         } else if (patch.type === 'delete') {
           const file = files.find(f => f.path === patch.path);
+          beforeContent = file ? file.content : (patch.oldContent || '');
+          afterContent = '';
           if (file) {
             await deleteFile(file.id);
             const fIdx = files.findIndex(f => f.id === file.id);
@@ -136,7 +144,9 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
         } else if (patch.type === 'append') {
           const file = files.find(f => f.path === patch.path);
           if (file) {
+            beforeContent = file.content;
             const appended = file.content + (file.content.endsWith('\n') ? '' : '\n') + patch.newContent;
+            afterContent = appended;
             await writeFile(file.id, appended);
             file.content = appended;
           } else {
@@ -145,8 +155,10 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
         } else if (patch.type === 'replace') {
           const file = files.find(f => f.path === patch.path);
           if (file) {
+            beforeContent = file.content;
             const allHunksChecked = patchHunkStates.every(s => s.checked);
             if (allHunksChecked) {
+              afterContent = patch.newContent;
               await writeFile(file.id, patch.newContent);
               file.content = patch.newContent;
             } else {
@@ -162,6 +174,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
               });
               const result = applyPatch(file.content, p);
               if (typeof result === 'string') {
+                afterContent = result;
                 await writeFile(file.id, result);
                 file.content = result;
               } else {
@@ -173,7 +186,19 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
           }
         }
 
-        // Only push to appliedPaths after write operation actually succeeds
+        // Record provenance ledger entry for the applied patch
+        await recordProvenanceEntry({
+          projectId,
+          filePath: patch.path,
+          beforeContent,
+          afterContent,
+          model: patch.model,
+          provider: patch.provider,
+          messageId: patch.messageId,
+          rationale: patch.rationale
+        });
+
+        // Only push to appliedPaths after write and provenance operation actually succeeds
         appliedPaths.push(patch.path);
       } catch (err: any) {
         console.error(`Failed to apply patch to ${patch.path}:`, err);

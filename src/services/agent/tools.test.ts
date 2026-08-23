@@ -87,6 +87,31 @@ describe('Agent Tools & Path Validation', () => {
     expect(patches[0].newContent).toBe('export const App = () => <div>Hello</div>;');
   });
 
+  it('write_file: captures context with model, provider, and messageId onto pending patch', async () => {
+    const validArgs = JSON.stringify({
+      path: '/src/Header.tsx',
+      type: 'create',
+      newContent: 'export const Header = () => <header>Logo</header>;',
+      rationale: 'Add header component'
+    });
+
+    const context = {
+      model: 'claude-3-5-sonnet',
+      provider: 'anthropic',
+      messageId: 'call_999'
+    };
+
+    const result = await executeAgentTool('write_file', validArgs, projectId, context);
+    expect(result).toContain('Successfully queued patch for /src/Header.tsx');
+
+    const patches = useAppStore.getState().pendingPatches;
+    expect(patches).toHaveLength(1);
+    expect(patches[0].path).toBe('/src/Header.tsx');
+    expect(patches[0].model).toBe('claude-3-5-sonnet');
+    expect(patches[0].provider).toBe('anthropic');
+    expect(patches[0].messageId).toBe('call_999');
+  });
+
   it('write_file: automatically resolves oldContent from VFS for delete patches if omitted', async () => {
     await db.files.add({
       id: 'f-del-1',

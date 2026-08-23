@@ -81,10 +81,17 @@ export function validateProjectPath(path: string): { valid: boolean; error?: str
   return { valid: true };
 }
 
+export interface ToolExecutionContext {
+  model?: string;
+  provider?: string;
+  messageId?: string;
+}
+
 export async function executeAgentTool(
   name: string, 
   argsStr: string, 
-  projectId: string
+  projectId: string,
+  context?: ToolExecutionContext
 ): Promise<string> {
   let args: Record<string, unknown>;
   try {
@@ -170,7 +177,10 @@ export async function executeAgentTool(
           type, 
           oldContent: resolvedOldContent, 
           newContent, 
-          rationale 
+          rationale,
+          model: context?.model,
+          provider: context?.provider,
+          messageId: context?.messageId
         });
         
         return `Successfully queued patch for ${path}. (Note: This is a pending patch and requires user review before taking effect in VFS).`;

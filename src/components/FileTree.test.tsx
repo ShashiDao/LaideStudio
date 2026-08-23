@@ -307,4 +307,40 @@ describe('FileTree & Global File Search', () => {
 
     expect(writeTextMock).toHaveBeenCalledWith('/package.json');
   });
+
+  it('opens image files in dedicated ImageViewerModal instead of opening CodeMirror editor', () => {
+    render(<FileTree files={mockFiles} projectId="p-1" />);
+
+    // In tree, find logo.png
+    const logoFile = screen.getByText('logo.png');
+    fireEvent.click(logoFile);
+
+    // activeFileId in store should NOT be set (so CodeMirror editor is not opened)
+    expect(useAppStore.getState().activeFileId).toBeNull();
+
+    // ImageViewerModal should be rendered
+    const modal = screen.getByRole('dialog');
+    expect(modal).toBeDefined();
+    expect(screen.getAllByText('logo.png').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('/public/logo.png')).toBeDefined();
+
+    // Close button dismisses modal
+    const closeBtn = screen.getByLabelText('Close image viewer');
+    fireEvent.click(closeBtn);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('opens image files from search results in ImageViewerModal without setting activeFileId', () => {
+    render(<FileTree files={mockFiles} projectId="p-1" />);
+
+    const searchInput = screen.getByPlaceholderText('Search files... (/)');
+    fireEvent.change(searchInput, { target: { value: 'logo' } });
+
+    const option = screen.getByRole('option');
+    fireEvent.click(option);
+
+    expect(useAppStore.getState().activeFileId).toBeNull();
+    expect(screen.getByRole('dialog')).toBeDefined();
+    expect(screen.getByText('/public/logo.png')).toBeDefined();
+  });
 });

@@ -32,11 +32,27 @@ export interface ConnectionProfile {
   model: string;
 }
 
+export interface ProvenanceEntry {
+  id: string;
+  projectId: string;
+  filePath: string;
+  beforeHash: string;
+  afterHash: string;
+  model?: string;
+  provider?: string;
+  messageId?: string;
+  rationale?: string;
+  timestamp: number;
+  prevEntryHash: string;
+  entryHash: string;
+}
+
 export class LaideDatabase extends Dexie {
   projects!: Table<Project, string>;
   files!: Table<FileItem, string>;
   snapshots!: Table<Snapshot, string>;
   connectionProfiles!: Table<ConnectionProfile, string>;
+  provenanceEntries!: Table<ProvenanceEntry, string>;
 
   constructor() {
     super('XiomDatabase');
@@ -45,6 +61,13 @@ export class LaideDatabase extends Dexie {
       files: 'id, projectId, path, updatedAt',
       snapshots: 'id, projectId, createdAt',
       connectionProfiles: 'id, provider, label',
+    });
+    this.version(2).stores({
+      projects: 'id, name, createdAt, updatedAt',
+      files: 'id, projectId, path, updatedAt',
+      snapshots: 'id, projectId, createdAt',
+      connectionProfiles: 'id, provider, label',
+      provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
     });
   }
 }

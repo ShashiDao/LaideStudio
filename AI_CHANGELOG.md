@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-31
-- Last verified working: `npm run lint` (`tsc --noEmit && eslint .`) exits 0 with 0 errors across all TypeScript files and React components. All 63 Vitest tests pass cleanly.
+- Phase: FEAT-PROVENANCE-1
+- Last verified working: `npm run lint` exits 0 with 0 errors. All 42 test suites and 279 unit/integration tests pass cleanly. `compile_applet` (`npm run build`) builds the application bundle with zero errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,48 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [FEAT-PROVENANCE-1] Local Tamper-Evident Provenance Ledger for Applied AI Patches — 2026-08-23
+Prompt: Add a local, tamper-evident history of every applied AI patch (provenance ledger) with Dexie schema migration, hash chaining, model/provider metadata threading, and verification utilities.
+Files touched:
+- `src/db.ts` (modified)
+- `src/services/agent/patchSchema.ts` (modified)
+- `src/services/agent/tools.ts` (modified)
+- `src/services/agent/agentLoop.ts` (modified)
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/PatchReviewSheet.tsx` (modified)
+- `src/services/provenance/provenance.ts` (new)
+- `src/services/provenance/index.ts` (new)
+- `src/services/provenance/provenance.test.ts` (new)
+- `src/components/PatchReviewSheet.test.ts` (modified)
+- `src/services/agent/tools.test.ts` (modified)
+Changed:
+- Added Dexie schema `version(2)` in `LaideDatabase` with the new `provenanceEntries` table carrying forward all v1 tables.
+- Threaded `model`, `provider`, and `messageId` execution context from LLM chat assistant messages and agent loops down into `addPendingPatch` and `PendingPatch`.
+- Implemented `src/services/provenance/provenance.ts` providing standard SHA-256 hash chaining (with 64-zero genesis root), entry payload serialization, sequential chain ordering, and tamper verification.
+- Hooked `recordProvenanceEntry` directly into `PatchReviewSheet.tsx` alongside VFS write operations for all applied patch types (`create`, `delete`, `append`, full & partial `replace`).
+- Added unit and integration test suites validating hash computation, genesis root linking, multi-project isolation, and tamper detection (altered file paths, mutated hashes, metadata changes, broken links, intermediate entry deletions).
+Decisions: Kept the ledger 100% local in Dexie with Web Crypto API (`crypto.subtle.digest`) for zero-dependency high-performance cryptographic hashing.
+Deviations: none
+Verified: All 279 tests pass across 42 test files in Vitest (`npx vitest run`). ESLint passes with 0 errors (`npm run lint`). `compile_applet` succeeds.
+Open questions: none
+
+### [HOTFIX-32] Add zoomable ImageViewerModal component for image file preview in FileTree — 2026-08-23
+Prompt: Add a dedicated image viewer component in the FileTree file open logic that detects image extensions (.png, .jpg, .svg) and displays them in a zoomable preview modal instead of trying to open them in the CodeMirror editor.
+Files touched:
+- `src/components/ImageViewerModal.tsx` (new)
+- `src/components/ImageViewerModal.test.tsx` (new)
+- `src/components/FileTree.tsx` (modified)
+- `src/components/FileTree.test.tsx` (modified)
+Changed:
+- Created `ImageViewerModal` with pan, pinch/wheel zoom, 90° rotation, fit to view, keyboard shortcuts (Esc, +, -, 0, r), file copy/download, and transparent checkerboard background.
+- Updated `FileTree` file open handling in tree nodes and search results to detect image extensions (`.png`, `.jpg`, `.jpeg`, `.svg`, `.gif`, `.webp`, `.ico`, `.bmp`) and trigger the zoomable modal instead of setting `activeFileId` to open binary contents in CodeMirror.
+- Added image preview action to the context menu on image files.
+- Added comprehensive unit tests in `ImageViewerModal.test.tsx` and `FileTree.test.tsx`.
+Decisions: Supported both vector SVG encoding (raw XML / data URI) and raster base64 rendering, ensuring smooth viewport scaling up to 1000% with natural dimension readout.
+Deviations: none
+Verified: All 265 Vitest tests pass across 41 test suites (`npm test -- --run`). ESLint and TypeScript compilation pass cleanly with 0 errors.
+Open questions: none
 
 ### [HOTFIX-31] Lazy-load crypto.ts, bundler.ts, and gpt-tokenizer for Vite code-splitting — 2026-08-23
 Prompt: Change crypto.ts and bundler.ts to be dynamically imported everywhere to fix Vite chunk-splitting warnings. Lazy-load gpt-tokenizer in ChatPanel to prevent it from blocking the main chunk.
