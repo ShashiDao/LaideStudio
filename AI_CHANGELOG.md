@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-28
-- Last verified working: Recursive worker bundling implemented. The pattern `new Worker(new URL('./file', import.meta.url), ...)` is detected during build, bundled recursively via esbuild, and rewritten to use a Blob URL, enabling self-hosting of in-browser workers (like our own bundler).
+- Phase: HOTFIX-29
+- Last verified working: Build timeout errors surface the `lastStatus` (e.g. nested worker bundling, dependency resolution) instead of generic messages, making hangs debuggable. Checkpoints added before nested worker builds to isolate recursive bundling hangs.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,21 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-29] Surface last known build status on timeout & nested worker checkpoint — 2026-08-22
+Prompt: Expose the actual build status when the 45s bundler timeout fires instead of generic text. Add a status checkpoint right before nested worker bundling begins to isolate recursive build hangs.
+Files touched:
+- `src/services/bundler/bundler.ts` (modified)
+- `src/services/bundler/esbuild.worker.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `lastStatuses` Map in `bundler.ts` tracking the last received `STATUS` string per build `id`.
+- Replaced the generic timeout rejection message with a contextual error interpolating the `lastStatus` so users know exactly which step hung.
+- Inserted an `options.onStatus?.('Bundling worker module: ...')` checkpoint inside `esbuild.worker.ts` just before spinning up the recursive nested `esbuild.build()` call.
+Decisions: Kept the existing advice text for the timeout error but prepended the actual last-known step. Tied the tracking of `lastStatus` strictly to the `callbacks` lifecycle using the same Map cleanup paths.
+Deviations: none
+Verified: `compile_applet` runs cleanly; Vitest suite passing.
+Open questions: none
 
 ### [HOTFIX-28] Implement recursive worker bundling for `new URL(..., import.meta.url)` pattern — 2026-08-22
 Prompt: Emulate Vite's behavior for `new Worker(new URL('./file.ts', import.meta.url))` by bundling the worker recursively and injecting its code via `URL.createObjectURL(new Blob(...))` inside the browser's esbuild bundler.

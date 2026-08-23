@@ -12,6 +12,7 @@ async function ensureEsbuildInitialized(wasmUrl?: string): Promise<void> {
 
   initPromise = (async () => {
     try {
+
       if (wasmUrl) {
         const wasmRes = await fetch(wasmUrl);
         if (!wasmRes.ok) {
@@ -31,6 +32,7 @@ async function ensureEsbuildInitialized(wasmUrl?: string): Promise<void> {
   })();
 
   try {
+
     await initPromise;
   } catch (err) {
     initPromise = null; // allow a later call to retry from scratch
@@ -56,6 +58,7 @@ function normalizePath(path: string) {
 async function getDepCache(): Promise<Cache | null> {
   if (typeof caches !== 'undefined') {
     try {
+
       return await caches.open(CACHE_NAME);
     } catch (e) {
       console.warn('Cache Storage unavailable:', e);
@@ -122,6 +125,7 @@ export function extractDependenciesFromFiles(files: (Pick<FileItem, 'path' | 'co
   const pkgFile = files.find(f => f.path === '/package.json' || f.path === 'package.json');
   if (!pkgFile || !pkgFile.content) return {};
   try {
+
     const pkg = JSON.parse(pkgFile.content);
     return {
       ...(pkg.dependencies || {}),
@@ -323,7 +327,9 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
                  nestedWorkerPaths.add(resolvePath);
                  
                  try {
-                   const result = await esbuild.build({
+
+                   options.onStatus?.(`Bundling worker module: ${resolvePath}`);
+                    const result = await esbuild.build({
                      entryPoints: [resolvePath],
                      bundle: true,
                      write: false,
@@ -388,6 +394,7 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
          // 1. Try Cache Storage first
          if (cache) {
            try {
+
              const cachedRes = await cache.match(url);
              if (cachedRes) {
                const contents = await cachedRes.text();
@@ -418,6 +425,7 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
          onStatus?.(`Fetching dependency: ${cleanName} (${pendingCount} pending)...`);
 
          try {
+
             const res = await fetch(url);
             if (!res.ok) {
               throw new Error(`Failed to fetch ${url} (Status: ${res.status})`);
@@ -426,6 +434,7 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
             // Store in cache for future offline/faster rebuilds
             if (cache) {
               try {
+
                 await cache.put(url, res.clone());
               } catch (cachePutErr) {
                 console.warn('Failed to cache response for', url, cachePutErr);
@@ -469,6 +478,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
 
     if (type === 'CLEAR_CACHE') {
       try {
+
         if (typeof caches !== 'undefined') {
           const deleted = await caches.delete(CACHE_NAME);
           self.postMessage({ id, type: 'CLEAR_CACHE_SUCCESS', deleted });
@@ -483,6 +493,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
 
     if (type === 'GET_CACHE_INFO') {
       try {
+
         if (typeof caches !== 'undefined') {
           const cache = await getDepCache();
           if (cache) {
@@ -501,6 +512,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
     
     if (type === 'BUILD') {
       try {
+
                 if (!initialized) {
           self.postMessage({ id, type: 'STATUS', status: 'Initializing compiler...' });
         }

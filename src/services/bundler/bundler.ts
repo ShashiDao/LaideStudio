@@ -7,6 +7,7 @@ const callbacks = new Map<number, {
   reject: (err: Error) => void;
   onProgress?: (status: string) => void;
 }>();
+const lastStatuses = new Map<number, string>();
 
 export function _setBundlerWorkerForTesting(w: Worker | null) {
   worker = w;
@@ -24,6 +25,7 @@ export function getBundlerWorker() {
         cb.reject(new Error(reason));
       }
       callbacks.clear();
+      lastStatuses.clear();
       worker = null; // force a fresh worker on the next call — self-healing
     };
     worker.onerror = () => handleFatal('The bundler worker crashed unexpectedly. It has been restarted — try again.');
@@ -33,24 +35,32 @@ export function getBundlerWorker() {
       const cb = callbacks.get(id);
       if (cb) {
         if (type === 'STATUS') {
+          if (status) {
+            lastStatuses.set(id, status);
+          }
           if (cb.onProgress && status) {
             cb.onProgress(status);
           }
         } else if (type === 'SUCCESS') {
           cb.resolve(code);
           callbacks.delete(id);
+          lastStatuses.delete(id);
         } else if (type === 'ERROR') {
           cb.reject(new Error(error));
           callbacks.delete(id);
+          lastStatuses.delete(id);
         } else if (type === 'CLEAR_CACHE_SUCCESS') {
           cb.resolve(deleted);
           callbacks.delete(id);
+          lastStatuses.delete(id);
         } else if (type === 'CLEAR_CACHE_ERROR') {
           cb.reject(new Error(error));
           callbacks.delete(id);
+          lastStatuses.delete(id);
         } else if (type === 'CACHE_INFO') {
           cb.resolve({ count });
           callbacks.delete(id);
+          lastStatuses.delete(id);
         }
       }
     };
@@ -95,11 +105,13 @@ export async function bundle(
     const BUILD_TIMEOUT_MS = 45000;
     const timeoutHandle = setTimeout(() => {
       callbacks.delete(id);
+      const lastStatus = lastStatuses.get(id) || 'Starting build...';
+      lastStatuses.delete(id);
       if (typeof worker?.terminate === 'function') {
         worker.terminate();
       }
       worker = null;
-      reject(new Error('Build timed out after 45s — this can happen on a slow connection while downloading a dependency for the first time, or if a dependency is unusually large. Check your connection and try again.'));
+      reject(new Error(`Build timed out after 45s while: "${lastStatus}". This can happen on a slow connection, an unusually large dependency, or — if this keeps happening on the same step — a real bug at that stage. Check your connection and try again.`));
     }, BUILD_TIMEOUT_MS);
 
     const safeResolve = (val: any) => {
