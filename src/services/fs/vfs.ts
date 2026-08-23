@@ -1,4 +1,4 @@
-import { db, type FileItem } from '../../db';
+import { db, type FileItem, type Project } from '../../db';
 
 export function generateId(): string {
   return crypto.randomUUID();
@@ -126,4 +126,28 @@ export async function deleteProject(projectId: string): Promise<void> {
     await db.snapshots.where('projectId').equals(projectId).delete();
     await db.projects.delete(projectId);
   });
+}
+
+/**
+ * Renames a project and updates its updatedAt timestamp.
+ */
+export async function renameProject(projectId: string, newName: string): Promise<Project> {
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    throw new Error('Project name cannot be empty');
+  }
+
+  const project = await db.projects.get(projectId);
+  if (!project) {
+    throw new Error(`Project not found: ${projectId}`);
+  }
+
+  const updated: Project = {
+    ...project,
+    name: trimmed,
+    updatedAt: Date.now()
+  };
+
+  await db.projects.put(updated);
+  return updated;
 }

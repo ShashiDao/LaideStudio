@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { FileTree, buildFileTree } from './FileTree';
+import { FileTree, buildFileTree, getAllFolderPaths, getFileIcon, getFolderIcon } from './FileTree';
 import { useAppStore } from '../store';
 import type { FileItem } from '../db';
 
@@ -36,6 +36,20 @@ describe('FileTree & Global File Search', () => {
       content: '{"name": "test-project"}',
       updatedAt: 1000,
     },
+    {
+      id: 'f-5',
+      projectId: 'p-1',
+      path: '/src/index.css',
+      content: '@tailwind base;',
+      updatedAt: 1000,
+    },
+    {
+      id: 'f-6',
+      projectId: 'p-1',
+      path: '/public/logo.png',
+      content: 'fake-png-base64',
+      updatedAt: 1000,
+    },
   ];
 
   beforeEach(() => {
@@ -51,16 +65,47 @@ describe('FileTree & Global File Search', () => {
     cleanup();
   });
 
-  it('builds tree structure correctly', () => {
+  it('builds tree structure correctly and discovers all folder paths', () => {
     const tree = buildFileTree(mockFiles);
     expect(tree.type).toBe('folder');
     expect(tree.children?.['src']).toBeDefined();
     expect(tree.children?.['package.json']).toBeDefined();
     expect(tree.children?.['src'].children?.['App.tsx']).toBeDefined();
     expect(tree.children?.['src'].children?.['components'].children?.['PreviewPanel.tsx']).toBeDefined();
+
+    const folderPaths = getAllFolderPaths(tree);
+    expect(folderPaths).toContain('/src');
+    expect(folderPaths).toContain('/src/components');
+    expect(folderPaths).toContain('/src/services');
+    expect(folderPaths).toContain('/src/services/bundler');
+    expect(folderPaths).toContain('/public');
   });
 
-  it('renders standard tree view when search query is empty', () => {
+  it('renders distinct icons for different file types and special configs', () => {
+    const tsxIcon = getFileIcon('App.tsx');
+    const tsIcon = getFileIcon('index.ts');
+    const jsonIcon = getFileIcon('data.json');
+    const pkgIcon = getFileIcon('package.json');
+    const cssIcon = getFileIcon('main.css');
+    const imgIcon = getFileIcon('icon.png');
+    const envIcon = getFileIcon('.env.local');
+
+    expect(tsxIcon).toBeDefined();
+    expect(tsIcon).toBeDefined();
+    expect(jsonIcon).toBeDefined();
+    expect(pkgIcon).toBeDefined();
+    expect(cssIcon).toBeDefined();
+    expect(imgIcon).toBeDefined();
+    expect(envIcon).toBeDefined();
+
+    // Folder open/closed states
+    const openFolder = getFolderIcon('components', true);
+    const closedFolder = getFolderIcon('components', false);
+    expect(openFolder).toBeDefined();
+    expect(closedFolder).toBeDefined();
+  });
+
+  it('renders standard tree view when search query is empty with folder and file controls', () => {
     render(<FileTree files={mockFiles} projectId="p-1" />);
 
     // Search bar is present with placeholder
@@ -71,6 +116,46 @@ describe('FileTree & Global File Search', () => {
     expect(screen.getByText('src')).toBeDefined();
     expect(screen.getByText('package.json')).toBeDefined();
     expect(screen.getByText('App.tsx')).toBeDefined();
+
+    // Stats bar showing file and folder counts
+    expect(screen.getByText(/6 files/)).toBeDefined();
+    expect(screen.getByText(/folders/)).toBeDefined();
+
+    // Expand & Collapse All buttons
+    expect(screen.getByRole('button', { name: 'Expand all folders' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Collapse all folders' })).toBeDefined();
+  });
+
+  it('toggles folder expansion state on clicking folder node', () => {
+    render(<FileTree files={mockFiles} projectId="p-1" />);
+
+    const srcFolderBtn = screen.getByRole('button', { name: /Folder src, expanded/i });
+    expect(srcFolderBtn.getAttribute('aria-expanded')).toBe('true');
+
+    // Click to collapse
+    fireEvent.click(srcFolderBtn);
+    expect(screen.getByRole('button', { name: /Folder src, collapsed/i }).getAttribute('aria-expanded')).toBe('false');
+
+    // Click to expand again
+    fireEvent.click(srcFolderBtn);
+    expect(screen.getByRole('button', { name: /Folder src, expanded/i }).getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('collapses all and expands all folders with one-click actions', () => {
+    render(<FileTree files={mockFiles} projectId="p-1" />);
+
+    const collapseAllBtn = screen.getByRole('button', { name: 'Collapse all folders' });
+    const expandAllBtn = screen.getByRole('button', { name: 'Expand all folders' });
+
+    // Collapse all
+    fireEvent.click(collapseAllBtn);
+    const collapsedSrc = screen.getByRole('button', { name: /Folder src, collapsed/i });
+    expect(collapsedSrc.getAttribute('aria-expanded')).toBe('false');
+
+    // Expand all
+    fireEvent.click(expandAllBtn);
+    const expandedSrc = screen.getByRole('button', { name: /Folder src, expanded/i });
+    expect(expandedSrc.getAttribute('aria-expanded')).toBe('true');
   });
 
   it('filters files globally across folders when searching by filename', () => {
@@ -82,7 +167,7 @@ describe('FileTree & Global File Search', () => {
     // Match count badge
     expect(screen.getByText('1 file found')).toBeDefined();
 
-    // Matching file is shown in results (checking option content with highlight)
+    // Matching file is shown in results
     const option = screen.getByRole('option');
     expect(option.textContent).toContain('PreviewPanel.tsx');
     expect(option.textContent).toContain('/src/components');
@@ -184,5 +269,42 @@ describe('FileTree & Global File Search', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' }));
 
     expect(focusSpy).toHaveBeenCalled();
+  });
+
+  it('allows copying file path from tree node action button', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: writeTextMock },
+      writable: true,
+      configurable: true,
+    });
+
+    render(<FileTree files={mockFiles} projectId="p-1" />);
+
+    // Find copy button for App.tsx
+    const copyBtn = screen.getByLabelText('Copy path /src/App.tsx');
+    expect(copyBtn).toBeDefined();
+
+    fireEvent.click(copyBtn);
+    expect(writeTextMock).toHaveBeenCalledWith('/src/App.tsx');
+  });
+
+  it('allows copying file path from global search results', async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: writeTextMock },
+      writable: true,
+      configurable: true,
+    });
+
+    render(<FileTree files={mockFiles} projectId="p-1" />);
+
+    const searchInput = screen.getByPlaceholderText('Search files... (/)');
+    fireEvent.change(searchInput, { target: { value: 'package' } });
+
+    const copyBtn = screen.getByLabelText('Copy path /package.json');
+    fireEvent.click(copyBtn);
+
+    expect(writeTextMock).toHaveBeenCalledWith('/package.json');
   });
 });

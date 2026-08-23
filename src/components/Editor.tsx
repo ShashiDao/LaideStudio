@@ -1,13 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
-import CodeMirror from '@uiw/react-codemirror';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { X, Copy, Check, Search, Replace } from 'lucide-react';
+import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
 import type { Extension } from '@codemirror/state';
+import { keymap } from '@codemirror/view';
+import { 
+  search, 
+  SearchQuery, 
+  setSearchQuery, 
+  findNext, 
+  findPrevious, 
+  replaceNext, 
+  replaceAll 
+} from '@codemirror/search';
 
 import type { FileItem } from '../db';
 import { writeFile } from '../services/fs/vfs';
 import { useAppStore } from '../store';
+import { EditorFindReplace } from './EditorFindReplace';
 
 export const oledEditorTheme = createTheme({
   theme: 'dark',
@@ -120,11 +131,36 @@ export async function getLanguageExtensionAsync(path: string): Promise<Extension
 }
 
 export function Editor({ file, onContentChanged }: { file: FileItem, onContentChanged: (newContent: string) => void }) {
-  const { setActiveFileId, theme } = useAppStore();
+  const { setActiveFileId, theme, addToast } = useAppStore();
   const [content, setContent] = useState(file.content);
   const [isUnsaved, setIsUnsaved] = useState(false);
+  const [copiedPath, setCopiedPath] = useState(false);
   const [languageExt, setLanguageExt] = useState<Extension[]>([]);
   const saveTimeoutRef = useRef<any>(null);
+  const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  // Find & Replace States
+  const [isFindOpen, setIsFindOpen] = useState(false);
+  const [isReplaceOpen, setIsReplaceOpen] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<'find' | 'replace'>('find');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [replaceTerm, setReplaceTerm] = useState('');
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [useRegex, setUseRegex] = useState(false);
+  const [matchWholeWord, setMatchWholeWord] = useState(false);
+  const [totalMatches, setTotalMatches] = useState(0);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [regexError, setRegexError] = useState<string | null>(null);
+
+  const handleCopyPath = () => {
+    navigator.clipboard.writeText(file.path).then(() => {
+      setCopiedPath(true);
+      addToast(`Copied path: ${file.path}`, 'success');
+      setTimeout(() => setCopiedPath(false), 1500);
+    }).catch(() => {
+      addToast('Failed to copy path', 'error');
+    });
+  };
 
   // Sync state if file changes
   useEffect(() => {
@@ -184,15 +220,276 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
     setActiveFileId(null);
   };
 
+  // Update CodeMirror search query and calculate matches
+  const updateSearchQuery = useCallback(() => {
+    const view = editorRef.current?.view;
+    if (!searchTerm) {
+      setTotalMatches(0);
+      setCurrentMatchIndex(0);
+      setRegexError(null);
+      if (view) {
+        view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
+      }
+      return;
+    }
+
+    try {
+      const query = new SearchQuery({
+        search: searchTerm,
+        caseSensitive,
+        regexp: useRegex,
+        wholeWord: matchWholeWord,
+        replace: replaceTerm,
+      });
+      setRegexError(null);
+
+      if (view) {
+        view.dispatch({ effects: setSearchQuery.of(query) });
+        const doc = view.state.doc;
+        const cursor = query.getCursor(doc);
+        let count = 0;
+        let activeIdx = 0;
+        const sel = view.state.selection.main;
+
+        while (!cursor.next().done) {
+          count++;
+          const { from, to } = cursor.value;
+          if (sel.from <= to && sel.to >= from) {
+            activeIdx = count;
+          }
+        }
+        setTotalMatches(count);
+        setCurrentMatchIndex(count > 0 ? (activeIdx > 0 ? activeIdx : 1) : 0);
+      } else {
+        // Fallback match count calculation
+        let count = 0;
+        if (useRegex) {
+          const flags = caseSensitive ? 'g' : 'gi';
+          const reg = new RegExp(searchTerm, flags);
+          const m = content.match(reg);
+          count = m ? m.length : 0;
+        } else {
+          let pos = 0;
+          const searchIn = caseSensitive ? content : content.toLowerCase();
+          const target = caseSensitive ? searchTerm : searchTerm.toLowerCase();
+          while (true) {
+            const found = searchIn.indexOf(target, pos);
+            if (found === -1) break;
+            count++;
+            pos = found + Math.max(1, target.length);
+          }
+        }
+        setTotalMatches(count);
+        setCurrentMatchIndex(count > 0 ? 1 : 0);
+      }
+    } catch (err: any) {
+      setRegexError(err.message || 'Invalid regular expression');
+      setTotalMatches(0);
+      setCurrentMatchIndex(0);
+    }
+  }, [searchTerm, replaceTerm, caseSensitive, useRegex, matchWholeWord, content]);
+
+  useEffect(() => {
+    if (isFindOpen) {
+      updateSearchQuery();
+    } else {
+      const view = editorRef.current?.view;
+      if (view) {
+        view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
+      }
+    }
+  }, [isFindOpen, updateSearchQuery]);
+
+  const updateActiveMatchIndex = () => {
+    const view = editorRef.current?.view;
+    if (!view || !searchTerm) return;
+    try {
+      const query = new SearchQuery({
+        search: searchTerm,
+        caseSensitive,
+        regexp: useRegex,
+        wholeWord: matchWholeWord,
+        replace: replaceTerm,
+      });
+      const doc = view.state.doc;
+      const cursor = query.getCursor(doc);
+      let count = 0;
+      let activeIdx = 0;
+      const sel = view.state.selection.main;
+
+      while (!cursor.next().done) {
+        count++;
+        const { from, to } = cursor.value;
+        if (sel.from <= to && sel.to >= from) {
+          activeIdx = count;
+        }
+      }
+      setTotalMatches(count);
+      if (count > 0) {
+        setCurrentMatchIndex(activeIdx > 0 ? activeIdx : 1);
+      } else {
+        setCurrentMatchIndex(0);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleFindNext = () => {
+    const view = editorRef.current?.view;
+    if (view) {
+      findNext(view);
+      setTimeout(() => updateActiveMatchIndex(), 10);
+    }
+  };
+
+  const handleFindPrevious = () => {
+    const view = editorRef.current?.view;
+    if (view) {
+      findPrevious(view);
+      setTimeout(() => updateActiveMatchIndex(), 10);
+    }
+  };
+
+  const handleReplaceNext = () => {
+    const view = editorRef.current?.view;
+    if (view) {
+      replaceNext(view);
+      const updated = view.state.doc.toString();
+      setContent(updated);
+      handleChange(updated);
+      setTimeout(() => updateActiveMatchIndex(), 10);
+    }
+  };
+
+  const handleReplaceAll = () => {
+    const view = editorRef.current?.view;
+    if (view) {
+      const countBefore = totalMatches;
+      replaceAll(view);
+      const updated = view.state.doc.toString();
+      setContent(updated);
+      handleChange(updated);
+      addToast(`Replaced ${countBefore} match${countBefore !== 1 ? 'es' : ''}`, 'success');
+      setTimeout(() => updateSearchQuery(), 20);
+    }
+  };
+
+  const handleToggleFind = () => {
+    setIsFindOpen(prev => {
+      const next = !prev;
+      if (next) {
+        setFocusTarget('find');
+      }
+      return next;
+    });
+  };
+
+  const handleCloseFind = () => {
+    setIsFindOpen(false);
+    editorRef.current?.view?.focus();
+  };
+
+  const handleToggleReplace = () => {
+    setIsReplaceOpen(prev => !prev);
+    if (!isReplaceOpen) {
+      setFocusTarget('replace');
+    }
+  };
+
+  // Keyboard shortcut listener for Mod+F and Mod+H
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMod = e.ctrlKey || e.metaKey;
+      if (isMod && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        setIsFindOpen(true);
+        setFocusTarget('find');
+      } else if (isMod && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        setIsFindOpen(true);
+        setIsReplaceOpen(true);
+        setFocusTarget('replace');
+      } else if (e.key === 'Escape' && isFindOpen) {
+        e.preventDefault();
+        handleCloseFind();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFindOpen]);
+
+  // CodeMirror search and keymap extensions
+  const searchExt = useMemo(() => [
+    search({ top: false }),
+    keymap.of([
+      {
+        key: 'Mod-f',
+        run: () => {
+          setIsFindOpen(true);
+          setFocusTarget('find');
+          return true;
+        }
+      },
+      {
+        key: 'Mod-h',
+        run: () => {
+          setIsFindOpen(true);
+          setIsReplaceOpen(true);
+          setFocusTarget('replace');
+          return true;
+        }
+      },
+      {
+        key: 'Escape',
+        run: (view) => {
+          if (isFindOpen) {
+            setIsFindOpen(false);
+            view.focus();
+            return true;
+          }
+          return false;
+        }
+      }
+    ])
+  ], [isFindOpen]);
+
   const activeCmTheme = theme === 'paper' ? paperEditorTheme : oledEditorTheme;
+  const combinedExtensions = useMemo(() => [...languageExt, ...searchExt], [languageExt, searchExt]);
 
   return (
     <div className="absolute inset-0 bg-code-bg canvas-grid-pattern flex flex-col z-10 overflow-hidden">
+      {/* Editor Header Bar */}
       <div className="h-[40px] shrink-0 bg-surface flex items-center justify-between px-3 border-b border-border gap-2 min-w-0">
         <div className="font-mono text-xs text-accent truncate min-w-0 flex-1 font-semibold" title={file.path}>
           {file.path}
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleToggleFind}
+            aria-label="Find & Replace"
+            title="Find & Replace in file (Ctrl+F)"
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono border transition-colors cursor-pointer ${
+              isFindOpen 
+                ? 'bg-accent text-accent-text-on border-accent font-bold shadow-xs' 
+                : 'border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent'
+            }`}
+          >
+            <Search size={13} />
+            <span className="hidden sm:inline text-[10px]">Find</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyPath}
+            aria-label="Copy file path"
+            title={`Copy file path (${file.path})`}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono border border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent transition-colors cursor-pointer"
+          >
+            {copiedPath ? <Check size={13} className="text-accent" /> : <Copy size={13} />}
+            <span className="hidden sm:inline text-[10px]">Copy Path</span>
+          </button>
           {isUnsaved && (
             <div className="w-2 h-2 rounded-full bg-accent animate-pulse" title="Unsaved changes" />
           )}
@@ -205,10 +502,39 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
           </button>
         </div>
       </div>
+
+      {/* Find & Replace Bar */}
+      <EditorFindReplace
+        isOpen={isFindOpen}
+        isReplaceOpen={isReplaceOpen}
+        onClose={handleCloseFind}
+        onToggleReplace={handleToggleReplace}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        replaceTerm={replaceTerm}
+        setReplaceTerm={setReplaceTerm}
+        caseSensitive={caseSensitive}
+        setCaseSensitive={setCaseSensitive}
+        useRegex={useRegex}
+        setUseRegex={setUseRegex}
+        matchWholeWord={matchWholeWord}
+        setMatchWholeWord={setMatchWholeWord}
+        totalMatches={totalMatches}
+        currentMatchIndex={currentMatchIndex}
+        onFindNext={handleFindNext}
+        onFindPrevious={handleFindPrevious}
+        onReplaceNext={handleReplaceNext}
+        onReplaceAll={handleReplaceAll}
+        regexError={regexError}
+        focusTarget={focusTarget}
+      />
+
+      {/* CodeMirror Editor Area */}
       <div className="flex-1 overflow-auto bg-code-bg canvas-grid-pattern [&_.cm-editor]:h-auto [&_.cm-scroller]:font-mono [&_.cm-scroller]:text-[13px] [&_.cm-gutters]:border-r [&_.cm-gutters]:border-border [&_.cm-gutters]:bg-code-bg [&_.cm-lineNumbers]:min-w-[2.5em]">
         <CodeMirror
+          ref={editorRef}
           value={content}
-          extensions={languageExt}
+          extensions={combinedExtensions}
           theme={activeCmTheme}
           onChange={handleChange}
           onBlur={handleBlur}
@@ -232,7 +558,7 @@ export function Editor({ file, onContentChanged }: { file: FileItem, onContentCh
             highlightSelectionMatches: true,
             closeBracketsKeymap: true,
             defaultKeymap: true,
-            searchKeymap: true,
+            searchKeymap: false,
             historyKeymap: true,
             foldKeymap: true,
             completionKeymap: true,

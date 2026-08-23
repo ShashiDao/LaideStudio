@@ -12,7 +12,7 @@ export interface TokenUsage {
   isEstimate: boolean;
 }
 
-export type TabId = 'files' | 'chat' | 'preview' | 'settings';
+export type TabId = 'files' | 'chat' | 'preview' | 'terminal' | 'settings';
 
 export interface PreviewScreenshot {
   data: string; // base64 payload

@@ -9,7 +9,8 @@ import {
   deleteFile,
   renameFile,
   deleteFolder,
-  deleteProject
+  deleteProject,
+  renameProject
 } from './vfs';
 
 describe('Virtual File System', () => {
@@ -179,6 +180,41 @@ describe('Virtual File System', () => {
       await expect(
         deleteProject('non-existent-id')
       ).rejects.toThrow('Project not found: non-existent-id');
+    });
+
+    it('should rename an existing project and update timestamp', async () => {
+      const projId = 'proj-rename-1';
+      await db.projects.put({
+        id: projId,
+        name: 'Original Workspace',
+        createdAt: 1000,
+        updatedAt: 1000
+      });
+
+      const renamed = await renameProject(projId, 'Renamed Master Workspace');
+      expect(renamed.name).toBe('Renamed Master Workspace');
+      expect(renamed.updatedAt).toBeGreaterThan(1000);
+
+      const inDb = await db.projects.get(projId);
+      expect(inDb?.name).toBe('Renamed Master Workspace');
+    });
+
+    it('should throw when renaming non-existent project or using empty name', async () => {
+      await expect(
+        renameProject('non-existent-id', 'New Name')
+      ).rejects.toThrow('Project not found');
+
+      const projId = 'proj-rename-2';
+      await db.projects.put({
+        id: projId,
+        name: 'Workspace',
+        createdAt: 1000,
+        updatedAt: 1000
+      });
+
+      await expect(
+        renameProject(projId, '   ')
+      ).rejects.toThrow('Project name cannot be empty');
     });
   });
 });

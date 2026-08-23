@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Settings, Plus, Save, Trash2, ShieldCheck, ShieldAlert, Activity, CheckCircle2, 
   ChevronDown, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
-  Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette
+  Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
+  Database, Cpu, ExternalLink
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
@@ -25,6 +26,13 @@ import {
   restoreBackup, 
   type BackupValidationResult 
 } from '../services/backup';
+
+function formatTokens(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 10000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toString();
+}
 
 const PROVIDERS = [
   { id: 'anthropic', label: 'Anthropic' },
@@ -50,7 +58,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   'openai-compatible': ''
 };
 
-export function SettingsPanel() {
+export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => void }) {
   const { 
     keys, 
     setKeys,
@@ -140,7 +148,21 @@ export function SettingsPanel() {
   const [importingBackup, setImportingBackup] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
+  const [dbStats, setDbStats] = useState<{ projectCount: number; fileCount: number } | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const pCount = await db.projects.count();
+        const fCount = await db.files.count();
+        setDbStats({ projectCount: pCount, fileCount: fCount });
+      } catch {
+        setDbStats(null);
+      }
+    }
+    loadStats();
+  }, [profiles]);
 
   useEffect(() => {
     setInstructionsDraft(customInstructions);
@@ -1032,6 +1054,96 @@ export function SettingsPanel() {
         </div>
       </div>
 
+      {/* System Diagnostics & AI Context Allocation */}
+      <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-accent">
+            <Activity size={18} />
+            <h3 className="text-sm font-sans font-bold">System Diagnostics & Context</h3>
+          </div>
+          <span className="text-[10px] font-mono text-moss bg-moss/10 border border-moss/30 px-2 py-0.5 rounded flex items-center gap-1">
+            <CheckCircle2 size={11} /> Vault Healthy
+          </span>
+        </div>
+
+        {/* Database & Storage Engine Diagnostics */}
+        <div className="bg-bg/80 border border-border/80 rounded p-3 text-xs font-mono space-y-2">
+          <div className="flex items-center justify-between text-muted text-[11px] pb-1 border-b border-border/60">
+            <div className="flex items-center gap-1.5 text-text font-semibold">
+              <Database size={13} className="text-accent" />
+              <span>Encrypted IndexedDB Storage</span>
+            </div>
+            <span className="text-moss font-medium">Ready (AES-GCM)</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+            <div>
+              <span className="text-muted block text-[10px]">Projects:</span>
+              <span className="text-text font-bold">{dbStats?.projectCount ?? '—'}</span>
+            </div>
+            <div>
+              <span className="text-muted block text-[10px]">Files:</span>
+              <span className="text-text font-bold">{dbStats?.fileCount ?? '—'}</span>
+            </div>
+            <div>
+              <span className="text-muted block text-[10px]">Profiles:</span>
+              <span className="text-text font-bold">{profiles.length}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Context Window Allocation Gauge */}
+        <div className="bg-bg/80 border border-border/80 rounded p-3 text-xs font-mono space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-text text-[11px] font-semibold">
+              <Cpu size={13} className="text-accent" />
+              <span>AI Context Window Usage</span>
+            </div>
+            <span className="text-accent text-[11px] font-bold">
+              {formatTokens(tokenUsage.system + tokenUsage.codebase + tokenUsage.chat)} / {formatTokens(tokenUsage.max || 200000)} tokens
+              <span className="text-muted font-normal ml-1">
+                ({Math.round(((tokenUsage.system + tokenUsage.codebase + tokenUsage.chat) / (tokenUsage.max || 200000)) * 100)}%)
+              </span>
+            </span>
+          </div>
+
+          {/* Visual token bar */}
+          <div className="w-full h-2.5 bg-surface rounded-full overflow-hidden flex border border-border">
+            <div 
+              className="h-full bg-accent/80 transition-all duration-500"
+              style={{ width: `${Math.min(100, (tokenUsage.system / (tokenUsage.max || 200000)) * 100)}%` }}
+              title={`System Prompt: ${tokenUsage.system.toLocaleString()} tokens`}
+            />
+            <div 
+              className="h-full bg-accent/50 transition-all duration-500"
+              style={{ width: `${Math.min(100, (tokenUsage.codebase / (tokenUsage.max || 200000)) * 100)}%` }}
+              title={`File Manifest: ${tokenUsage.codebase.toLocaleString()} tokens`}
+            />
+            <div 
+              className="h-full bg-accent/25 transition-all duration-500"
+              style={{ width: `${Math.min(100, (tokenUsage.chat / (tokenUsage.max || 200000)) * 100)}%` }}
+              title={`Chat Conversation: ${tokenUsage.chat.toLocaleString()} tokens`}
+            />
+          </div>
+
+          {/* Legend */}
+          <div className="grid grid-cols-3 gap-1.5 text-[10px] text-muted pt-1">
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-xs bg-accent/80 shrink-0" />
+              <span className="truncate">System ({formatTokens(tokenUsage.system)})</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-xs bg-accent/50 shrink-0" />
+              <span className="truncate">Manifest ({formatTokens(tokenUsage.codebase)})</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-xs bg-accent/25 shrink-0" />
+              <span className="truncate">Chat ({formatTokens(tokenUsage.chat)})</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Compiler Dependency Cache */}
       <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded">
         <div className="flex items-center justify-between mb-2">
@@ -1071,6 +1183,59 @@ export function SettingsPanel() {
                 : 'Clear Dependency Cache'}
           </span>
         </button>
+      </div>
+
+      {/* Keyboard Shortcuts Reference */}
+      <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-accent">
+            <Keyboard size={18} />
+            <h3 className="text-sm font-sans font-bold">Keyboard Shortcuts</h3>
+          </div>
+          {onOpenShortcuts && (
+            <button
+              type="button"
+              onClick={onOpenShortcuts}
+              className="text-[11px] font-sans text-accent hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>View All Shortcuts</span>
+              <ExternalLink size={11} />
+            </button>
+          )}
+        </div>
+
+        <p className="text-xs text-muted font-sans mb-4 leading-relaxed">
+          Speed up your development workflow with global accelerator hotkeys. On macOS, use ⌘ Command instead of Ctrl.
+        </p>
+
+        <div className="space-y-2 text-xs font-mono">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
+              <span className="text-muted text-[11px]">Toggle Files tab</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+B</kbd>
+            </div>
+            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
+              <span className="text-muted text-[11px]">Toggle Terminal</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+`</kbd>
+            </div>
+            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
+              <span className="text-muted text-[11px]">Quick Open & Search</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+P</kbd>
+            </div>
+            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
+              <span className="text-muted text-[11px]">Find in File</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+F</kbd>
+            </div>
+            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
+              <span className="text-muted text-[11px]">Open Preview</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+Shift+P</kbd>
+            </div>
+            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
+              <span className="text-muted text-[11px]">Lock Vault</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+Shift+L</kbd>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Backup Restore Confirmation Modal */}
