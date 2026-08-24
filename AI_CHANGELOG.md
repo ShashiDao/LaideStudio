@@ -1,6 +1,6 @@
 ## Current State
-- Phase: FEATURE-06
-- Last verified working: Full test suite passes cleanly with 57 test files and 379 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors on modified files.
+- Phase: FEATURE-07
+- Last verified working: Full test suite passes cleanly with 58 test files and 392 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors on modified files.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,24 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [FEATURE-07] Dynamic Theme Contrast Fine-Tuning — 2026-08-24
+Prompt: Add a slider in the Settings panel to let users fine-tune the contrast of the active theme (OLED or Paper), updating CSS variables dynamically.
+Files touched:
+- `src/services/theme/contrast.ts` (new)
+- `src/services/theme/contrast.test.ts` (new)
+- `src/store.ts` (modified)
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/SettingsPanel.test.tsx` (modified)
+Changed:
+- Created theme contrast computation service (`contrast.ts`) with continuous RGB interpolation and contrast bounds (60% to 140%).
+- Implemented `applyThemeAndContrast` updating document `--bg`, `--surface`, `--surface-elevated`, `--border`, `--text-primary`, `--text-secondary`, `--code-bg`, and `--grid-line` CSS properties directly on `document.documentElement` for zero-flicker real-time reactivity.
+- Extended `ThemeSlice` in `store.ts` with `themeContrast`, `setThemeContrast`, and persistence in `laide_theme_contrast` localStorage.
+- Added Theme Contrast slider in `SettingsPanel.tsx` with presets (Soft 75%, Standard 100%, High 125%, Ultra High 140%), dynamic description labels, Reset button, and real-time live dynamic swatch palette preview.
+Decisions: Supported both OLED (Dark) and Paper (Light) theme matrices with tailored luminance and border contrast scaling; preserved exact baseline values at 100%.
+Deviations: none
+Verified: Added 13 new unit and component tests across `contrast.test.ts` and `SettingsPanel.test.tsx`; full test suite passes with 58 test files; verified clean compilation and type checking.
+Open questions: none
 
 ### [FEATURE-06] Project-Wide Content Search (Find in Files) — 2026-08-24
 Prompt: Project-wide search — Ctrl+P only does filename quick-open right now; there's no way to search inside files across the whole project. For a coding tool this is a pretty core feature once projects grow past a handful of files.

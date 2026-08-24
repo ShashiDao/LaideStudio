@@ -4,10 +4,17 @@ import {
   ChevronDown, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
   Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
   Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight,
-  Rocket, Globe
+  Rocket, Sliders
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
+import { 
+  DEFAULT_CONTRAST, 
+  MIN_CONTRAST, 
+  MAX_CONTRAST, 
+  getContrastLabel, 
+  computeThemeVariables 
+} from '../services/theme/contrast';
 import { AnthropicProvider } from '../services/llm/providers/anthropic';
 import { OpenAIProvider } from '../services/llm/providers/openai';
 import { GoogleProvider } from '../services/llm/providers/google';
@@ -73,6 +80,8 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     setTokenUsage,
     theme,
     setTheme,
+    themeContrast,
+    setThemeContrast,
     ensembleModeEnabled,
     setEnsembleModeEnabled,
     ensembleCandidateBProfileId,
@@ -692,10 +701,144 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
             </div>
           </button>
         </div>
-        <p className="text-[10px] text-muted font-sans flex items-center justify-between px-1">
-          <span>Theme preference persists in local browser storage.</span>
-          <code className="font-mono text-[9px] bg-surface px-1 py-0.5 rounded border border-border">laide_theme_preference</code>
-        </p>
+        <div className="flex items-center justify-between text-[10px] text-muted font-sans px-1">
+          <span>Theme and contrast settings persist in local browser storage.</span>
+          <div className="flex items-center gap-1.5 font-mono text-[9px]">
+            <code className="bg-surface px-1 py-0.5 rounded border border-border">laide_theme_preference</code>
+            <code className="bg-surface px-1 py-0.5 rounded border border-border">laide_theme_contrast</code>
+          </div>
+        </div>
+
+        {/* Theme Contrast Fine-Tuning Slider */}
+        <div className="p-3.5 rounded-lg border border-border bg-surface/40 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sliders size={14} className="text-accent shrink-0" />
+              <h4 className="text-xs font-mono font-bold text-text">Theme Contrast</h4>
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-elevated border border-border text-accent font-bold">
+                {themeContrast ?? DEFAULT_CONTRAST}%
+              </span>
+              <span className="text-[10px] font-sans text-muted">
+                ({getContrastLabel(themeContrast ?? DEFAULT_CONTRAST).label})
+              </span>
+            </div>
+
+            {(themeContrast ?? DEFAULT_CONTRAST) !== DEFAULT_CONTRAST && (
+              <button
+                type="button"
+                onClick={() => setThemeContrast(DEFAULT_CONTRAST)}
+                className="flex items-center gap-1 text-[10px] font-mono text-muted hover:text-accent transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-accent/10 border border-transparent hover:border-accent/30"
+                title="Reset contrast to 100% standard"
+                aria-label="Reset theme contrast"
+              >
+                <RotateCcw size={10} />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+
+          <p className="text-[11px] text-muted font-sans leading-relaxed">
+            {getContrastLabel(themeContrast ?? DEFAULT_CONTRAST).description} Updates CSS variables (<code className="font-mono text-[10px] text-text/80">--bg</code>, <code className="font-mono text-[10px] text-text/80">--surface</code>, <code className="font-mono text-[10px] text-text/80">--border</code>, <code className="font-mono text-[10px] text-text/80">--text-primary</code>) in real time.
+          </p>
+
+          {/* Range Slider Track */}
+          <div className="space-y-1.5 pt-1">
+            <div className="relative flex items-center">
+              <input
+                type="range"
+                min={MIN_CONTRAST}
+                max={MAX_CONTRAST}
+                step={1}
+                value={themeContrast ?? DEFAULT_CONTRAST}
+                onChange={(e) => setThemeContrast(Number(e.target.value))}
+                aria-label="Theme contrast level"
+                className="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-accent focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[9px] font-mono text-muted select-none">
+              <span>{MIN_CONTRAST}% (Soft)</span>
+              <span className="font-bold text-text/70">100% (Standard)</span>
+              <span>{MAX_CONTRAST}% (Ultra High)</span>
+            </div>
+          </div>
+
+          {/* Preset Buttons */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[10px] font-mono text-muted shrink-0 mr-1">Presets:</span>
+            {[
+              { label: 'Soft', value: 75 },
+              { label: 'Standard', value: 100 },
+              { label: 'High', value: 125 },
+              { label: 'Ultra High', value: 140 },
+            ].map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => setThemeContrast(preset.value)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer border ${
+                  (themeContrast ?? DEFAULT_CONTRAST) === preset.value
+                    ? 'bg-accent/15 border-accent text-accent font-bold shadow-xs'
+                    : 'bg-surface border-border text-muted hover:text-text hover:border-accent/40'
+                }`}
+              >
+                {preset.label} ({preset.value}%)
+              </button>
+            ))}
+          </div>
+
+          {/* Live Dynamic Swatch Readout */}
+          <div className="pt-2 border-t border-border/70 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono text-muted uppercase">Live Dynamic Swatch:</span>
+              {(() => {
+                const liveVars = computeThemeVariables(theme, themeContrast ?? DEFAULT_CONTRAST);
+                return (
+                  <div className="flex items-center gap-1.5">
+                    <div 
+                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
+                      style={{ backgroundColor: liveVars['--bg'], borderColor: liveVars['--border'] }}
+                      title={`Background: ${liveVars['--bg']}`}
+                    />
+                    <div 
+                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
+                      style={{ backgroundColor: liveVars['--surface'], borderColor: liveVars['--border'] }}
+                      title={`Surface: ${liveVars['--surface']}`}
+                    />
+                    <div 
+                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
+                      style={{ backgroundColor: liveVars['--surface-elevated'], borderColor: liveVars['--border'] }}
+                      title={`Surface Elevated: ${liveVars['--surface-elevated']}`}
+                    />
+                    <div 
+                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
+                      style={{ backgroundColor: liveVars['--border'], borderColor: liveVars['--border'] }}
+                      title={`Border: ${liveVars['--border']}`}
+                    />
+                    <div 
+                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
+                      style={{ backgroundColor: liveVars['--text-primary'], borderColor: liveVars['--border'] }}
+                      title={`Text Primary: ${liveVars['--text-primary']}`}
+                    />
+                    <div 
+                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
+                      style={{ backgroundColor: liveVars['--text-secondary'], borderColor: liveVars['--border'] }}
+                      title={`Text Secondary: ${liveVars['--text-secondary']}`}
+                    />
+                    <div 
+                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
+                      style={{ backgroundColor: liveVars['--code-bg'], borderColor: liveVars['--border'] }}
+                      title={`Code Background: ${liveVars['--code-bg']}`}
+                    />
+                  </div>
+                );
+              })()}
+            </div>
+            <span className="font-mono text-[9px] text-muted uppercase">
+              {theme.toUpperCase()} PALETTE
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Profiles List */}

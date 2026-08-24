@@ -4,6 +4,9 @@ import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { SettingsPanel } from './SettingsPanel';
 
+const mockSetTheme = vi.fn();
+const mockSetThemeContrast = vi.fn();
+
 // Mock dependencies
 vi.mock('../store', () => ({
   useAppStore: () => ({
@@ -19,6 +22,14 @@ vi.mock('../store', () => ({
     customInstructions: '',
     setCustomInstructions: vi.fn(),
     tokenUsage: { max: 32000, chat: 0, codebase: 0, system: 0 },
+    theme: 'oled',
+    setTheme: mockSetTheme,
+    themeContrast: 100,
+    setThemeContrast: mockSetThemeContrast,
+    ensembleModeEnabled: false,
+    setEnsembleModeEnabled: vi.fn(),
+    ensembleCandidateBProfileId: null,
+    setEnsembleCandidateBProfileId: vi.fn(),
   })
 }));
 
@@ -70,7 +81,7 @@ describe('SettingsPanel', () => {
     render(React.createElement(SettingsPanel));
     
     // Open provider dropdown
-    const providerBtn = screen.getByRole('button', { name: /Anthropic/i }); // Default is usually Anthropic
+    const providerBtn = screen.getByRole('button', { name: /Anthropic/i });
     fireEvent.click(providerBtn);
 
     // Select OpenAI Compatible
@@ -81,5 +92,51 @@ describe('SettingsPanel', () => {
     const baseUrlInputs = screen.getAllByPlaceholderText('https://openrouter.ai/api/v1') as HTMLInputElement[];
     expect(baseUrlInputs.length).toBeGreaterThan(0);
     expect(baseUrlInputs[0].value).toBe('');
+  });
+
+  describe('Theme Contrast Slider & Appearance', () => {
+    it('renders the contrast slider with current contrast value and labels', () => {
+      render(React.createElement(SettingsPanel));
+
+      expect(screen.getByText('Theme Contrast')).toBeTruthy();
+      expect(screen.getByText('100%')).toBeTruthy();
+      expect(screen.getByText('(Standard)')).toBeTruthy();
+
+      const slider = screen.getByLabelText('Theme contrast level') as HTMLInputElement;
+      expect(slider).toBeTruthy();
+      expect(slider.value).toBe('100');
+      expect(slider.min).toBe('60');
+      expect(slider.max).toBe('140');
+    });
+
+    it('triggers setThemeContrast when slider is moved', () => {
+      render(React.createElement(SettingsPanel));
+
+      const slider = screen.getByLabelText('Theme contrast level') as HTMLInputElement;
+      fireEvent.change(slider, { target: { value: '125' } });
+
+      expect(mockSetThemeContrast).toHaveBeenCalledWith(125);
+    });
+
+    it('triggers preset buttons when clicked', () => {
+      render(React.createElement(SettingsPanel));
+
+      const softBtn = screen.getByRole('button', { name: /Soft \(75%\)/i });
+      fireEvent.click(softBtn);
+      expect(mockSetThemeContrast).toHaveBeenCalledWith(75);
+
+      const highBtn = screen.getByRole('button', { name: /High \(125%\)/i });
+      fireEvent.click(highBtn);
+      expect(mockSetThemeContrast).toHaveBeenCalledWith(125);
+    });
+
+    it('allows switching between OLED and Paper theme modes', () => {
+      render(React.createElement(SettingsPanel));
+
+      const paperBtn = screen.getByRole('button', { name: /Paper \/ Blueprint/i });
+      fireEvent.click(paperBtn);
+
+      expect(mockSetTheme).toHaveBeenCalledWith('paper');
+    });
   });
 });

@@ -98,11 +98,21 @@ export interface PWASlice {
   triggerInstallEngagement: () => void;
 }
 
+import { 
+  applyThemeAndContrast, 
+  CONTRAST_STORAGE_KEY, 
+  DEFAULT_CONTRAST, 
+  MIN_CONTRAST, 
+  MAX_CONTRAST 
+} from './services/theme/contrast';
+
 export type ThemeMode = 'oled' | 'paper';
 
 export interface ThemeSlice {
   theme: ThemeMode;
+  themeContrast: number;
   setTheme: (theme: ThemeMode) => void;
+  setThemeContrast: (contrast: number) => void;
   toggleTheme: () => void;
 }
 
@@ -135,15 +145,27 @@ export const getInitialTheme = (): ThemeMode => {
   return 'oled';
 };
 
-export const applyThemeToDocument = (theme: ThemeMode) => {
-  if (typeof document !== 'undefined') {
-    document.documentElement.setAttribute('data-theme', theme);
+export const getInitialContrast = (): number => {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem(CONTRAST_STORAGE_KEY);
+    if (saved) {
+      const num = Number(saved);
+      if (Number.isFinite(num) && num >= MIN_CONTRAST && num <= MAX_CONTRAST) {
+        return num;
+      }
+    }
   }
+  return DEFAULT_CONTRAST;
+};
+
+export const applyThemeToDocument = (theme: ThemeMode, contrast: number = DEFAULT_CONTRAST) => {
+  applyThemeAndContrast(theme, contrast);
 };
 
 const initialTheme = getInitialTheme();
+const initialContrast = getInitialContrast();
 if (typeof document !== 'undefined') {
-  applyThemeToDocument(initialTheme);
+  applyThemeAndContrast(initialTheme, initialContrast);
 }
 
 const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (set) => ({
@@ -356,12 +378,21 @@ const createPWASlice: StateCreator<AppState, [], [], PWASlice> = (set, get) => (
 
 const createThemeSlice: StateCreator<AppState, [], [], ThemeSlice> = (set, get) => ({
   theme: initialTheme,
+  themeContrast: initialContrast,
   setTheme: (theme: ThemeMode) => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(THEME_STORAGE_KEY, theme);
     }
-    applyThemeToDocument(theme);
+    applyThemeToDocument(theme, get().themeContrast);
     set({ theme });
+  },
+  setThemeContrast: (themeContrast: number) => {
+    const clamped = Math.min(MAX_CONTRAST, Math.max(MIN_CONTRAST, themeContrast));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CONTRAST_STORAGE_KEY, String(clamped));
+    }
+    applyThemeToDocument(get().theme, clamped);
+    set({ themeContrast: clamped });
   },
   toggleTheme: () => {
     const nextTheme: ThemeMode = get().theme === 'oled' ? 'paper' : 'oled';
