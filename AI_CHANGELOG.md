@@ -2075,6 +2075,22 @@ Deviations: none
 Verified: Added vitest-environment happy-dom to test file and wrote new UI component tests checking real-time mismatch rendering.
 Open questions: none
 
+### [HOTFIX-35] Fix preventDefault timing in async form submission handlers — 2026-08-24
+Prompt: Fix a bug across the app where `e.preventDefault()` was called after `await import(...)` in form submission handlers. Because control yields to the browser at the `await`, `preventDefault()` runs too late, allowing native form submission (page reload) to proceed. Move `preventDefault()` to be the first synchronous statement and add regression tests.
+Files touched:
+- `src/components/LockScreen.tsx` (modified)
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/LockScreen.test.tsx` (modified)
+Changed:
+- Moved `e.preventDefault()` to the top of the async function body in `handleStartSetup`, `handleUnlock`, and `handleRecoveryUnlock` in `LockScreen.tsx`.
+- Moved `e.preventDefault()` to the top of the async function body in `handleAddMcpServer` and the inline `onSubmit` handler in `SettingsPanel.tsx`.
+- Added synchronous regression tests in `LockScreen.test.tsx` simulating a form submission event and synchronously asserting that the event's `defaultPrevented` flag is set (via `fireEvent.submit` return value) before any mocked async work resolves.
+- Added `afterEach(cleanup)` to `LockScreen.test.tsx` to properly reset DOM state between tests and prevent cross-test DOM pollution which was failing `findByPlaceholderText` assertions.
+Decisions: Ensured that every `React.FormEvent` handler inside the app correctly calls `preventDefault()` synchronously on the first tick of the event loop.
+Deviations: Named HOTFIX-35 instead of HOTFIX-34 to avoid collision with the previous HOTFIX-34 entry.
+Verified: All 50 test files and 319 tests pass cleanly in Vitest (`npm test`). Build compiles cleanly.
+Open questions: none
+
 ### [HOTFIX-34] 'Keep me logged in' Vault Session Persistence across Browser Refreshes — 2026-08-24
 Prompt: Implement a 'Keep me logged in' checkbox on the LockScreen. When checked, store a hash of the vault key in IndexedDB for a limited period to persist the session across browser refreshes, making it optional for users who prefer convenience over strict session isolation.
 Files touched:

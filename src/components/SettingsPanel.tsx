@@ -107,8 +107,8 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   } = useAppStore();
 
   const handleAddMcpServer = async (e: React.FormEvent) => {
-    const { encryptData } = await import('../services/crypto');
     e.preventDefault();
+    const { encryptData } = await import('../services/crypto');
     if (!keys || !mcpServerUrlInput.trim()) return;
     try {
       const newServers = [...mcpServers, { id: crypto.randomUUID(), url: mcpServerUrlInput.trim() }];
@@ -1030,8 +1030,8 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         </div>
         
         <form onSubmit={async (e) => {
-          const { encryptData } = await import('../services/crypto');
           e.preventDefault();
+          const { encryptData } = await import('../services/crypto');
           if (!keys) return;
           try {
             const enc = await encryptData(keys.aesKey, githubPatInput);

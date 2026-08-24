@@ -2,15 +2,20 @@
  * @vitest-environment happy-dom
  */
 import 'fake-indexeddb/auto';
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import React from 'react';
 import { getStrength, LockScreen } from './LockScreen';
+import { getLockConfig } from '../services/lockConfig';
 
 vi.mock('../services/lockConfig', () => ({
   getLockConfig: vi.fn(() => null), // Force setup flow
   saveLockConfig: vi.fn(),
 }));
+
+afterEach(() => {
+  cleanup();
+});
 
 describe('LockScreen Passphrase Security', () => {
   it('marks empty strings with score 0 and no label', () => {
@@ -99,6 +104,41 @@ describe('LockScreen Setup UI', () => {
 
     fireEvent.click(checkbox);
     expect((checkbox as HTMLInputElement).checked).toBe(true);
+  });
+});
+
+describe('Form Submission preventDefault Regression', () => {
+  it('calls preventDefault synchronously on setup form submission before awaiting crypto', async () => {
+    // Ensure setup flow
+    vi.mocked(getLockConfig).mockReturnValue(null);
+    render(<LockScreen />);
+    
+    const passInput = await screen.findByPlaceholderText('Enter strong passphrase');
+    const form = passInput.closest('form')!;
+    
+    // fireEvent.submit returns false if preventDefault was called.
+    const notPrevented = fireEvent.submit(form);
+    
+    // It should be prevented synchronously
+    expect(notPrevented).toBe(false);
+  });
+
+  it('calls preventDefault synchronously on unlock form submission before awaiting crypto', async () => {
+    // Force unlock flow
+    vi.mocked(getLockConfig).mockReturnValue({
+      verifierBase64: 'abc',
+      saltBase64: 'def',
+      recoveryData: { ivBase64: 'g', encryptedMasterKeyBase64: 'h' }
+    } as any);
+    
+    render(<LockScreen />);
+    
+    const passInput = await screen.findByPlaceholderText('Enter master passphrase');
+    const form = passInput.closest('form')!;
+    
+    const notPrevented = fireEvent.submit(form);
+    
+    expect(notPrevented).toBe(false);
   });
 });
 

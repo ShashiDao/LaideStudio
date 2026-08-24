@@ -119,8 +119,8 @@ export function LockScreen() {
   }, []);
 
   const handleStartSetup = async (e: React.FormEvent) => {
-    const { deriveKeys, generateVerifier } = await import('../services/crypto');
     e.preventDefault();
+    const { deriveKeys, generateVerifier } = await import('../services/crypto');
     if (passphrase.length < 10) {
       setError('Passphrase is too short (minimum 10 characters required)');
       return;
@@ -229,8 +229,8 @@ export function LockScreen() {
   };
 
   const handleUnlock = async (e: React.FormEvent) => {
-    const { base64ToArrayBuffer, deriveKeys, verifyPassphrase } = await import('../services/crypto');
     e.preventDefault();
+    const { base64ToArrayBuffer, deriveKeys, verifyPassphrase } = await import('../services/crypto');
     if (!config) return;
     
     setBusy(true);
@@ -261,8 +261,8 @@ export function LockScreen() {
   };
 
   const handleRecoveryUnlock = async (e: React.FormEvent) => {
-    const { importMasterKey } = await import('../services/crypto');
     e.preventDefault();
+    const { importMasterKey } = await import('../services/crypto');
     if (!config) return;
     
     if (!config.recoveryData) {
