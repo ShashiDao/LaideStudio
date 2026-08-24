@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { runAgentLoop } from '../services/agent/agentLoop';
-import { runEnsembleDualEvaluation, type EnsembleEvaluationResult, type CandidateExecutionResult } from '../services/agent/ensemble';
+import { runEnsembleDualEvaluation, type EnsembleEvaluationResult } from '../services/agent/ensemble';
 import { EnsembleCandidatePickerModal } from './EnsembleCandidatePickerModal';
 import { createLLMAdapter } from '../services/llm/factory';
 import { db, type FileItem } from '../db';

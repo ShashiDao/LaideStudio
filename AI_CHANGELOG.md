@@ -1,6 +1,6 @@
 ## Current State
 - Phase: REBRAND-2
-- Last verified working: Full test suite passes cleanly with 49 test files and 315 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors.
+- Last verified working: Full test suite passes cleanly with 50 test files and 317 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors (`npx eslint . --quiet`).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -2062,16 +2062,39 @@ Deviations: none
 Verified: UI fits on single line at 360px width with plenty of margin. Applet builds successfully.
 Open questions: none
 
-### [8.4.2] Files Panel Toolbar Captions — 2026-08-19
-Prompt: Add small captions below Files panel toolbar icons (Import/Push/Upload/Export) reusing the exact same icon-above-caption pattern and sizing from the bottom tab bar.
-Files touched:
-src/App.tsx (modified)
-Changed:
-- Added small captions below toolbar icons in the Files panel header.
-- Reused the icon-above-caption structure, text-[10px], font-medium, and uppercase styling matching TabButton in the bottom navigation.
-- Maintained single-row alignment fitting comfortably on mobile viewports down to 360px width.
-Decisions: Reused the exact typography (`text-[10px] font-medium tracking-wide uppercase`) and stacked flex layout from the bottom tab bar for complete UI consistency.
+### [HOTFIX-33] LockScreen Password Visibility Toggles & Feedback — 2026-08-24
+Prompt: Add show/hide toggles to password fields and real-time match feedback for confirm field on LockScreen.
+Files touched: 
+src/components/LockScreen.tsx (modified)
+src/components/LockScreen.test.tsx (modified)
+Changed: 
+- Added Eye/EyeOff toggle buttons to setup passphrase, confirm passphrase, unlock passphrase, and recovery phrase inputs.
+- Implemented real-time "Passphrases match" / "Doesn't match yet" feedback text under the confirm passphrase field.
+Decisions: Changed the recovery phrase textarea to a standard input field to cleanly support type swapping between 'text' and 'password' while keeping layout and interactions consistent with the other inputs. Reused text-moss color for success state.
 Deviations: none
-Verified: Header compiles and fits within single row on 360px width viewport.
+Verified: Added vitest-environment happy-dom to test file and wrote new UI component tests checking real-time mismatch rendering.
 Open questions: none
+
+### [HOTFIX-34] 'Keep me logged in' Vault Session Persistence across Browser Refreshes — 2026-08-24
+Prompt: Implement a 'Keep me logged in' checkbox on the LockScreen. When checked, store a hash of the vault key in IndexedDB for a limited period to persist the session across browser refreshes, making it optional for users who prefer convenience over strict session isolation.
+Files touched:
+- src/db.ts (modified)
+- src/services/session.ts (new)
+- src/services/session.test.ts (new)
+- src/store.ts (modified)
+- src/components/LockScreen.tsx (modified)
+- src/components/LockScreen.test.tsx (modified)
+- src/components/ChatPanel.tsx (modified)
+- src/components/EnsembleCandidatePickerModal.tsx (modified)
+Changed:
+- Added `VaultSession` interface and `vaultSessions` table store (`version(3)`) to Dexie `LaideDatabase`.
+- Implemented `savePersistentSession`, `getPersistentSession`, `hashVaultKey` (SHA-256), and `clearPersistentSession` in `src/services/session.ts`.
+- Added "Keep me logged in" checkbox to Setup, Passphrase Unlock, and Recovery Unlock forms in `LockScreen.tsx`.
+- Integrated automatic session restoration on app load in `LockScreen.tsx` with integrity verification and automatic purge on expiration/mismatch.
+- Wired explicit `lockVault` in `store.ts` to purge persistent sessions on manual lock.
+Decisions: Defaulted "Keep me logged in" to unchecked (false) to preserve strict session isolation by default while giving users opt-in convenience. Used a 7-day expiration window with SHA-256 key hash integrity validation.
+Deviations: none
+Verified: Added unit tests in `session.test.ts` and UI tests in `LockScreen.test.tsx`. All 50 test files and 317 tests pass in Vitest. Build compiles with 0 errors.
+Open questions: none
+
 

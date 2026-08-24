@@ -1,5 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { getStrength } from './LockScreen';
+/**
+ * @vitest-environment happy-dom
+ */
+import 'fake-indexeddb/auto';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
+import { getStrength, LockScreen } from './LockScreen';
+
+vi.mock('../services/lockConfig', () => ({
+  getLockConfig: vi.fn(() => null), // Force setup flow
+  saveLockConfig: vi.fn(),
+}));
 
 describe('LockScreen Passphrase Security', () => {
   it('marks empty strings with score 0 and no label', () => {
@@ -57,6 +68,37 @@ describe('Vault Lock State & Action', () => {
     // Verify keys is null and chatHistory is wiped
     expect(useAppStore.getState().keys).toBeNull();
     expect(useAppStore.getState().chatHistory).toEqual([]);
+  });
+});
+
+describe('LockScreen Setup UI', () => {
+  it('shows real-time match feedback when typing confirm passphrase', async () => {
+    render(<LockScreen />);
+    
+    const passInput = await screen.findByPlaceholderText('Enter strong passphrase');
+    const confirmInput = screen.getByPlaceholderText('Confirm passphrase');
+    
+    // Mismatch
+    fireEvent.change(passInput, { target: { value: 'SecretPassword123!' } });
+    fireEvent.change(confirmInput, { target: { value: 'SecretPassword123' } });
+    expect(screen.getByText("Doesn't match yet")).toBeTruthy();
+    expect(screen.queryByText('Passphrases match')).toBeNull();
+    
+    // Fix mismatch
+    fireEvent.change(confirmInput, { target: { value: 'SecretPassword123!' } });
+    expect(screen.getByText('Passphrases match')).toBeTruthy();
+    expect(screen.queryByText("Doesn't match yet")).toBeNull();
+  });
+
+  it('renders Keep me logged in checkbox with default unchecked state', async () => {
+    render(<LockScreen />);
+    
+    const checkbox = await screen.findByRole('checkbox', { name: /keep me logged in/i });
+    expect(checkbox).toBeTruthy();
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
   });
 });
 

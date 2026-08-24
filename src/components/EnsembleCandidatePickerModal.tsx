@@ -5,16 +5,10 @@ import {
   XCircle, 
   AlertTriangle, 
   Check, 
-  ChevronRight, 
-  Sparkles, 
   X,
-  FileCode,
-  ShieldAlert,
   ArrowRight
 } from 'lucide-react';
 import type { EnsembleEvaluationResult, CandidateExecutionResult } from '../services/agent/ensemble';
-import { computeHunks } from '../services/agent/patchSchema';
-import { useAppStore } from '../store';
 
 interface EnsembleCandidatePickerModalProps {
   evaluationResult: EnsembleEvaluationResult;
@@ -31,7 +25,6 @@ export function EnsembleCandidatePickerModal({
   const [selectedCandidateId, setSelectedCandidateId] = useState<'A' | 'B'>(
     candidateA.status === 'passed' ? 'A' : candidateB.status === 'passed' ? 'B' : 'A'
   );
-  const [expandedPatchPath, setExpandedPatchPath] = useState<string | null>(null);
 
   const activeCandidate = selectedCandidateId === 'A' ? candidateA : candidateB;
 

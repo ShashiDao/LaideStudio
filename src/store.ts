@@ -179,7 +179,12 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   setLastBuildError: (lastBuildError) => set({ lastBuildError }),
   lastPreviewScreenshot: null,
   setLastPreviewScreenshot: (lastPreviewScreenshot) => set({ lastPreviewScreenshot }),
-  lockVault: () => set({ keys: null, chatHistory: [] }),
+  lockVault: () => {
+    import('./services/session').then(({ clearPersistentSession }) => {
+      clearPersistentSession().catch(err => console.error('Failed to clear persistent session', err));
+    }).catch(err => console.error('Failed to import session service', err));
+    set({ keys: null, chatHistory: [] });
+  },
 });
 
 const createPatchSlice: StateCreator<AppState, [], [], PatchSlice> = (set) => ({

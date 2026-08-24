@@ -501,7 +501,7 @@ export async function runEnsembleDualEvaluation(
 
   let chosenCandidate: CandidateExecutionResult | null = null;
   let requiresUserSelection = false;
-  let summaryStr = '';
+  let summaryStr: string;
 
   if (passedCandidates.length === 1) {
     chosenCandidate = passedCandidates[0];

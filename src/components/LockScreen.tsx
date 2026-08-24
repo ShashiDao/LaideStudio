@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Key, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, Copy, Check, LifeBuoy, ArrowLeft } from 'lucide-react';
+import { Lock, Key, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, Copy, Check, LifeBuoy, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { getLockConfig, saveLockConfig, type LockConfig } from '../services/lockConfig';
 import type { KeyMaterial } from '../services/crypto';
 import { isPasskeyPrfSupported, enrollPasskey, unlockWithPasskey, type PasskeyData } from '../services/passkeyCrypto';
@@ -27,6 +27,7 @@ export function LockScreen() {
   const [config] = useState<LockConfig | null>(() => getLockConfig());
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [keepMeLoggedIn, setKeepMeLoggedIn] = useState(false);
   
   // Setup state
   const [passphrase, setPassphrase] = useState('');
@@ -41,6 +42,12 @@ export function LockScreen() {
   const [enteredRecoveryPhrase, setEnteredRecoveryPhrase] = useState('');
   const [unlockMode, setUnlockMode] = useState<'passkey' | 'passphrase' | 'recovery'>('passphrase');
   const [error, setError] = useState('');
+  
+  // Show/Hide password states
+  const [showSetupPassphrase, setShowSetupPassphrase] = useState(false);
+  const [showSetupConfirm, setShowSetupConfirm] = useState(false);
+  const [showUnlockPassphrase, setShowUnlockPassphrase] = useState(false);
+  const [showRecoveryPhrase, setShowRecoveryPhrase] = useState(false);
   
   const [pendingSetup, setPendingSetup] = useState<{
     salt: Uint8Array;
@@ -77,22 +84,35 @@ export function LockScreen() {
 
   useEffect(() => {
     let active = true;
-    const existing = getLockConfig();
-    
-    // Auto-prompt passkey if available
-    if (existing && existing.passkeyData) {
-      Promise.resolve().then(() => {
-        if (!active) return;
+    (async () => {
+      try {
+        const { getPersistentSession } = await import('../services/session');
+        const session = await getPersistentSession();
+        if (session && active) {
+          const { importMasterKey } = await import('../services/crypto');
+          const keys = await importMasterKey(session.masterKeyBytes);
+          if (active) {
+            setKeys(keys);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to restore persistent session', e);
+      }
+
+      if (!active) return;
+      const existing = getLockConfig();
+      
+      // Auto-prompt passkey if available
+      if (existing && existing.passkeyData) {
         setUnlockMode('passkey');
         handlePasskeyUnlock(existing);
-      });
-    } else {
-      Promise.resolve().then(() => {
-        if (!active) return;
+      } else {
         setUnlockMode('passphrase');
         setLoading(false);
-      });
-    }
+      }
+    })();
+
     return () => {
       active = false;
     };
@@ -177,6 +197,16 @@ export function LockScreen() {
     };
     
     saveLockConfig(newConfig);
+
+    if (keepMeLoggedIn) {
+      try {
+        const { savePersistentSession } = await import('../services/session');
+        await savePersistentSession(pendingSetup.masterKey);
+      } catch (err) {
+        console.error('Failed to save persistent session during setup', err);
+      }
+    }
+
     setKeys(pendingSetup.keys);
   };
 
@@ -211,6 +241,14 @@ export function LockScreen() {
       const isValid = await verifyPassphrase(keys.hmacKey, config.verifierBase64);
       
       if (isValid) {
+        if (keepMeLoggedIn) {
+          try {
+            const { savePersistentSession } = await import('../services/session');
+            await savePersistentSession(keys.masterKeyBytes);
+          } catch (sessionErr) {
+            console.error('Failed to save persistent session', sessionErr);
+          }
+        }
         setKeys(keys);
       } else {
         setError('Incorrect passphrase');
@@ -244,6 +282,14 @@ export function LockScreen() {
       const masterKeyBytes = await unlockWithRecoveryPhrase(config.recoveryData, enteredRecoveryPhrase);
       if (masterKeyBytes) {
         const keys = await importMasterKey(masterKeyBytes);
+        if (keepMeLoggedIn) {
+          try {
+            const { savePersistentSession } = await import('../services/session');
+            await savePersistentSession(masterKeyBytes);
+          } catch (sessionErr) {
+            console.error('Failed to save persistent session', sessionErr);
+          }
+        }
         setKeys(keys);
       } else {
         setError('Incorrect recovery phrase or corrupted backup payload');
@@ -394,14 +440,24 @@ export function LockScreen() {
                 <label className="block text-xs font-sans text-muted ">Master Passphrase</label>
                 <span className="text-[10px] font-sans text-muted">Min 10 characters</span>
               </div>
-              <input 
-                type="password"
-                value={passphrase}
-                onChange={e => setPassphrase(e.target.value)}
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans focus:outline-none focus:border-accent transition-colors text-sm"
-                autoFocus
-                placeholder="Enter strong passphrase"
-              />
+              <div className="relative">
+                <input 
+                  type={showSetupPassphrase ? "text" : "password"}
+                  value={passphrase}
+                  onChange={e => setPassphrase(e.target.value)}
+                  className="w-full bg-bg border border-border rounded px-3 py-2 pr-10 text-text font-sans focus:outline-none focus:border-accent transition-colors text-sm"
+                  autoFocus
+                  placeholder="Enter strong passphrase"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSetupPassphrase(!showSetupPassphrase)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showSetupPassphrase ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               
               {/* Strength Meter */}
               <div className="mt-2 h-1.5 w-full bg-bg rounded overflow-hidden flex gap-1">
@@ -426,14 +482,39 @@ export function LockScreen() {
             
             <div>
               <label className="block text-xs font-sans text-muted  mb-1">Confirm Passphrase</label>
-              <input 
-                type="password"
-                value={confirm}
-                onChange={e => setConfirm(e.target.value)}
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans focus:outline-none focus:border-accent transition-colors text-sm"
-                placeholder="Confirm passphrase"
-              />
+              <div className="relative">
+                <input 
+                  type={showSetupConfirm ? "text" : "password"}
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  className="w-full bg-bg border border-border rounded px-3 py-2 pr-10 text-text font-sans focus:outline-none focus:border-accent transition-colors text-sm"
+                  placeholder="Confirm passphrase"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSetupConfirm(!showSetupConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showSetupConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {confirm.length > 0 && (
+                <div className={`mt-1.5 text-xs font-sans ${passphrase === confirm ? 'text-moss' : 'text-muted'}`}>
+                  {passphrase === confirm ? 'Passphrases match' : "Doesn't match yet"}
+                </div>
+              )}
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-muted font-sans cursor-pointer select-none">
+              <input 
+                type="checkbox"
+                checked={keepMeLoggedIn}
+                onChange={e => setKeepMeLoggedIn(e.target.checked)}
+                className="rounded border-border text-accent focus:ring-accent cursor-pointer"
+              />
+              <span>Keep me logged in</span>
+            </label>
             
             {error && (
               <div className="text-oxide text-xs font-sans flex items-center gap-1.5 p-2 rounded bg-oxide/10 border border-oxide/20">
@@ -508,15 +589,35 @@ export function LockScreen() {
           <form onSubmit={handleRecoveryUnlock} className="space-y-4">
             <div>
               <label className="block text-xs font-sans text-muted  mb-1">12-Word Recovery Phrase</label>
-              <textarea 
-                rows={3}
-                value={enteredRecoveryPhrase}
-                onChange={e => setEnteredRecoveryPhrase(e.target.value)}
-                placeholder="e.g. apple banana cherry dog elephant fox grape horse island jungle kite lion"
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-xs focus:outline-none focus:border-accent transition-colors resize-none leading-relaxed"
-                autoFocus
-              />
+              <div className="relative">
+                <input 
+                  type={showRecoveryPhrase ? "text" : "password"}
+                  value={enteredRecoveryPhrase}
+                  onChange={e => setEnteredRecoveryPhrase(e.target.value)}
+                  placeholder="e.g. apple banana cherry dog elephant fox grape horse island jungle kite lion"
+                  className="w-full bg-bg border border-border rounded px-3 py-2 pr-10 text-text font-sans text-xs focus:outline-none focus:border-accent transition-colors leading-relaxed"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowRecoveryPhrase(!showRecoveryPhrase)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showRecoveryPhrase ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-muted font-sans cursor-pointer select-none">
+              <input 
+                type="checkbox"
+                checked={keepMeLoggedIn}
+                onChange={e => setKeepMeLoggedIn(e.target.checked)}
+                className="rounded border-border text-accent focus:ring-accent cursor-pointer"
+              />
+              <span>Keep me logged in</span>
+            </label>
 
             {error && (
               <div className="text-oxide text-xs font-sans flex items-center gap-1.5">
@@ -564,15 +665,35 @@ export function LockScreen() {
         <form onSubmit={handleUnlock} className="space-y-4">
           <div>
             <label className="block text-xs font-sans text-muted  mb-1">Passphrase</label>
-            <input 
-              type="password"
-              value={unlockPassphrase}
-              onChange={e => setUnlockPassphrase(e.target.value)}
-              className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans focus:outline-none focus:border-accent transition-colors"
-              autoFocus
-              placeholder="Enter master passphrase"
-            />
+            <div className="relative">
+              <input 
+                type={showUnlockPassphrase ? "text" : "password"}
+                value={unlockPassphrase}
+                onChange={e => setUnlockPassphrase(e.target.value)}
+                className="w-full bg-bg border border-border rounded px-3 py-2 pr-10 text-text font-sans focus:outline-none focus:border-accent transition-colors"
+                autoFocus
+                placeholder="Enter master passphrase"
+              />
+              <button
+                type="button"
+                onClick={() => setShowUnlockPassphrase(!showUnlockPassphrase)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors cursor-pointer"
+                tabIndex={-1}
+              >
+                {showUnlockPassphrase ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-muted font-sans cursor-pointer select-none">
+            <input 
+              type="checkbox"
+              checked={keepMeLoggedIn}
+              onChange={e => setKeepMeLoggedIn(e.target.checked)}
+              className="rounded border-border text-accent focus:ring-accent cursor-pointer"
+            />
+            <span>Keep me logged in</span>
+          </label>
           
           {error && (
             <div className="text-oxide text-xs font-sans flex items-center gap-1.5">

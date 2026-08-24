@@ -60,12 +60,21 @@ export interface ProvenanceEntry {
   afterContent?: string;
 }
 
+export interface VaultSession {
+  id: string;
+  keyHash: string;
+  masterKeyBytes: Uint8Array;
+  createdAt: number;
+  expiresAt: number;
+}
+
 export class LaideDatabase extends Dexie {
   projects!: Table<Project, string>;
   files!: Table<FileItem, string>;
   snapshots!: Table<Snapshot, string>;
   connectionProfiles!: Table<ConnectionProfile, string>;
   provenanceEntries!: Table<ProvenanceEntry, string>;
+  vaultSessions!: Table<VaultSession, string>;
 
   constructor() {
     super('LaideDatabase');
@@ -81,6 +90,14 @@ export class LaideDatabase extends Dexie {
       snapshots: 'id, projectId, createdAt',
       connectionProfiles: 'id, provider, label',
       provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+    });
+    this.version(3).stores({
+      projects: 'id, name, createdAt, updatedAt',
+      files: 'id, projectId, path, updatedAt',
+      snapshots: 'id, projectId, createdAt',
+      connectionProfiles: 'id, provider, label',
+      provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+      vaultSessions: 'id, keyHash, createdAt, expiresAt',
     });
   }
 }
