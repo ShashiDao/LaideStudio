@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { createFile, listFiles, writeFile } from './vfs';
+import { bulkCreateOrUpdateFiles } from './vfs';
 import { flattenWrapperFolder } from './restructure';
 
 /**
@@ -14,43 +14,38 @@ export function isText(buffer: Uint8Array): boolean {
   return true;
 }
 
-export async function importZip(zipData: Blob | ArrayBuffer | Uint8Array, projectId: string, options?: { autoRestructure?: boolean }): Promise<void> {
-  const zip = await JSZip.loadAsync(zipData);
-  let expectedCount = 0;
-  let writtenCount = 0;
+export async function importZip(
+  zipData: Blob | ArrayBuffer | Uint8Array, 
+  projectId: string, 
+  options?: { autoRestructure?: boolean }
+): Promise<{ count: number }> {
+  const rawData = (typeof Blob !== 'undefined' && zipData instanceof Blob)
+    ? await zipData.arrayBuffer()
+    : zipData;
+  const zip = await JSZip.loadAsync(rawData);
+  const rawEntries = Object.values(zip.files).filter(entry => !entry.dir);
 
-  const entries = Object.values(zip.files);
-  const currentFiles = await listFiles(projectId);
-  const existingMap = new Map(currentFiles.map(f => [f.path, f.id]));
-
-  for (const entry of entries) {
-    if (entry.dir) continue;
-    expectedCount++;
-
-    const path = entry.name.startsWith('/') ? entry.name : `/${entry.name}`;
-    
-    // Read the raw bytes to determine text vs binary
-    const uint8Array = await entry.async('uint8array');
-    
-    const content = isText(uint8Array)
-      ? await entry.async('string') // Decode as UTF-8 via JSZip
-      : await entry.async('base64'); // Decode as base64
-
-    if (existingMap.has(path)) {
-      await writeFile(existingMap.get(path)!, content);
-    } else {
-      await createFile(projectId, path, content);
-    }
-    
-    writtenCount++;
+  if (rawEntries.length === 0) {
+    return { count: 0 };
   }
 
-  // Verify extraction wrote the same amount of actual files as the zip claimed (excluding directories)
-  if (expectedCount !== writtenCount) {
-    throw new Error(`Zip import count mismatch. Expected ${expectedCount}, wrote ${writtenCount}.`);
-  }
+  // Parallel decode of files from ZIP
+  const decodedFiles = await Promise.all(
+    rawEntries.map(async (entry) => {
+      const path = entry.name.startsWith('/') ? entry.name : `/${entry.name}`;
+      const uint8Array = await entry.async('uint8array');
+      const content = isText(uint8Array)
+        ? await entry.async('string')
+        : await entry.async('base64');
+      return { path, content };
+    })
+  );
+
+  await bulkCreateOrUpdateFiles(projectId, decodedFiles);
 
   if (options?.autoRestructure) {
     await flattenWrapperFolder(projectId);
   }
+
+  return { count: decodedFiles.length };
 }

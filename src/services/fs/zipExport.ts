@@ -23,5 +23,9 @@ export async function exportZip(projectId: string): Promise<Blob> {
     }
   }
 
-  return await zip.generateAsync({ type: 'blob' });
+  return await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 }
+  });
 }

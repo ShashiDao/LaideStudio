@@ -6,6 +6,7 @@ import {
   readFile,
   writeFile,
   createFile,
+  bulkCreateOrUpdateFiles,
   deleteFile,
   renameFile,
   deleteFolder,
@@ -215,6 +216,47 @@ describe('Virtual File System', () => {
       await expect(
         renameProject(projId, '   ')
       ).rejects.toThrow('Project name cannot be empty');
+    });
+  });
+
+  describe('bulkCreateOrUpdateFiles', () => {
+    it('should create and update multiple files in a single fast batch', async () => {
+      const results = await bulkCreateOrUpdateFiles(projectId, [
+        { path: 'src/index.ts', content: 'console.log("index");' },
+        { path: '/src/utils.ts', content: 'export const u = 1;' },
+        { path: '/package.json', content: '{"name": "test"}' },
+      ]);
+
+      expect(results).toHaveLength(3);
+
+      const files = await listFiles(projectId);
+      expect(files).toHaveLength(3);
+
+      const paths = files.map(f => f.path);
+      expect(paths).toContain('/src/index.ts');
+      expect(paths).toContain('/src/utils.ts');
+      expect(paths).toContain('/package.json');
+
+      // Now update an existing file and add a new one in the same batch
+      const updated = await bulkCreateOrUpdateFiles(projectId, [
+        { path: '/src/index.ts', content: 'console.log("updated index");' },
+        { path: '/README.md', content: '# Docs' }
+      ]);
+
+      expect(updated).toHaveLength(2);
+      const afterFiles = await listFiles(projectId);
+      expect(afterFiles).toHaveLength(4);
+
+      const indexFile = afterFiles.find(f => f.path === '/src/index.ts');
+      expect(indexFile?.content).toBe('console.log("updated index");');
+
+      const readmeFile = afterFiles.find(f => f.path === '/README.md');
+      expect(readmeFile?.content).toBe('# Docs');
+    });
+
+    it('should return empty array when given empty entries', async () => {
+      const res = await bulkCreateOrUpdateFiles(projectId, []);
+      expect(res).toEqual([]);
     });
   });
 });

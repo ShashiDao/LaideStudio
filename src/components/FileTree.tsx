@@ -702,14 +702,13 @@ export function FileTree({
       
       if (isBinary) {
         const byteCharacters = atob(file.content);
-        const byteNumbers = new Array(byteCharacters.length);
+        const byteArray = new Uint8Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+          byteArray[i] = byteCharacters.charCodeAt(i);
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        blob = new Blob([byteArray]);
+        blob = new Blob([byteArray], { type: 'application/octet-stream' });
       } else {
-        blob = new Blob([file.content], { type: 'text/plain' });
+        blob = new Blob([file.content], { type: 'text/plain;charset=utf-8' });
       }
       
       const url = URL.createObjectURL(blob);
@@ -717,8 +716,11 @@ export function FileTree({
       a.href = url;
       const fileName = file.path.split('/').pop() || 'download';
       a.download = fileName;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      addToast(`Downloaded ${fileName}`, 'info');
     } catch (err: any) {
       console.error('Failed to download file', err);
       addToast(err.message || 'Download failed', 'error');

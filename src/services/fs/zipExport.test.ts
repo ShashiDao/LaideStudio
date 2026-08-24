@@ -3,7 +3,8 @@ import 'fake-indexeddb/auto';
 import JSZip from 'jszip';
 import { db } from '../../db';
 import { exportZip } from './zipExport';
-import { createFile } from './vfs';
+import { importZip } from './zipImport';
+import { createFile, listFiles } from './vfs';
 
 describe('Zip Export Service', () => {
   const projectId = 'export-test';
@@ -34,5 +35,29 @@ describe('Zip Export Service', () => {
 
     const pngBase64 = await zip.file('assets/logo.png')?.async('base64');
     expect(pngBase64).toBe('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==');
+  });
+
+  it('should roundtrip seamlessly when exporting a project and importing into a new project', async () => {
+    await createFile(projectId, '/package.json', '{"name": "roundtrip"}');
+    await createFile(projectId, '/src/index.ts', 'export const v = 42;');
+    await createFile(projectId, '/public/favicon.ico', 'AAABAAEAEBAAAAAAAABoBQAAFgAAACgAAAAQAAAA');
+
+    const exportedBlob = await exportZip(projectId);
+    const targetProjId = 'imported-roundtrip-target';
+
+    const { count } = await importZip(exportedBlob, targetProjId);
+    expect(count).toBe(3);
+
+    const importedFiles = await listFiles(targetProjId);
+    expect(importedFiles).toHaveLength(3);
+
+    const pkg = importedFiles.find(f => f.path === '/package.json');
+    expect(pkg?.content).toBe('{"name": "roundtrip"}');
+
+    const src = importedFiles.find(f => f.path === '/src/index.ts');
+    expect(src?.content).toBe('export const v = 42;');
+
+    const ico = importedFiles.find(f => f.path === '/public/favicon.ico');
+    expect(ico?.content).toBe('AAABAAEAEBAAAAAAAABoBQAAFgAAACgAAAAQAAAA');
   });
 });

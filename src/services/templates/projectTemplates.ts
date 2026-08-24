@@ -1,6 +1,6 @@
 import type { FileItem, Project } from '../../db';
 import { db } from '../../db';
-import { createFile, generateId, listFiles } from '../fs/vfs';
+import { bulkCreateOrUpdateFiles, generateId, listFiles } from '../fs/vfs';
 
 export interface ProjectTemplateFile {
   path: string;
@@ -584,10 +584,8 @@ export async function createProjectFromTemplate(
   // Save project in Dexie
   await db.projects.put(newProj);
 
-  // Write all template files in parallel into VFS (OPFS + Dexie)
-  await Promise.all(
-    template.files.map((file) => createFile(newProjId, file.path, file.content))
-  );
+  // Write all template files in a single bulk operation into VFS (OPFS + Dexie)
+  await bulkCreateOrUpdateFiles(newProjId, template.files);
 
   const createdFiles = await listFiles(newProjId);
 

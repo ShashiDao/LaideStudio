@@ -9,7 +9,7 @@ import { testDatabaseReadback } from './seed';
 import { db, type FileItem, type Project } from './db';
 import { exportZip } from './services/fs/zipExport';
 import { importZip, isText } from './services/fs/zipImport';
-import { listFiles, createFile, deleteProject, renameProject } from './services/fs/vfs';
+import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles } from './services/fs/vfs';
 import { calculateProjectMetadata } from './utils/projectStats';
 import { FileTree } from './components/FileTree';
 import { Editor } from './components/Editor';
@@ -98,6 +98,7 @@ export default function App() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -200,41 +201,108 @@ export default function App() {
     setShowCreateProjectModal(true);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeProject) return;
-    
-    try {
-      if (file.name.endsWith('.zip')) {
-        await importZip(file, activeProject.id, { autoRestructure: true });
-      } else {
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let content = '';
-        if (isText(bytes)) {
-          content = await file.text();
-        } else {
-          content = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-        }
-        await createFile(activeProject.id, `/${file.name}`, content);
+  const readFileAsContent = async (file: File): Promise<{ path: string; content: string }> => {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let content: string;
+    if (isText(bytes)) {
+      content = new TextDecoder('utf-8').decode(bytes);
+    } else {
+      let binary = '';
+      const len = bytes.byteLength;
+      const chunkSize = 0x8000;
+      for (let i = 0; i < len; i += chunkSize) {
+        const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+        binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
       }
-      await refreshFiles();
+      content = btoa(binary);
+    }
+    const relPath = file.webkitRelativePath || file.name;
+    const path = relPath.startsWith('/') ? relPath : `/${relPath}`;
+    return { path, content };
+  };
+
+  const handleIncomingFiles = async (fileList: FileList | File[]) => {
+    const fileArray = Array.from(fileList);
+    if (fileArray.length === 0) return;
+
+    try {
+      let targetProjectId = activeProject?.id;
+      let targetProjectName = activeProject?.name;
+
+      // Automatically initialize new project if none is currently active
+      if (!targetProjectId) {
+        const newProjId = crypto.randomUUID();
+        const zipFile = fileArray.find(f => f.name.toLowerCase().endsWith('.zip'));
+        const defaultName = zipFile
+          ? zipFile.name.replace(/\.zip$/i, '')
+          : fileArray.length === 1
+            ? fileArray[0].name.replace(/\.[^/.]+$/, '')
+            : (projects.length > 0 ? `Imported Workspace ${projects.length + 1}` : 'Imported Workspace');
+
+        const newProj: Project = {
+          id: newProjId,
+          name: defaultName,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        await db.projects.put(newProj);
+        targetProjectId = newProjId;
+        targetProjectName = defaultName;
+        const allProjects = await db.projects.toArray();
+        setProjects(allProjects);
+        setActiveProjectId(newProjId);
+      }
+
+      const zipFiles = fileArray.filter(f => f.name.toLowerCase().endsWith('.zip'));
+      const regularFiles = fileArray.filter(f => !f.name.toLowerCase().endsWith('.zip'));
+
+      let totalImported = 0;
+
+      // Extract ZIP archives fast
+      for (const zipFile of zipFiles) {
+        const { count } = await importZip(zipFile, targetProjectId, { autoRestructure: true });
+        totalImported += count;
+      }
+
+      // Process and write regular files in parallel
+      if (regularFiles.length > 0) {
+        const entries = await Promise.all(regularFiles.map(readFileAsContent));
+        await bulkCreateOrUpdateFiles(targetProjectId, entries);
+        totalImported += entries.length;
+      }
+
+      const updatedFiles = await listFiles(targetProjectId);
+      setFiles(updatedFiles);
+
+      if (updatedFiles.length > 0 && !activeFileId) {
+        const preferred = updatedFiles.find(
+          f => f.path === '/src/App.tsx' || f.path === '/src/main.tsx' || f.path === '/src/main.ts' || f.path === '/index.html' || f.path === '/README.md'
+        ) || updatedFiles[0];
+        if (preferred) {
+          setActiveFileId(preferred.id);
+        }
+      }
+
+      useAppStore.getState().addToast(
+        `Successfully loaded ${totalImported} file${totalImported !== 1 ? 's' : ''} into "${targetProjectName}"`,
+        'success'
+      );
     } catch (err: any) {
-      console.error('Failed to upload file', err);
+      console.error('Failed to process uploaded files', err);
       if (err.name === 'QuotaExceededError') {
         useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
-      } else if (err.message && err.message.includes('collision')) {
-        useAppStore.getState().addToast('A file already exists at this path.', 'error');
       } else {
-        useAppStore.getState().addToast(err.message || 'Failed to upload file', 'error');
+        useAppStore.getState().addToast(err.message || 'Failed to upload files', 'error');
       }
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      await handleIncomingFiles(e.target.files);
     }
   };
 
@@ -492,6 +560,7 @@ export default function App() {
                   type="file" 
                   ref={fileInputRef} 
                   onChange={handleFileUpload} 
+                  multiple
                   className="hidden" 
                 />
 
@@ -516,7 +585,9 @@ export default function App() {
                           const a = document.createElement('a');
                           a.href = url;
                           a.download = `${activeProject.name.replace(/\s+/g, '_')}.zip`;
+                          document.body.appendChild(a);
                           a.click();
+                          document.body.removeChild(a);
                           URL.revokeObjectURL(url);
                           useAppStore.getState().addToast('Project archive exported successfully', 'success');
                         } catch (err) {
@@ -540,7 +611,48 @@ export default function App() {
                 />
               )}
               
-              <div className="flex-1 overflow-hidden flex flex-col">
+              <div 
+                className="flex-1 overflow-hidden flex flex-col relative"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  setIsDraggingFiles(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingFiles(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleIncomingFiles(e.dataTransfer.files);
+                  }
+                }}
+              >
+                {/* Drag and Drop Visual Highlight Overlay */}
+                {isDraggingFiles && (
+                  <div className="absolute inset-0 z-50 bg-surface/95 backdrop-blur-xs border-2 border-dashed border-accent flex flex-col items-center justify-center p-6 text-center pointer-events-none">
+                    <div className="w-14 h-14 rounded-full bg-accent/15 border border-accent/40 flex items-center justify-center text-accent mb-3 shadow-lg animate-pulse">
+                      <Upload size={26} />
+                    </div>
+                    <p className="font-mono text-xs font-bold text-text uppercase tracking-wider mb-1">
+                      Drop Files or ZIP Archive
+                    </p>
+                    <p className="font-sans text-[11px] text-muted max-w-xs">
+                      Release to import immediately into your workspace
+                    </p>
+                  </div>
+                )}
+
                 {projects.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center p-6 text-center h-full canvas-grid-pattern">
                     <div className="border border-border bg-surface/80 rounded-xl p-6 max-w-xs w-full flex flex-col items-center corner-ticks shadow-sm">
@@ -563,12 +675,6 @@ export default function App() {
                         >
                           <Plus size={14} /> Create Blank Project
                         </button>
-                        <input 
-                          type="file" 
-                          ref={fileInputRef} 
-                          onChange={handleFileUpload} 
-                          className="hidden" 
-                        />
                         <button
                           onClick={() => fileInputRef.current?.click()}
                           className="w-full py-2 px-3 bg-surface border border-border text-text font-mono text-xs rounded hover:bg-accent/5 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"

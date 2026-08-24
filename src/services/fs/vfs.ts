@@ -128,6 +128,78 @@ export async function createFile(projectId: string, path: string, content: strin
   return { ...newFile, content };
 }
 
+export async function bulkCreateOrUpdateFiles(
+  projectId: string,
+  entries: { path: string; content: string }[]
+): Promise<FileItem[]> {
+  if (entries.length === 0) return [];
+
+  // Normalize paths: ensure leading '/' and no double slashes
+  const normalizedEntries = entries.map(e => ({
+    path: (e.path.startsWith('/') ? e.path : `/${e.path}`).replace(/\/+/g, '/'),
+    content: e.content
+  }));
+
+  // Unique map within incoming batch (latest entry wins)
+  const uniqueMap = new Map<string, string>();
+  for (const item of normalizedEntries) {
+    if (item.path && item.path !== '/') {
+      uniqueMap.set(item.path, item.content);
+    }
+  }
+
+  const existingFiles = await db.files.where('projectId').equals(projectId).toArray();
+  const existingMap = new Map(existingFiles.map(f => [f.path, f]));
+
+  const filesToPut: FileItem[] = [];
+  const results: FileItem[] = [];
+
+  for (const [path, content] of uniqueMap.entries()) {
+    const existing = existingMap.get(path);
+    const dbContent = isOpfsSupported() ? '' : content;
+    if (existing) {
+      const updated: FileItem = {
+        ...existing,
+        content: dbContent,
+        updatedAt: Date.now()
+      };
+      filesToPut.push(updated);
+      results.push({ ...updated, content });
+    } else {
+      const created: FileItem = {
+        id: generateId(),
+        projectId,
+        path,
+        content: dbContent,
+        updatedAt: Date.now()
+      };
+      filesToPut.push(created);
+      results.push({ ...created, content });
+    }
+  }
+
+  // Single batch database write
+  await db.files.bulkPut(filesToPut);
+
+  // Parallel OPFS file writes
+  if (isOpfsSupported()) {
+    await Promise.all(
+      Array.from(uniqueMap.entries()).map(async ([path, content]) => {
+        try {
+          const handle = await getOpfsFileHandle(projectId, path, true);
+          const writable = await handle.createWritable();
+          await writable.write(content);
+          await writable.close();
+        } catch (e) {
+          console.warn("OPFS bulk write failed", e);
+        }
+      })
+    );
+  }
+
+  return results;
+}
+
 export async function deleteFile(id: string): Promise<void> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-37
-- Last verified working: Full test suite passes cleanly with 52 test files and 337 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors (`npx eslint . --quiet`).
+- Phase: HOTFIX-38
+- Last verified working: Full test suite passes cleanly with 52 test files and 340 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors (`npx eslint . --quiet`).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,29 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-38] Fast and Robust Upload/Download Engine — 2026-08-24
+Prompt: Make sure upload/download feature working fast and perfectly.
+Files touched:
+- `src/services/fs/vfs.ts` (modified)
+- `src/services/fs/zipImport.ts` (modified)
+- `src/services/fs/zipExport.ts` (modified)
+- `src/services/templates/projectTemplates.ts` (modified)
+- `src/components/FileTree.tsx` (modified)
+- `src/App.tsx` (modified)
+- `src/services/fs/vfs.test.ts` (modified)
+- `src/services/fs/zipExport.test.ts` (modified)
+Changed:
+- Implemented `bulkCreateOrUpdateFiles` in `src/services/fs/vfs.ts` utilizing single-transaction IndexedDB `bulkPut` combined with concurrent OPFS writes, replacing O(N^2) individual lookups.
+- Accelerated `importZip` in `src/services/fs/zipImport.ts` with parallel JSZip entry decoding via `Promise.all()` and bulk VFS batch injection.
+- Added DEFLATE level-6 stream compression in `src/services/fs/zipExport.ts` for smaller ZIP bundle size, higher transfer throughput, and standard unzipper compatibility.
+- Enhanced upload in `App.tsx` with multi-file support (`multiple` input), drag-and-drop workspace overlay with visual drop feedback, automatic project provisioning on empty state uploads, and chunked base64 binary streaming.
+- Hardened individual file download in `FileTree.tsx` with accurate MIME type mapping, UTF-8 text encoding, and standard temporary DOM anchor triggers.
+- Added comprehensive unit tests covering batch file writes, ZIP roundtrip exporting/importing, and binary file integrity.
+Decisions: Converting JSZip Blobs to ArrayBuffers ensures 100% environment compatibility across browser runtime, service workers, and automated test runners.
+Deviations: none
+Verified: All 52 test suites (340 tests) pass cleanly in Vitest; TypeScript type-check passes with 0 errors; ESLint passes with 0 errors; `compile_applet` succeeds with 0 errors.
+Open questions: none
 
 ### [HOTFIX-37] Cleanup Trash Files & Blazing Speed Response Optimization — 2026-08-24
 Prompt: Remove any trash files and make blazing speed response.
