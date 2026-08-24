@@ -50,7 +50,7 @@ describe('ProjectActionsMenu Component', () => {
     expect(btn.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('opens dropdown menu on button click and renders action items', () => {
+  it('opens bottom sheet modal with backdrop and grouped sections on button click', () => {
     render(
       <ProjectActionsMenu
         project={mockProject}
@@ -60,6 +60,9 @@ describe('ProjectActionsMenu Component', () => {
         onUploadClick={() => {}}
         onExportClick={() => {}}
         onDeleteClick={() => {}}
+        onRenameClick={() => {}}
+        onOpenAnalytics={() => {}}
+        onOpenBisect={() => {}}
       />
     );
 
@@ -67,7 +70,20 @@ describe('ProjectActionsMenu Component', () => {
     fireEvent.click(btn);
 
     expect(btn.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('dialog')).toBeDefined();
     expect(screen.getByText('Demo Project')).toBeDefined();
+    expect(screen.getByText('12 files')).toBeDefined();
+
+    // Section headers
+    expect(screen.getByText('Workspace')).toBeDefined();
+    expect(screen.getByText('GitHub')).toBeDefined();
+    expect(screen.getByText('Files')).toBeDefined();
+    expect(screen.getByText('Danger Zone')).toBeDefined();
+
+    // Action items across sections
+    expect(screen.getByText('Rename Project')).toBeDefined();
+    expect(screen.getByText('Project Analytics')).toBeDefined();
+    expect(screen.getByText('Find What Broke This')).toBeDefined();
     expect(screen.getByText('Import from GitHub')).toBeDefined();
     expect(screen.getByText('Push to GitHub')).toBeDefined();
     expect(screen.getByText('Upload ZIP or File')).toBeDefined();
@@ -75,13 +91,15 @@ describe('ProjectActionsMenu Component', () => {
     expect(screen.getByText('Delete Project')).toBeDefined();
   });
 
-  it('invokes appropriate callback when an action item is clicked', () => {
+  it('invokes appropriate callbacks when action items are clicked and closes menu', () => {
     const onOpenGithubImport = vi.fn();
     const onOpenGithubPush = vi.fn();
     const onUploadClick = vi.fn();
     const onExportClick = vi.fn();
     const onDeleteClick = vi.fn();
     const onRenameClick = vi.fn();
+    const onOpenAnalytics = vi.fn();
+    const onOpenBisect = vi.fn();
 
     render(
       <ProjectActionsMenu
@@ -93,6 +111,8 @@ describe('ProjectActionsMenu Component', () => {
         onExportClick={onExportClick}
         onDeleteClick={onDeleteClick}
         onRenameClick={onRenameClick}
+        onOpenAnalytics={onOpenAnalytics}
+        onOpenBisect={onOpenBisect}
       />
     );
 
@@ -102,6 +122,16 @@ describe('ProjectActionsMenu Component', () => {
     // Click Rename
     fireEvent.click(screen.getByText('Rename Project'));
     expect(onRenameClick).toHaveBeenCalledTimes(1);
+
+    // Re-open and click Analytics
+    fireEvent.click(screen.getByLabelText('Workspace actions menu'));
+    fireEvent.click(screen.getByText('Project Analytics'));
+    expect(onOpenAnalytics).toHaveBeenCalledTimes(1);
+
+    // Re-open and click Bisect
+    fireEvent.click(screen.getByLabelText('Workspace actions menu'));
+    fireEvent.click(screen.getByText('Find What Broke This'));
+    expect(onOpenBisect).toHaveBeenCalledTimes(1);
 
     // Re-open and click Import
     fireEvent.click(screen.getByLabelText('Workspace actions menu'));
@@ -127,5 +157,70 @@ describe('ProjectActionsMenu Component', () => {
     fireEvent.click(screen.getByLabelText('Workspace actions menu'));
     fireEvent.click(screen.getByText('Delete Project'));
     expect(onDeleteClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes when clicking the backdrop', () => {
+    render(
+      <ProjectActionsMenu
+        project={mockProject}
+        fileCount={12}
+        onOpenGithubImport={() => {}}
+        onOpenGithubPush={() => {}}
+        onUploadClick={() => {}}
+        onExportClick={() => {}}
+        onDeleteClick={() => {}}
+      />
+    );
+
+    const btn = screen.getByLabelText('Workspace actions menu');
+    fireEvent.click(btn);
+
+    const dialogBackdrop = screen.getByRole('dialog');
+    expect(dialogBackdrop).toBeDefined();
+
+    fireEvent.click(dialogBackdrop);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes when pressing Escape key', () => {
+    render(
+      <ProjectActionsMenu
+        project={mockProject}
+        fileCount={12}
+        onOpenGithubImport={() => {}}
+        onOpenGithubPush={() => {}}
+        onUploadClick={() => {}}
+        onExportClick={() => {}}
+        onDeleteClick={() => {}}
+      />
+    );
+
+    const btn = screen.getByLabelText('Workspace actions menu');
+    fireEvent.click(btn);
+    expect(screen.getByRole('dialog')).toBeDefined();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes when clicking the close (X) button', () => {
+    render(
+      <ProjectActionsMenu
+        project={mockProject}
+        fileCount={12}
+        onOpenGithubImport={() => {}}
+        onOpenGithubPush={() => {}}
+        onUploadClick={() => {}}
+        onExportClick={() => {}}
+        onDeleteClick={() => {}}
+      />
+    );
+
+    const btn = screen.getByLabelText('Workspace actions menu');
+    fireEvent.click(btn);
+    expect(screen.getByRole('dialog')).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText('Close actions dialog'));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

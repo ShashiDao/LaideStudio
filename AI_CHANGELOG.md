@@ -2075,6 +2075,25 @@ Deviations: none
 Verified: Added vitest-environment happy-dom to test file and wrote new UI component tests checking real-time mismatch rendering.
 Open questions: none
 
+### [HOTFIX-35] Convert ProjectActionsMenu to Bottom Sheet with Backdrop and Grouped Action Sections — 2026-08-24
+Prompt: ProjectActionsMenu.tsx (the "Actions" workspace menu, triggered by the ⋮ button in the Files panel) is a plain absolutely-positioned dropdown with no backdrop, causing visual overlap bugs on mobile. Convert this into a bottom sheet on narrow viewports with the established backdrop pattern (fixed inset-0, dimmed + blurred background, proper z-index). Group the 8 actions into visual sections (Workspace, GitHub, Files, Danger Zone), update tests, and verify passes.
+Files touched:
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/ProjectActionsMenu.test.tsx` (modified)
+Changed:
+- Converted `ProjectActionsMenu` dropdown into a responsive modal sheet with full viewport backdrop (`fixed inset-0 z-50 bg-black/80 backdrop-blur-xs`), rendering as a full-width bottom sheet on narrow mobile viewports and a centered dialog card on wider viewports.
+- Added mobile grab handle pill and close (X) button with accessible click-outside backdrop dismissal and Escape-to-close behavior.
+- Grouped the 8 workspace actions into 4 distinct visual sections:
+  1. Workspace: Rename Project, Project Analytics, Find What Broke This.
+  2. GitHub: Import from GitHub, Push to GitHub.
+  3. Files: Upload ZIP or File, Export Project ZIP.
+  4. Danger Zone: Delete Project (separated with prominent red accent background, danger border, and distinct visual weight).
+- Updated `ProjectActionsMenu.test.tsx` to assert the bottom sheet modal markup, all section headers, all 8 action buttons, callback invocation, backdrop dismiss, Escape key dismiss, and Close button dismiss.
+Decisions: Used responsive Tailwind classes (`w-full sm:max-w-md rounded-t-2xl sm:rounded-xl items-end sm:items-center slide-in-from-bottom-6 sm:slide-in-from-bottom-2`) matching the design system of `FindWhatBrokeModal.tsx` and `PatchReviewSheet.tsx`.
+Deviations: none
+Verified: `npx vitest run src/components/ProjectActionsMenu.test.tsx` (7 tests passed), full test suite (`npm test`) passes cleanly across 50 test files and 322 tests.
+Open questions: none
+
 ### [HOTFIX-35] Fix preventDefault timing in async form submission handlers — 2026-08-24
 Prompt: Fix a bug across the app where `e.preventDefault()` was called after `await import(...)` in form submission handlers. Because control yields to the browser at the `await`, `preventDefault()` runs too late, allowing native form submission (page reload) to proceed. Move `preventDefault()` to be the first synchronous statement and add regression tests.
 Files touched:
