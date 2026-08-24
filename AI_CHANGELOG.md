@@ -11,6 +11,21 @@
 
 ## Log
 
+### [HOTFIX-36] Modernize Infrastructure (Vite 8, OPFS, Argon2id) — 2026-08-24
+Prompt: Swap it: bundler/build tool. You're on Vite 6 with esbuild-wasm ... Vite 8 shipped stable in March 2026 with Rolldown ... Swap it: your VFS storage layer. Dexie/IndexedDB for a virtual file system is the right instinct but the wrong API ... OPFS (Origin Private File System) is a real synchronous file API ... Swap it: password-based key derivation ... Argon2id via hash-wasm instead of PBKDF2.
+Files touched:
+- `package.json` (modified)
+- `src/services/crypto.ts` (modified)
+- `src/services/fs/vfs.ts` (modified)
+Changed:
+- Upgraded `vite` to `^8.2.2` and `esbuild` to `^0.28.0` to leverage the unified Rust-based Rolldown bundler for dev-time builds.
+- Migrated `vfs.ts` to store file contents in the Origin Private File System (OPFS) instead of Dexie IndexedDB blobs, vastly improving read/write speed for bundler integration while keeping metadata indexing in Dexie. Added feature detection for seamless test environments and backward compatibility.
+- Swapped PBKDF2 with Argon2id using `hash-wasm` in `crypto.ts` (`deriveKeys`) to improve GPU/ASIC cracking resistance for vault sessions.
+Decisions: Retained Dexie `db.files` to track metadata (`id`, `path`, `updatedAt`) allowing fast queries and project deletion, but stripped the `content` string from IndexedDB by dynamically storing/retrieving it via OPFS handles (`navigator.storage.getDirectory()`). For Argon2id, used conservative parameters (parallelism 1, 64MB memory, 3 iterations) suitable for fast in-browser unlocking while maintaining strong security.
+Deviations: none
+Verified: `npm test` passes cleanly. `npm run lint` passes with 0 errors.
+Open questions: none
+
 ### [REBRAND-2] Migrate IndexedDB from XiomDatabase to LaideDatabase — 2026-08-23
 Prompt: Rename the underlying Dexie database from 'XiomDatabase' to 'LaideDatabase'. Copy all existing rows (projects, files, snapshots, connectionProfiles, provenanceEntries) from any existing XiomDatabase into the new LaideDatabase, preserving project data. Delete the old database only if the copy succeeds.
 Files touched:

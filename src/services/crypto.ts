@@ -1,10 +1,11 @@
+import { argon2id } from 'hash-wasm';
+
 export interface KeyMaterial {
   aesKey: CryptoKey;
   hmacKey: CryptoKey;
   masterKeyBytes: Uint8Array;
 }
 
-const PBKDF2_ITERATIONS = 600000;
 const VERIFIER_MESSAGE = "XIOM_APP_VERIFIER";
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -29,7 +30,6 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
 export async function importMasterKey(masterKeyBytes: Uint8Array): Promise<KeyMaterial> {
   const aesKeyBytes = masterKeyBytes.slice(0, 32);
   const hmacKeyBytes = masterKeyBytes.slice(32, 64);
-
   const aesKey = await crypto.subtle.importKey(
     'raw',
     aesKeyBytes,
@@ -37,7 +37,6 @@ export async function importMasterKey(masterKeyBytes: Uint8Array): Promise<KeyMa
     false,
     ['encrypt', 'decrypt']
   );
-
   const hmacKey = await crypto.subtle.importKey(
     'raw',
     hmacKeyBytes,
@@ -45,32 +44,20 @@ export async function importMasterKey(masterKeyBytes: Uint8Array): Promise<KeyMa
     false,
     ['sign', 'verify']
   );
-
   return { aesKey, hmacKey, masterKeyBytes };
 }
 
 export async function deriveKeys(passphrase: string, salt: Uint8Array): Promise<KeyMaterial> {
-  const enc = new TextEncoder();
-  const baseKey = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(passphrase),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: salt,
-      iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256'
-    },
-    baseKey,
-    512 // 256 bits for AES and 256 bits for HMAC = 512 bits total
-  );
-
-  return importMasterKey(new Uint8Array(bits));
+  const hash = await argon2id({
+    password: passphrase,
+    salt: salt,
+    parallelism: 1,
+    iterations: 3,
+    memorySize: 65536,
+    hashLength: 64,
+    outputType: 'binary'
+  });
+  return importMasterKey(hash);
 }
 
 export async function generateVerifier(hmacKey: CryptoKey): Promise<string> {
@@ -111,10 +98,9 @@ export async function encryptData(aesKey: CryptoKey, plaintext: string): Promise
     aesKey,
     enc.encode(plaintext)
   );
-
+  
   const ivBase64 = arrayBufferToBase64(iv.buffer);
   const cipherBase64 = arrayBufferToBase64(ciphertext);
-
   return `enc.v1.${ivBase64}.${cipherBase64}`;
 }
 
@@ -123,10 +109,10 @@ export async function decryptData(aesKey: CryptoKey, encryptedPayload: string): 
   if (parts.length !== 4 || parts[0] !== 'enc' || parts[1] !== 'v1') {
     throw new Error('Invalid encrypted payload format. Expected enc.v1.<iv>.<ciphertext>');
   }
-
+  
   const iv = base64ToArrayBuffer(parts[2]);
   const ciphertext = base64ToArrayBuffer(parts[3]);
-
+  
   try {
     const decrypted = await crypto.subtle.decrypt(
       {
@@ -136,7 +122,6 @@ export async function decryptData(aesKey: CryptoKey, encryptedPayload: string): 
       aesKey,
       ciphertext
     );
-
     const dec = new TextDecoder();
     return dec.decode(decrypted);
   } catch (err) {
