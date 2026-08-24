@@ -29,8 +29,10 @@ import { ProjectActionsMenu } from './components/ProjectActionsMenu';
 import { ProjectMetadataPanel } from './components/ProjectMetadataPanel';
 import { GithubImportModal } from './components/GithubImportModal';
 import { GithubPushModal } from './components/GithubPushModal';
+import { DeployModal } from './components/DeployModal';
 import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
+import { ProjectSearchModal } from './components/ProjectSearchModal';
 import { createProjectFromTemplate, type TemplateId } from './services/templates/projectTemplates';
 import { ReloadPrompt } from './components/ReloadPrompt';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -92,6 +94,9 @@ export default function App() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [showGithubImport, setShowGithubImport] = useState(false);
   const [showGithubPush, setShowGithubPush] = useState(false);
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [showProjectSearchModal, setShowProjectSearchModal] = useState(false);
+  const [projectSearchInitialQuery, setProjectSearchInitialQuery] = useState('');
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [focusSearchTrigger, setFocusSearchTrigger] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
@@ -102,6 +107,11 @@ export default function App() {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleOpenProjectSearch = (initialQuery?: string) => {
+    setProjectSearchInitialQuery(initialQuery || '');
+    setShowProjectSearchModal(true);
+  };
 
   const activeProject = projects.find(p => p.id === activeProjectId) || projects[0] || null;
 
@@ -354,6 +364,11 @@ export default function App() {
 
       // 2. Escape: Dismiss modals or close open editor
       if (e.key === 'Escape') {
+        if (showProjectSearchModal) {
+          e.preventDefault();
+          setShowProjectSearchModal(false);
+          return;
+        }
         if (showShortcutsModal) {
           e.preventDefault();
           setShowShortcutsModal(false);
@@ -367,7 +382,14 @@ export default function App() {
       }
 
       // If user is actively typing in an editor or input, only handle specific accelerator keys below
-      // 3. Ctrl+P: Quick open & focus file search
+      // 3. Ctrl+Shift+F: Global Project Search (Find in Files)
+      if (isMod && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        handleOpenProjectSearch();
+        return;
+      }
+
+      // 4. Ctrl+P: Quick open & focus file search
       if (isMod && !e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         setActiveTab('files');
@@ -439,7 +461,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [activeFileId, showShortcutsModal, setActiveTab, setActiveFileId, toggleTheme, lockVault]);
+  }, [activeFileId, showShortcutsModal, showProjectSearchModal, setActiveTab, setActiveFileId, toggleTheme, lockVault]);
 
   useEffect(() => {
     let ignore = false;
@@ -571,6 +593,8 @@ export default function App() {
                     <ProjectActionsMenu
                       project={activeProject}
                       fileCount={files.length}
+                      onOpenDeploy={() => setShowDeployModal(true)}
+                      onOpenProjectSearch={handleOpenProjectSearch}
                       onOpenGithubImport={handleOpenGithubImport}
                       onOpenGithubPush={handleOpenGithubPush}
                       onOpenAnalytics={() => setShowProjectStats(true)}
@@ -726,6 +750,7 @@ export default function App() {
                     projectId={activeProject.id}
                     onFilesChanged={refreshFiles}
                     autoFocusSearch={focusSearchTrigger}
+                    onOpenProjectSearch={handleOpenProjectSearch}
                   />
                 )}
               </div>
@@ -736,7 +761,10 @@ export default function App() {
           )}
           {activeTab === 'preview' && (
             <ErrorBoundary resetKey={activeProject?.id}>
-              <PreviewPanel files={files} />
+              <PreviewPanel 
+                files={files} 
+                onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
+              />
             </ErrorBoundary>
           )}
           {activeTab === 'terminal' && (
@@ -763,17 +791,19 @@ export default function App() {
           )}
         </main>
 
-        {/* Fixed Bottom Tab Bar with 1px hairline */}
+        {/* Fixed Bottom Tab Bar with safe-area padding for home indicator */}
         <nav 
           role="tablist" 
           aria-label="Workspace view tabs"
-          className="h-[60px] shrink-0 bg-surface border-t border-border flex relative"
+          className="pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border flex relative"
         >
-          <TabButton id="files" current={activeTab} onClick={setActiveTab} icon={<FileText size={19} />} label="Files" />
-          <TabButton id="chat" current={activeTab} onClick={setActiveTab} icon={<MessageSquare size={19} />} label="Chat" />
-          <TabButton id="preview" current={activeTab} onClick={setActiveTab} icon={<MonitorPlay size={19} />} label="Preview" />
-          <TabButton id="terminal" current={activeTab} onClick={setActiveTab} icon={<Terminal size={19} />} label="Terminal" />
-          <TabButton id="settings" current={activeTab} onClick={setActiveTab} icon={<Settings size={19} />} label="Settings" />
+          <div className="h-[60px] w-full flex">
+            <TabButton id="files" current={activeTab} onClick={setActiveTab} icon={<FileText size={19} />} label="Files" />
+            <TabButton id="chat" current={activeTab} onClick={setActiveTab} icon={<MessageSquare size={19} />} label="Chat" />
+            <TabButton id="preview" current={activeTab} onClick={setActiveTab} icon={<MonitorPlay size={19} />} label="Preview" />
+            <TabButton id="terminal" current={activeTab} onClick={setActiveTab} icon={<Terminal size={19} />} label="Terminal" />
+            <TabButton id="settings" current={activeTab} onClick={setActiveTab} icon={<Settings size={19} />} label="Settings" />
+          </div>
         </nav>
         
         {/* Agent Patch Review */}
@@ -796,6 +826,14 @@ export default function App() {
           <GithubPushModal 
             projectId={activeProject.id} 
             onClose={() => setShowGithubPush(false)}
+          />
+        )}
+
+        {/* 1-Click Live Deploy / Publish Modal */}
+        {showDeployModal && activeProject && (
+          <DeployModal
+            project={activeProject}
+            onClose={() => setShowDeployModal(false)}
           />
         )}
 
@@ -852,6 +890,14 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* Global Project-wide Search Modal (Find in Files) */}
+        <ProjectSearchModal
+          isOpen={showProjectSearchModal}
+          onClose={() => setShowProjectSearchModal(false)}
+          files={files}
+          initialQuery={projectSearchInitialQuery}
+        />
 
         {/* Keyboard Shortcuts Cheatsheet Modal */}
         <KeyboardShortcutsModal

@@ -28,7 +28,7 @@ export function ReloadPrompt() {
   return (
     <aside 
       aria-label="PWA status notification"
-      className="fixed bottom-16 right-4 left-4 sm:left-auto sm:w-96 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300 pointer-events-auto"
+      className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-4 left-4 sm:left-auto sm:w-96 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300 pointer-events-auto"
     >
       <div className="bg-surface border border-accent/40 shadow-2xl rounded-lg p-3.5 flex flex-col gap-2.5 backdrop-blur-md">
         <div className="flex items-start justify-between gap-2">

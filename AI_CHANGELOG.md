@@ -1,6 +1,6 @@
 ## Current State
-- Phase: FEATURE-04
-- Last verified working: Full test suite passes cleanly with 53 test files and 348 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors (`npx eslint . --quiet`).
+- Phase: FEATURE-06
+- Last verified working: Full test suite passes cleanly with 57 test files and 379 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors on modified files.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,75 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [FEATURE-06] Project-Wide Content Search (Find in Files) — 2026-08-24
+Prompt: Project-wide search — Ctrl+P only does filename quick-open right now; there's no way to search inside files across the whole project. For a coding tool this is a pretty core feature once projects grow past a handful of files.
+Files touched:
+- `src/services/search/projectSearch.ts` (new)
+- `src/services/search/projectSearch.test.ts` (new)
+- `src/components/ProjectSearchModal.tsx` (new)
+- `src/components/ProjectSearchModal.test.tsx` (new)
+- `src/store.ts` (modified)
+- `src/components/Editor.tsx` (modified)
+- `src/components/FileTree.tsx` (modified)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/KeyboardShortcutsModal.tsx` (modified)
+- `src/App.tsx` (modified)
+Changed:
+- Implemented high-performance project search service (`projectSearch.ts`) supporting literal substring, case-sensitive matching, whole-word boundaries, full JavaScript regular expressions, and include/exclude glob filters.
+- Built `ProjectSearchModal.tsx` modal with real-time match previews, line & column indicators, syntax badges, match highlights, collapsible per-file result groups, and arrow key / Enter navigation.
+- Added `editorNavigationTarget` in `store.ts` and integrated CodeMirror automatic scrolling and character selection dispatch in `Editor.tsx`.
+- Bound global accelerator `Ctrl+Shift+F` / `Cmd+Shift+F`, added toolbar / menu discovery entry points in `FileTree.tsx` and `ProjectActionsMenu.tsx`, and updated keyboard shortcuts reference.
+Decisions: Excluded binary files automatically from text search, grouped results by file path with expand/collapse controls, and provided instant jump-to-line selection with highlighted target ranges in CodeMirror.
+Deviations: none
+Verified: Added 17 unit and component tests across `projectSearch.test.ts` and `ProjectSearchModal.test.tsx`; full test suite passes with 57 test files / 379 tests; verified clean build via `compile_applet`.
+Open questions: none
+
+### [FEATURE-05] 1-Click Live Deployment & Instant Hosting (Netlify & Vercel) — 2026-08-24
+Prompt: Build 1-click live deployment capability allowing users to publish web applications to Netlify or Vercel edge networks with instant live URLs, encrypted token storage, progress tracking, and deploy history.
+Files touched:
+- `src/services/deploy/deployClient.ts` (new)
+- `src/services/deploy/deployClient.test.ts` (new)
+- `src/components/DeployModal.tsx` (new)
+- `src/components/DeployModal.test.tsx` (new)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/ProjectActionsMenu.test.tsx` (modified)
+- `src/components/PreviewPanel.tsx` (modified)
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/App.tsx` (modified)
+Changed:
+- Built `deployClient.ts` implementing static packaging (bundling HTML/CSS/JS, handling SPA redirects via `_redirects` and `vercel.json`), Netlify ZIP direct deploy API (`/api/v1/sites`), and Vercel v13 deployments API with status polling.
+- Created `DeployModal.tsx` dialog featuring Netlify & Vercel configuration tabs, real-time progress steps with live visual indicators, shareable copyable production URL card, and past deployments history per project.
+- Integrated 1-Click Publish actions into `ProjectActionsMenu.tsx` and `PreviewPanel.tsx` header for instant discovery.
+- Added encrypted personal token management for Netlify and Vercel in `SettingsPanel.tsx` and within the deploy modal with vault AES-GCM encryption.
+Decisions: Supported both direct ZIP deployment to Netlify (no OAuth or git repository required) and atomic file deployment to Vercel, with automatic client-side bundler integration for React/TypeScript projects.
+Deviations: none
+Verified: Added comprehensive unit tests in `deployClient.test.ts` and `DeployModal.test.tsx` (14 passing tests); verified `npm test`, ESLint, and `compile_applet`.
+Open questions: none
+
+### [HOTFIX-39] Safe-area and Notch Handling Support — 2026-08-24
+Prompt: Safe-area / notch handling — this jumped out on inspection: the viewport meta tag doesn't have viewport-fit=cover, and nothing in the CSS uses env(safe-area-inset-*). On notched iPhones that means content can sit under the notch or get clipped by the home indicator bar. Small fix, but it's the difference between feeling like a native app and feeling like a website in a browser. Worth doing early since it touches every screen.
+Files touched:
+- `index.html` (modified)
+- `src/index.css` (modified)
+- `src/components/TopStrip.tsx` (modified)
+- `src/App.tsx` (modified)
+- `src/components/PatchReviewSheet.tsx` (modified)
+- `src/components/LockScreen.tsx` (modified)
+- `src/components/Toaster.tsx` (modified)
+- `src/components/ReloadPrompt.tsx` (modified)
+- `src/components/InstallPrompt.tsx` (modified)
+Changed:
+- Added `viewport-fit=cover` to `<meta name="viewport">` in `index.html` to enable full edge-to-edge rendering on modern notched and Dynamic Island displays.
+- Defined safe-area CSS root variables (`--sat`, `--sar`, `--sab`, `--sal`) and reusable utility classes (`pt-safe`, `pb-safe`, `pl-safe`, `pr-safe`, `px-safe`, `py-safe`, `p-safe`, `top-safe`, `bottom-safe`) in `src/index.css`.
+- Updated `TopStrip.tsx` header to pad under status bars/notches while maintaining seamless background coverage and centered action buttons.
+- Updated `App.tsx` bottom navigation tab bar with `pb-safe` to elevate tabs above the iOS home indicator bar.
+- Enhanced `PatchReviewSheet.tsx` bottom sheet collapsed height and footer action buttons to respect bottom safe areas.
+- Updated `LockScreen.tsx`, `Toaster.tsx`, `ReloadPrompt.tsx`, and `InstallPrompt.tsx` with safe-area spacing.
+Decisions: Applied safe-area padding directly on container boundaries so background colors smoothly extend to the screen edges while interactive items stay within the safe viewport bounds.
+Deviations: none
+Verified: Vitest suite (53 test files, 348 tests) passed cleanly; ESLint passed with 0 errors; `compile_applet` passed successfully.
+Open questions: none
 
 ### [FEATURE-04] Full Project Markdown Documentation Export — 2026-08-24
 Prompt: Add a feature to export the entire project structure as a single formatted Markdown file, including code blocks for every file, for easy documentation sharing.

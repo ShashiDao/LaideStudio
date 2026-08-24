@@ -3,7 +3,8 @@ import {
   Settings, Plus, Save, Trash2, ShieldCheck, ShieldAlert, Activity, CheckCircle2, 
   ChevronDown, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
   Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
-  Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight
+  Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight,
+  Rocket, Globe
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
@@ -97,6 +98,12 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
 
   const [githubPatInput, setGithubPatInput] = useState('');
   const [githubPatSaved, setGithubPatSaved] = useState(false);
+
+  const [netlifyTokenInput, setNetlifyTokenInput] = useState('');
+  const [netlifyTokenSaved, setNetlifyTokenSaved] = useState(false);
+
+  const [vercelTokenInput, setVercelTokenInput] = useState('');
+  const [vercelTokenSaved, setVercelTokenSaved] = useState(false);
 
   const [mcpServerUrlInput, setMcpServerUrlInput] = useState('');
   const [mcpServersSaved, setMcpServersSaved] = useState(false);
@@ -272,12 +279,13 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     };
   }, [provider, apiKey, baseUrl]);
 
-  // Load GitHub PAT
+  // Load GitHub PAT & Deploy Tokens
   useEffect(() => {
     let active = true;
-    async function loadGithub() {
+    async function loadTokens() {
       const { decryptData } = await import('../services/crypto');
       if (!keys) return;
+      
       const enc = localStorage.getItem('xiom_github_pat');
       if (enc) {
         try {
@@ -287,8 +295,28 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
           console.warn('Could not decrypt GitHub PAT');
         }
       }
+
+      const netlifyEnc = localStorage.getItem('xiom_netlify_token');
+      if (netlifyEnc) {
+        try {
+          const dec = await decryptData(keys.aesKey, netlifyEnc);
+          if (active) setNetlifyTokenInput(dec);
+        } catch (_e) {
+          console.warn('Could not decrypt Netlify token');
+        }
+      }
+
+      const vercelEnc = localStorage.getItem('xiom_vercel_token');
+      if (vercelEnc) {
+        try {
+          const dec = await decryptData(keys.aesKey, vercelEnc);
+          if (active) setVercelTokenInput(dec);
+        } catch (_e) {
+          console.warn('Could not decrypt Vercel token');
+        }
+      }
     }
-    loadGithub();
+    loadTokens();
     return () => {
       active = false;
     };
@@ -1064,6 +1092,115 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
           >
             {githubPatSaved ? <CheckCircle2 size={16} /> : <Save size={16} />}
             {githubPatSaved ? 'Saved' : 'Save GitHub Token'}
+          </button>
+        </form>
+      </div>
+
+      {/* 1-Click Deploy & Hosting Tokens (Netlify & Vercel) */}
+      <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded space-y-5">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Rocket size={16} className="text-accent" />
+            <h3 className="text-sm font-sans text-accent">1-Click Live Deploy Tokens</h3>
+          </div>
+          <p className="text-xs text-muted font-sans leading-relaxed">
+            Configure tokens for 1-click publishing directly to Netlify or Vercel edge CDN. All tokens are encrypted with your vault master key.
+          </p>
+        </div>
+
+        {/* Netlify Token */}
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const { encryptData } = await import('../services/crypto');
+          if (!keys) return;
+          try {
+            if (!netlifyTokenInput.trim()) {
+              localStorage.removeItem('xiom_netlify_token');
+            } else {
+              const enc = await encryptData(keys.aesKey, netlifyTokenInput.trim());
+              localStorage.setItem('xiom_netlify_token', enc);
+            }
+            setNetlifyTokenSaved(true);
+            setTimeout(() => setNetlifyTokenSaved(false), 2000);
+          } catch (err) {
+            console.error('Failed to save Netlify token', err);
+          }
+        }} className="space-y-3 pt-2 border-t border-border/60">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-sans text-text font-medium flex items-center gap-1.5">
+              <span>Netlify Personal Access Token</span>
+            </label>
+            <a 
+              href="https://app.netlify.com/user/applications#personal-access-tokens"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-accent hover:underline flex items-center gap-1 font-sans"
+            >
+              <span>Get Netlify Token</span>
+              <ExternalLink size={10} />
+            </a>
+          </div>
+          <input 
+            type="password"
+            value={netlifyTokenInput}
+            onChange={e => setNetlifyTokenInput(e.target.value)}
+            placeholder="nfp_..."
+            className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-mono text-sm focus:border-accent focus:outline-none"
+          />
+          <button 
+            type="submit"
+            className="w-full py-2 bg-surface hover:bg-surface-elevated text-text border border-border font-sans font-bold text-xs rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            {netlifyTokenSaved ? <CheckCircle2 size={14} className="text-moss" /> : <Save size={14} />}
+            {netlifyTokenSaved ? 'Netlify Token Saved' : 'Save Netlify Token'}
+          </button>
+        </form>
+
+        {/* Vercel Token */}
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const { encryptData } = await import('../services/crypto');
+          if (!keys) return;
+          try {
+            if (!vercelTokenInput.trim()) {
+              localStorage.removeItem('xiom_vercel_token');
+            } else {
+              const enc = await encryptData(keys.aesKey, vercelTokenInput.trim());
+              localStorage.setItem('xiom_vercel_token', enc);
+            }
+            setVercelTokenSaved(true);
+            setTimeout(() => setVercelTokenSaved(false), 2000);
+          } catch (err) {
+            console.error('Failed to save Vercel token', err);
+          }
+        }} className="space-y-3 pt-2 border-t border-border/60">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-sans text-text font-medium flex items-center gap-1.5">
+              <span>Vercel API Token</span>
+            </label>
+            <a 
+              href="https://vercel.com/account/tokens"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-accent hover:underline flex items-center gap-1 font-sans"
+            >
+              <span>Get Vercel Token</span>
+              <ExternalLink size={10} />
+            </a>
+          </div>
+          <input 
+            type="password"
+            value={vercelTokenInput}
+            onChange={e => setVercelTokenInput(e.target.value)}
+            placeholder="vck_..."
+            className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-mono text-sm focus:border-accent focus:outline-none"
+          />
+          <button 
+            type="submit"
+            className="w-full py-2 bg-surface hover:bg-surface-elevated text-text border border-border font-sans font-bold text-xs rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            {vercelTokenSaved ? <CheckCircle2 size={14} className="text-moss" /> : <Save size={14} />}
+            {vercelTokenSaved ? 'Vercel Token Saved' : 'Save Vercel Token'}
           </button>
         </form>
       </div>

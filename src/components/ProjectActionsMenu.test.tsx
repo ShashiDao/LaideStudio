@@ -94,6 +94,7 @@ describe('ProjectActionsMenu Component', () => {
   it('invokes appropriate callbacks when action items are clicked and closes menu', () => {
     const onOpenGithubImport = vi.fn();
     const onOpenGithubPush = vi.fn();
+    const onOpenDeploy = vi.fn();
     const onUploadClick = vi.fn();
     const onExportClick = vi.fn();
     const onDeleteClick = vi.fn();
@@ -105,6 +106,7 @@ describe('ProjectActionsMenu Component', () => {
       <ProjectActionsMenu
         project={mockProject}
         fileCount={12}
+        onOpenDeploy={onOpenDeploy}
         onOpenGithubImport={onOpenGithubImport}
         onOpenGithubPush={onOpenGithubPush}
         onUploadClick={onUploadClick}
@@ -119,7 +121,12 @@ describe('ProjectActionsMenu Component', () => {
     // Open menu
     fireEvent.click(screen.getByLabelText('Workspace actions menu'));
 
-    // Click Rename
+    // Click Publish Live Site
+    fireEvent.click(screen.getByText('Publish Live Site'));
+    expect(onOpenDeploy).toHaveBeenCalledTimes(1);
+
+    // Re-open and click Rename
+    fireEvent.click(screen.getByLabelText('Workspace actions menu'));
     fireEvent.click(screen.getByText('Rename Project'));
     expect(onRenameClick).toHaveBeenCalledTimes(1);
 

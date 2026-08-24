@@ -141,7 +141,7 @@ export function Editor({
   onContentChanged: (newContent: string) => void,
   onOpenBisect?: (testName?: string) => void
 }) {
-  const { setActiveFileId, theme, addToast } = useAppStore();
+  const { setActiveFileId, theme, addToast, editorNavigationTarget, setEditorNavigationTarget } = useAppStore();
   const [content, setContent] = useState(file.content);
   const [isUnsaved, setIsUnsaved] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
@@ -217,6 +217,40 @@ export function Editor({
       active = false;
     };
   }, [file.id, file.content]);
+
+  // Jump to specific line/column if editorNavigationTarget is provided
+  useEffect(() => {
+    if (!editorNavigationTarget) return;
+
+    // Small delay to allow CodeMirror DOM and view initialization
+    const timer = setTimeout(() => {
+      const view = editorRef.current?.view;
+      if (!view) return;
+
+      try {
+        const doc = view.state.doc;
+        const lineNum = Math.min(Math.max(1, editorNavigationTarget.line), doc.lines);
+        const line = doc.line(lineNum);
+        const startCol = Math.max(0, (editorNavigationTarget.column || 1) - 1);
+        const fromPos = Math.min(line.from + startCol, line.to);
+        const toPos = editorNavigationTarget.length 
+          ? Math.min(fromPos + editorNavigationTarget.length, line.to)
+          : fromPos;
+
+        view.dispatch({
+          selection: { anchor: fromPos, head: toPos },
+          scrollIntoView: true
+        });
+        view.focus();
+        setActiveLineNumber(lineNum);
+        setEditorNavigationTarget(null);
+      } catch (err) {
+        console.warn('Failed to jump to editor navigation target', err);
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [editorNavigationTarget, file.id, setEditorNavigationTarget]);
 
   // Dynamically load language extension for file type
   useEffect(() => {

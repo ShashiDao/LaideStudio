@@ -244,7 +244,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 bg-surface border-t border-border shadow-2xl transition-all duration-300 z-50 flex flex-col ${isPatchReviewOpen ? 'h-[80vh] sm:h-[75vh]' : 'h-12'}`}>
+    <div className={`fixed bottom-0 left-0 right-0 bg-surface border-t border-border shadow-2xl transition-all duration-300 z-50 flex flex-col pl-safe pr-safe ${isPatchReviewOpen ? 'h-[80vh] sm:h-[75vh]' : 'h-[calc(48px+env(safe-area-inset-bottom,0px))]'}`}>
       {/* Header (swipe handle) */}
       <div 
         className="h-12 flex items-center justify-between px-3 sm:px-4 cursor-pointer hover:bg-black/5 transition-colors shrink-0 select-none"
@@ -398,7 +398,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
 
       {/* Footer (Apply Button) */}
       {isPatchReviewOpen && (
-        <div className="p-3 sm:p-4 border-t border-border bg-surface/90 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 shrink-0">
+        <div className="p-3 sm:p-4 border-t border-border bg-surface/90 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
           <button 
             onClick={() => {
               clearPendingPatches();

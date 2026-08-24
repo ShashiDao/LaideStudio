@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Play, AlertCircle, Loader2, Sparkles, Eye, Check } from 'lucide-react';
+import { RefreshCw, Play, AlertCircle, Loader2, Sparkles, Eye, Check, Rocket } from 'lucide-react';
 import type { FileItem } from '../db';
 import { useAppStore } from '../store';
 import { SUGGESTION_PROMPTS } from '../services/agent/prompts';
@@ -67,6 +67,7 @@ export function injectTailwindScriptIntoHtml(html: string, version: 'v3' | 'v4' 
 
 interface PreviewPanelProps {
   files: FileItem[];
+  onOpenDeploy?: () => void;
 }
 
 function resolvePath(base: string, relative: string): string {
@@ -78,7 +79,7 @@ function resolvePath(base: string, relative: string): string {
   return (dir ? dir + '/' : '/') + relative;
 }
 
-export function PreviewPanel({ files }: PreviewPanelProps) {
+export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
   const { 
     setLastBuildError, 
     setActiveTab, 
@@ -297,6 +298,17 @@ export function PreviewPanel({ files }: PreviewPanelProps) {
           <span>Preview</span>
         </div>
         <div className="flex items-center gap-2">
+          {onOpenDeploy && (
+            <button
+              type="button"
+              onClick={onOpenDeploy}
+              className="p-1.5 rounded transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer text-accent bg-accent/10 border border-accent/30 hover:bg-accent/20 active:scale-95 shadow-xs"
+              title="Publish Live Web Application (Netlify / Vercel)"
+            >
+              <Rocket size={12} className="text-accent" />
+              <span className="font-bold">Publish</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handleCapture}

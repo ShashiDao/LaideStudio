@@ -8,7 +8,7 @@ export function Toaster() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="absolute top-10 left-0 right-0 z-[100] flex flex-col items-center gap-2 p-4 pointer-events-none">
+    <div className="absolute top-[calc(2.5rem+env(safe-area-inset-top,0px))] left-0 right-0 z-[100] flex flex-col items-center gap-2 p-4 pointer-events-none">
       {toasts.map((toast) => (
         <div
           key={toast.id}

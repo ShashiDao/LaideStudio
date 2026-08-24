@@ -309,7 +309,7 @@ export function LockScreen() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center">
+      <div className="min-h-screen bg-bg flex items-center justify-center pt-safe pb-safe pl-safe pr-safe">
         <Lock className="text-accent animate-pulse" size={32} />
       </div>
     );
@@ -324,7 +324,7 @@ export function LockScreen() {
       const words = recoveryPhrase.split(' ');
 
       return (
-        <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+        <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
           <div className="bg-surface border border-border rounded-lg p-6 sm:p-8 w-full max-w-lg shadow-2xl flex flex-col">
             <div className="flex items-center gap-3 mb-3">
               <LifeBuoy className="text-accent" size={26} />
@@ -385,7 +385,7 @@ export function LockScreen() {
     // Step 3: Passkey Enrollment Offer
     if (setupStep === 'passkey') {
       return (
-        <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+        <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
           <div className="bg-surface border border-border rounded-lg p-8 w-full max-w-md shadow-2xl flex flex-col items-center corner-ticks">
             <Fingerprint className="text-accent mb-4" size={48} />
             <h2 className="text-xl font-sans text-text mb-2">Enroll Passkey?</h2>
@@ -418,7 +418,7 @@ export function LockScreen() {
 
     // Step 1: Initial Passphrase Setup
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
         <div className="bg-surface border border-border rounded-lg p-6 sm:p-8 w-full max-w-md shadow-2xl corner-ticks">
           <div className="flex items-center gap-3 mb-4">
             <ShieldCheck className="text-accent" size={28} />
@@ -544,7 +544,7 @@ export function LockScreen() {
   // Passkey mode
   if (unlockMode === 'passkey' && config.passkeyData) {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
         <div className="bg-surface border border-border rounded-lg p-8 w-full max-w-md shadow-2xl flex flex-col items-center corner-ticks">
           <Fingerprint className="text-accent mb-6" size={48} />
           <h2 className="text-xl font-sans text-text mb-2">Unlock Vault</h2>
@@ -575,7 +575,7 @@ export function LockScreen() {
   // Recovery phrase mode
   if (unlockMode === 'recovery') {
     return (
-      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
         <div className="bg-surface border border-border rounded-lg p-6 sm:p-8 w-full max-w-md shadow-2xl corner-ticks">
           <div className="flex items-center gap-3 mb-4">
             <LifeBuoy className="text-accent" size={26} />
@@ -655,7 +655,7 @@ export function LockScreen() {
 
   // Standard Passphrase Unlock mode
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
       <div className="bg-surface border border-border rounded-lg p-6 sm:p-8 w-full max-w-md shadow-2xl corner-ticks">
         <div className="flex items-center gap-3 mb-6">
           <Key className="text-accent" size={28} />

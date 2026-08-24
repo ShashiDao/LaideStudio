@@ -47,6 +47,8 @@ export interface WorkspaceSlice {
   setLastBuildError: (error: string | null) => void;
   lastPreviewScreenshot: PreviewScreenshot | null;
   setLastPreviewScreenshot: (screenshot: PreviewScreenshot | null) => void;
+  editorNavigationTarget: { line: number; column?: number; length?: number } | null;
+  setEditorNavigationTarget: (target: { line: number; column?: number; length?: number } | null) => void;
   lockVault: () => void;
 }
 
@@ -179,6 +181,8 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   setLastBuildError: (lastBuildError) => set({ lastBuildError }),
   lastPreviewScreenshot: null,
   setLastPreviewScreenshot: (lastPreviewScreenshot) => set({ lastPreviewScreenshot }),
+  editorNavigationTarget: null,
+  setEditorNavigationTarget: (editorNavigationTarget) => set({ editorNavigationTarget }),
   lockVault: () => {
     import('./services/session').then(({ clearPersistentSession }) => {
       clearPersistentSession().catch(err => console.error('Failed to clear persistent session', err));

@@ -449,12 +449,14 @@ export function FileTree({
   files, 
   projectId,
   onFilesChanged,
-  autoFocusSearch
+  autoFocusSearch,
+  onOpenProjectSearch
 }: { 
   files: FileItem[], 
   projectId?: string,
   onFilesChanged?: () => void,
-  autoFocusSearch?: boolean
+  autoFocusSearch?: boolean,
+  onOpenProjectSearch?: (query?: string) => void
 }) {
   const { activeFileId, setActiveFileId, flashingPaths, setActiveTab, addToast } = useAppStore();
 
@@ -643,6 +645,12 @@ export function FileTree({
   }, [files, searchQuery]);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const isMod = e.ctrlKey || e.metaKey;
+    if (isMod && e.shiftKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      onOpenProjectSearch?.(searchQuery);
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setSelectedIndex(prev => (filteredFiles.length > 0 ? (prev + 1) % filteredFiles.length : 0));
@@ -855,33 +863,48 @@ export function FileTree({
     <div className="flex-1 flex flex-col overflow-hidden relative w-full">
       {/* File Search Header & Quick Tree Controls */}
       <div className="px-2 py-1.5 border-b border-border/80 bg-surface/50 shrink-0 space-y-1.5">
-        <div className="relative flex items-center">
-          <Search size={13} className="absolute left-2.5 text-muted pointer-events-none" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setSelectedIndex(0);
-            }}
-            onKeyDown={handleSearchKeyDown}
-            placeholder="Search files... (/)"
-            aria-label="Search files by name or path"
-            className="w-full pl-8 pr-7 py-1 bg-surface-elevated/70 border border-border rounded text-[11px] font-mono text-text placeholder:text-muted/60 focus:outline-none focus:border-accent transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
+        <div className="relative flex items-center gap-1">
+          <div className="relative flex-1 flex items-center">
+            <Search size={13} className="absolute left-2.5 text-muted pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
                 setSelectedIndex(0);
-                searchInputRef.current?.focus();
               }}
-              className="absolute right-2 text-muted hover:text-text p-0.5 rounded cursor-pointer transition-colors"
-              aria-label="Clear search"
-              title="Clear search"
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search files... (/)"
+              aria-label="Search files by name or path"
+              className="w-full pl-8 pr-7 py-1 bg-surface-elevated/70 border border-border rounded text-[11px] font-mono text-text placeholder:text-muted/60 focus:outline-none focus:border-accent transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedIndex(0);
+                  searchInputRef.current?.focus();
+                }}
+                className="absolute right-2 text-muted hover:text-text p-0.5 rounded cursor-pointer transition-colors"
+                aria-label="Clear search"
+                title="Clear search"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          {onOpenProjectSearch && (
+            <button
+              type="button"
+              onClick={() => onOpenProjectSearch(searchQuery)}
+              className="px-1.5 py-1 bg-surface-elevated/70 hover:bg-accent/15 border border-border hover:border-accent/40 text-muted hover:text-accent rounded text-[10px] font-mono transition-colors cursor-pointer shrink-0 flex items-center gap-1 shadow-xs"
+              title="Project-wide search in file contents (Ctrl+Shift+F)"
+              aria-label="Find in files"
             >
-              <X size={12} />
+              <Search size={12} />
+              <span className="hidden xl:inline text-[9px]">Content</span>
             </button>
           )}
         </div>
@@ -945,15 +968,25 @@ export function FileTree({
             <p className="font-sans text-[11px] text-muted mb-3 max-w-[220px]">
               No files match &ldquo;<span className="font-mono text-accent">{searchQuery}</span>&rdquo;
             </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedIndex(0);
-              }}
-              className="px-3 py-1 text-[11px] font-mono bg-surface-elevated border border-border hover:border-accent/40 rounded text-accent hover:bg-accent/10 transition-colors cursor-pointer"
-            >
-              Clear Search
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedIndex(0);
+                }}
+                className="px-3 py-1 text-[11px] font-mono bg-surface-elevated border border-border hover:border-accent/40 rounded text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+              >
+                Clear Search
+              </button>
+              {onOpenProjectSearch && (
+                <button
+                  onClick={() => onOpenProjectSearch(searchQuery)}
+                  className="px-3 py-1 text-[11px] font-mono bg-accent text-accent-text-on rounded font-bold hover:brightness-110 transition-all cursor-pointer shadow-xs"
+                >
+                  Find in Files
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div 

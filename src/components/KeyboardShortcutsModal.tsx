@@ -24,6 +24,7 @@ const SHORTCUTS: ShortcutItem[] = [
   { keys: ['Ctrl', 'Shift', 'P'], description: 'Switch to Preview tab', category: 'Navigation & Views' },
 
   // Files & Search
+  { keys: ['Ctrl', 'Shift', 'F'], description: 'Project-wide search (Find in files)', category: 'Files & Search' },
   { keys: ['Ctrl', 'P'], description: 'Quick open & focus file search', category: 'Files & Search' },
   { keys: ['/'], description: 'Focus file search (when not editing text)', category: 'Files & Search' },
   { keys: ['Ctrl', 'F'], description: 'Find text in currently open file', category: 'Files & Search' },

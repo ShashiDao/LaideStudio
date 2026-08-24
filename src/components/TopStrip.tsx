@@ -26,56 +26,58 @@ export function TopStrip(_props: { dbTested?: boolean; onOpenShortcuts?: () => v
   return (
     <header 
       role="banner"
-      className="h-[34px] shrink-0 bg-surface flex items-center justify-between px-3 border-b border-border relative select-none"
+      className="pt-safe pl-safe pr-safe shrink-0 bg-surface border-b border-border relative select-none"
     >
+      <div className="h-[34px] flex items-center justify-between px-3">
+        {/* Left: Professional Brand Logo & Name */}
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-5 h-5 rounded bg-accent/15 border border-accent/40 flex items-center justify-center text-accent shrink-0 shadow-xs">
+            <Terminal size={12} strokeWidth={2.5} />
+          </div>
+          
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="font-mono font-bold text-xs sm:text-sm tracking-tight text-text">
+              LAIDE
+            </span>
+            <span className="font-mono text-[10px] sm:text-xs text-muted tracking-wider uppercase">
+              Studio
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Uncluttered Quick Controls */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quick theme toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex items-center justify-center w-7 h-7 bg-surface-elevated hover:bg-accent/15 text-muted hover:text-accent border border-border hover:border-accent/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95"
+            title={`Switch Theme (Ctrl+T) • Current: ${theme === 'oled' ? 'OLED Vault' : 'Paper Blueprint'}`}
+            aria-label={`Toggle theme, current is ${theme}`}
+          >
+            {theme === 'oled' ? (
+              <Sun size={13} className="text-accent" />
+            ) : (
+              <Moon size={13} className="text-accent" />
+            )}
+          </button>
+
+          {/* Quick Lock Vault Button */}
+          <button
+            type="button"
+            onClick={handleLockClick}
+            className="flex items-center gap-1.5 px-2 h-7 bg-surface-elevated hover:bg-oxide/15 text-muted hover:text-oxide border border-border hover:border-oxide/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95 text-xs font-mono"
+            title="Lock Vault & Protect Encryption Keys (Ctrl+Shift+L)"
+            aria-label="Lock Vault"
+          >
+            <Lock size={12} className="shrink-0" />
+            <span className="text-[11px] font-medium hidden xs:inline">Lock</span>
+          </button>
+        </div>
+      </div>
+
       {/* 1px Signature Accent Hairline along the top strip bottom edge */}
       <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-accent/40 pointer-events-none" />
-
-      {/* Left: Professional Brand Logo & Name */}
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="w-5 h-5 rounded bg-accent/15 border border-accent/40 flex items-center justify-center text-accent shrink-0 shadow-xs">
-          <Terminal size={12} strokeWidth={2.5} />
-        </div>
-        
-        <div className="flex items-center gap-1.5 truncate">
-          <span className="font-mono font-bold text-xs sm:text-sm tracking-tight text-text">
-            LAIDE
-          </span>
-          <span className="font-mono text-[10px] sm:text-xs text-muted tracking-wider uppercase">
-            Studio
-          </span>
-        </div>
-      </div>
-
-      {/* Right: Uncluttered Quick Controls */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        {/* Quick theme toggle */}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="flex items-center justify-center w-7 h-7 bg-surface-elevated hover:bg-accent/15 text-muted hover:text-accent border border-border hover:border-accent/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95"
-          title={`Switch Theme (Ctrl+T) • Current: ${theme === 'oled' ? 'OLED Vault' : 'Paper Blueprint'}`}
-          aria-label={`Toggle theme, current is ${theme}`}
-        >
-          {theme === 'oled' ? (
-            <Sun size={13} className="text-accent" />
-          ) : (
-            <Moon size={13} className="text-accent" />
-          )}
-        </button>
-
-        {/* Quick Lock Vault Button */}
-        <button
-          type="button"
-          onClick={handleLockClick}
-          className="flex items-center gap-1.5 px-2 h-7 bg-surface-elevated hover:bg-oxide/15 text-muted hover:text-oxide border border-border hover:border-oxide/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95 text-xs font-mono"
-          title="Lock Vault & Protect Encryption Keys (Ctrl+Shift+L)"
-          aria-label="Lock Vault"
-        >
-          <Lock size={12} className="shrink-0" />
-          <span className="text-[11px] font-medium hidden xs:inline">Lock</span>
-        </button>
-      </div>
 
       {/* Confirmation Modal when pending patches exist */}
       {showConfirmModal && (

@@ -12,7 +12,9 @@ import {
   FolderKanban,
   FolderPlus,
   FileText,
-  Copy
+  Copy,
+  Rocket,
+  Search
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';
@@ -20,6 +22,8 @@ import type { Project } from '../db';
 export interface ProjectActionsMenuProps {
   project: Project | null;
   fileCount: number;
+  onOpenDeploy?: () => void;
+  onOpenProjectSearch?: () => void;
   onOpenGithubImport: () => void;
   onOpenGithubPush: () => void;
   onUploadClick: () => void;
@@ -37,6 +41,8 @@ export interface ProjectActionsMenuProps {
 export function ProjectActionsMenu({
   project,
   fileCount,
+  onOpenDeploy,
+  onOpenProjectSearch,
   onOpenGithubImport,
   onOpenGithubPush,
   onUploadClick,
@@ -167,6 +173,26 @@ export function ProjectActionsMenu({
                       </button>
                     )}
 
+                    {onOpenProjectSearch && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction(onOpenProjectSearch)}
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                        role="menuitem"
+                      >
+                        <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
+                          <Search size={13} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium leading-tight flex items-center justify-between">
+                            <span>Find in Files</span>
+                            <span className="text-[9px] px-1 py-0.2 bg-surface text-muted rounded border border-border">Ctrl+Shift+F</span>
+                          </div>
+                          <div className="text-[9px] text-muted truncate">Search text and regex across files</div>
+                        </div>
+                      </button>
+                    )}
+
                     {onRenameClick && (
                       <button
                         type="button"
@@ -221,7 +247,36 @@ export function ProjectActionsMenu({
                 </div>
               )}
 
-              {/* 2. GitHub Section */}
+              {/* 2. Publish & Deploy Section */}
+              {onOpenDeploy && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-bold text-accent/80 uppercase tracking-wider px-1 flex items-center justify-between">
+                    <span>Publish & Deploy</span>
+                    <span className="text-[9px] px-1 py-0.2 rounded bg-accent/15 text-accent font-normal">Live URL</span>
+                  </div>
+                  <div className="bg-bg/60 border border-border/70 rounded-lg divide-y divide-border/40 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => handleAction(onOpenDeploy)}
+                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer group"
+                      role="menuitem"
+                    >
+                      <div className="p-1 rounded bg-accent/20 text-accent border border-accent/40 shrink-0 group-hover:scale-105 transition-transform">
+                        <Rocket size={13} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-bold leading-tight text-accent flex items-center gap-1.5">
+                          <span>Publish Live Site</span>
+                          <span className="text-[9px] font-normal px-1 py-0.2 rounded bg-moss/20 text-moss border border-moss/30">1-Click</span>
+                        </div>
+                        <div className="text-[9px] text-muted truncate">Deploy to Netlify or Vercel with instant URL</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. GitHub Section */}
               <div className="space-y-1.5">
                 <div className="text-[10px] font-bold text-accent/80 uppercase tracking-wider px-1">
                   GitHub
