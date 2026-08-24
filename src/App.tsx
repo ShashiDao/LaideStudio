@@ -9,6 +9,7 @@ import { testDatabaseReadback } from './seed';
 import { db, type FileItem, type Project } from './db';
 import { exportZip } from './services/fs/zipExport';
 import { importZip, isText } from './services/fs/zipImport';
+import { exportProjectAsMarkdown, generateProjectMarkdown } from './services/fs/markdownExport';
 import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles } from './services/fs/vfs';
 import { calculateProjectMetadata } from './utils/projectStats';
 import { FileTree } from './components/FileTree';
@@ -593,6 +594,35 @@ export default function App() {
                         } catch (err) {
                           console.error('Export failed', err);
                           useAppStore.getState().addToast('Failed to export project ZIP', 'error');
+                        }
+                      }}
+                      onExportMarkdownClick={async () => {
+                        try {
+                          if (!activeProject) return;
+                          const { filename, blob } = await exportProjectAsMarkdown(activeProject.id);
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = filename;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                          useAppStore.getState().addToast('Project exported as Markdown documentation', 'success');
+                        } catch (err) {
+                          console.error('Markdown export failed', err);
+                          useAppStore.getState().addToast('Failed to export project Markdown', 'error');
+                        }
+                      }}
+                      onCopyMarkdownClick={async () => {
+                        try {
+                          if (!activeProject) return;
+                          const markdown = await generateProjectMarkdown(activeProject.id);
+                          await navigator.clipboard.writeText(markdown);
+                          useAppStore.getState().addToast('Project markdown copied to clipboard', 'success');
+                        } catch (err) {
+                          console.error('Copy markdown failed', err);
+                          useAppStore.getState().addToast('Failed to copy project Markdown', 'error');
                         }
                       }}
                       onDeleteClick={() => setProjectToDelete(activeProject)}

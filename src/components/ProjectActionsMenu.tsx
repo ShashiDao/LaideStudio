@@ -10,7 +10,9 @@ import {
   GitBranch,
   X,
   FolderKanban,
-  FolderPlus
+  FolderPlus,
+  FileText,
+  Copy
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';
@@ -22,6 +24,8 @@ export interface ProjectActionsMenuProps {
   onOpenGithubPush: () => void;
   onUploadClick: () => void;
   onExportClick: () => void;
+  onExportMarkdownClick?: () => void;
+  onCopyMarkdownClick?: () => void;
   onDeleteClick: () => void;
   onRenameClick?: () => void;
   onOpenAnalytics?: () => void;
@@ -37,6 +41,8 @@ export function ProjectActionsMenu({
   onOpenGithubPush,
   onUploadClick,
   onExportClick,
+  onExportMarkdownClick,
+  onCopyMarkdownClick,
   onDeleteClick,
   onRenameClick,
   onOpenAnalytics,
@@ -288,6 +294,40 @@ export function ProjectActionsMenu({
                       <div className="text-[9px] text-muted truncate">Download .zip archive</div>
                     </div>
                   </button>
+
+                  {onExportMarkdownClick && (
+                    <button
+                      type="button"
+                      onClick={() => handleAction(onExportMarkdownClick)}
+                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                      role="menuitem"
+                    >
+                      <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
+                        <FileText size={13} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-medium leading-tight">Export Markdown (.md)</div>
+                        <div className="text-[9px] text-muted truncate">Single docs file with all code</div>
+                      </div>
+                    </button>
+                  )}
+
+                  {onCopyMarkdownClick && (
+                    <button
+                      type="button"
+                      onClick={() => handleAction(onCopyMarkdownClick)}
+                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                      role="menuitem"
+                    >
+                      <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
+                        <Copy size={13} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-medium leading-tight">Copy as Markdown</div>
+                        <div className="text-[9px] text-muted truncate">Copy full codebase to clipboard</div>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
 

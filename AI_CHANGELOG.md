@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-38
-- Last verified working: Full test suite passes cleanly with 52 test files and 340 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors (`npx eslint . --quiet`).
+- Phase: FEATURE-04
+- Last verified working: Full test suite passes cleanly with 53 test files and 348 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors (`npx eslint . --quiet`).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,25 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [FEATURE-04] Full Project Markdown Documentation Export — 2026-08-24
+Prompt: Add a feature to export the entire project structure as a single formatted Markdown file, including code blocks for every file, for easy documentation sharing.
+Files touched:
+- `src/services/fs/markdownExport.ts` (created)
+- `src/services/fs/markdownExport.test.ts` (created)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/ProjectActionsMenu.test.tsx` (modified)
+- `src/App.tsx` (modified)
+Changed:
+- Created `src/services/fs/markdownExport.ts` with `generateProjectMarkdown` and `exportProjectAsMarkdown` providing formatted single-file Markdown export.
+- Included project summary metadata, ASCII directory tree overview, clickable table of contents with jump anchors, accurate syntax-highlighted code blocks for all source files, safe backtick fence collision handling, and concise binary asset summaries.
+- Added "Export Markdown (.md)" and "Copy as Markdown" options in `ProjectActionsMenu.tsx` under the Files section, with direct clipboard copy and file download options.
+- Wired actions in `src/App.tsx` with user toast feedback.
+- Added comprehensive unit tests in `markdownExport.test.ts` and `ProjectActionsMenu.test.tsx`.
+Decisions: Providing both `.md` download and 1-click clipboard copy enables instant sharing to documentation sites, GitHub wikis, or LLM context prompts.
+Deviations: none
+Verified: All 53 test suites (348 tests) pass in Vitest; TypeScript check and ESLint pass with 0 errors; `compile_applet` builds cleanly.
+Open questions: none
 
 ### [HOTFIX-38] Fast and Robust Upload/Download Engine — 2026-08-24
 Prompt: Make sure upload/download feature working fast and perfectly.

@@ -159,6 +159,41 @@ describe('ProjectActionsMenu Component', () => {
     expect(onDeleteClick).toHaveBeenCalledTimes(1);
   });
 
+  it('triggers onExportMarkdownClick and onCopyMarkdownClick when provided', () => {
+    const onExportMarkdownClick = vi.fn();
+    const onCopyMarkdownClick = vi.fn();
+
+    render(
+      <ProjectActionsMenu
+        project={mockProject}
+        fileCount={5}
+        onOpenGithubImport={() => {}}
+        onOpenGithubPush={() => {}}
+        onUploadClick={() => {}}
+        onExportClick={() => {}}
+        onExportMarkdownClick={onExportMarkdownClick}
+        onCopyMarkdownClick={onCopyMarkdownClick}
+        onDeleteClick={() => {}}
+      />
+    );
+
+    // Open menu
+    fireEvent.click(screen.getByLabelText('Workspace actions menu'));
+
+    // Check visibility
+    expect(screen.getByText('Export Markdown (.md)')).toBeDefined();
+    expect(screen.getByText('Copy as Markdown')).toBeDefined();
+
+    // Click Export Markdown
+    fireEvent.click(screen.getByText('Export Markdown (.md)'));
+    expect(onExportMarkdownClick).toHaveBeenCalledTimes(1);
+
+    // Re-open and click Copy Markdown
+    fireEvent.click(screen.getByLabelText('Workspace actions menu'));
+    fireEvent.click(screen.getByText('Copy as Markdown'));
+    expect(onCopyMarkdownClick).toHaveBeenCalledTimes(1);
+  });
+
   it('triggers onNewProjectClick when New Project item is clicked', () => {
     const onNewProjectClick = vi.fn();
     render(
