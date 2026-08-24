@@ -30,6 +30,8 @@ vi.mock('../store', () => ({
     setEnsembleModeEnabled: vi.fn(),
     ensembleCandidateBProfileId: null,
     setEnsembleCandidateBProfileId: vi.fn(),
+    sessionUsageRecords: [],
+    clearSessionUsage: vi.fn(),
   })
 }));
 

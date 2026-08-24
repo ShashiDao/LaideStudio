@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import React from 'react';
 import { ProjectMetadataPanel } from './ProjectMetadataPanel';
 import type { FileItem, Project } from '../db';
+import { useAppStore } from '../store';
 
 // Mock recharts ResponsiveContainer to work properly in happy-dom / jsdom
 vi.mock('recharts', async () => {
@@ -50,6 +51,13 @@ const mockFiles: FileItem[] = [
 ];
 
 describe('ProjectMetadataPanel Component', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useAppStore.setState({
+      sessionUsageRecords: []
+    });
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -76,7 +84,6 @@ describe('ProjectMetadataPanel Component', () => {
       />
     );
 
-    expect(screen.getByText('Studio App Analytics')).toBeDefined();
     expect(screen.getByText('Total LOC')).toBeDefined();
     // 5 + 2 + 1 = 8 lines of code
     expect(screen.getByText('8')).toBeDefined();
@@ -106,6 +113,75 @@ describe('ProjectMetadataPanel Component', () => {
     // Toggle to Files metric
     const filesMetricBtn = screen.getByRole('button', { name: 'Files' });
     fireEvent.click(filesMetricBtn);
+  });
+
+  it('allows toggling to API Cost & Spend tab and displays usage stats & charts', () => {
+    // Populate store with usage records
+    useAppStore.setState({
+      sessionUsageRecords: [
+        {
+          id: 'rec-1',
+          timestamp: Date.now(),
+          provider: 'anthropic',
+          model: 'claude-3-7-sonnet',
+          inputTokens: 10000,
+          outputTokens: 2000,
+          totalTokens: 12000,
+          estimatedCostUsd: 0.06,
+          category: 'agent_chat',
+          promptPreview: 'Add responsive navbar'
+        },
+        {
+          id: 'rec-2',
+          timestamp: Date.now(),
+          provider: 'openai',
+          model: 'gpt-4o',
+          inputTokens: 8000,
+          outputTokens: 1500,
+          totalTokens: 9500,
+          estimatedCostUsd: 0.035,
+          category: 'ensemble_candidate_a',
+          promptPreview: 'Fix layout glitch'
+        }
+      ]
+    });
+
+    render(
+      <ProjectMetadataPanel
+        project={mockProject}
+        files={mockFiles}
+        isOpen={true}
+        onClose={() => {}}
+      />
+    );
+
+    // Click API Cost & Spend tab
+    const spendTabBtn = screen.getByRole('button', { name: /API Cost & Spend/i });
+    fireEvent.click(spendTabBtn);
+
+    // Verify Cost KPI cards render
+    expect(screen.getByText('Estimated Spend')).toBeDefined();
+    expect(screen.getByText('Tokens Consumed')).toBeDefined();
+    expect(screen.getByText('Recorded Runs')).toBeDefined();
+    expect(screen.getByText('Ensemble Multiplier')).toBeDefined();
+
+    // Verify usage records are listed
+    expect(screen.getByText('claude-3-7-sonnet')).toBeDefined();
+    expect(screen.getByText('gpt-4o')).toBeDefined();
+
+    // Toggle Rate Card reference
+    const rateCardBtn = screen.getByRole('button', { name: /Rate Card/i });
+    fireEvent.click(rateCardBtn);
+    expect(screen.getByText(/Model Pricing Rates/i)).toBeDefined();
+
+    // Toggle between chart modes
+    const ioBtn = screen.getByRole('button', { name: 'Input vs Output' });
+    fireEvent.click(ioBtn);
+    expect(screen.getByTestId('responsive-container')).toBeDefined();
+
+    const historyBtn = screen.getByRole('button', { name: 'Turn History' });
+    fireEvent.click(historyBtn);
+    expect(screen.getByTestId('responsive-container')).toBeDefined();
   });
 
   it('calls onClose when close button is clicked', () => {

@@ -12,7 +12,8 @@ import {
   AlertCircle,
   Eye,
   X,
-  GitMerge
+  GitMerge,
+  Coins
 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { runAgentLoop } from '../services/agent/agentLoop';
@@ -31,6 +32,11 @@ import {
   isPathExcludedFromManifest
 } from '../services/agent/prompts';
 import { getModelContextWindow } from '../services/llm/modelDiscovery';
+import { 
+  computeSessionUsageSummary, 
+  formatUsdCost, 
+  formatTokenCount 
+} from '../services/usage/tokenSpend';
 import ReactMarkdown from 'react-markdown';
 
 export function ChatPanel({ projectId }: { projectId: string }) {
@@ -42,6 +48,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
     keys, 
     tokenUsage, 
     setTokenUsage,
+    sessionUsageRecords,
     pendingPatches,
     isPatchReviewOpen,
     setIsPatchReviewOpen,
@@ -331,6 +338,11 @@ export function ChatPanel({ projectId }: { projectId: string }) {
       active = false;
     };
   }, [chatHistory, projectId, pendingPatches, setTokenUsage, customInstructions, activeProfileId, manifestExcludePatterns]);
+
+  // Aggregate session API token spend and estimated costs
+  const sessionSummary = useMemo(() => {
+    return computeSessionUsageSummary(sessionUsageRecords || []);
+  }, [sessionUsageRecords]);
 
   // Dynamic suggestion chips based on real project state
   const suggestionChips = useMemo(() => {
@@ -696,6 +708,18 @@ export function ChatPanel({ projectId }: { projectId: string }) {
                 >
                   <GitMerge size={11} />
                   <span>Ensemble Mode</span>
+                </div>
+              )}
+
+              {/* Session Token Spend & Cost Badge */}
+              {sessionSummary.totalCostUsd > 0 && (
+                <div
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-surface border border-border text-muted hover:text-accent hover:border-accent/40 text-[10px] font-mono cursor-pointer transition-colors shadow-xs"
+                  title={`Session API Spend: ${formatUsdCost(sessionSummary.totalCostUsd)} (${formatTokenCount(sessionSummary.totalTokens)} total tokens across ${sessionSummary.recordsCount} run${sessionSummary.recordsCount === 1 ? '' : 's'})`}
+                >
+                  <Coins size={11} className="text-accent" />
+                  <span className="font-semibold text-text">{formatUsdCost(sessionSummary.totalCostUsd)}</span>
+                  <span className="opacity-60 hidden sm:inline">• {formatTokenCount(sessionSummary.totalTokens)}</span>
                 </div>
               )}
             </div>
