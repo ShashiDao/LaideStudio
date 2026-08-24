@@ -105,8 +105,19 @@ import {
   MIN_CONTRAST, 
   MAX_CONTRAST 
 } from './services/theme/contrast';
+import { 
+  type UsageRecord, 
+  loadStoredUsageRecords, 
+  saveStoredUsageRecords 
+} from './services/usage/tokenSpend';
 
 export type ThemeMode = 'oled' | 'paper';
+
+export interface UsageSlice {
+  sessionUsageRecords: UsageRecord[];
+  recordTokenUsage: (record: Omit<UsageRecord, 'id' | 'timestamp'>) => void;
+  clearSessionUsage: () => void;
+}
 
 export interface ThemeSlice {
   theme: ThemeMode;
@@ -128,7 +139,7 @@ export interface ToastSlice {
   removeToast: (id: string) => void;
 }
 
-export type AppState = WorkspaceSlice & PatchSlice & ChatSlice & PWASlice & ThemeSlice & ToastSlice;
+export type AppState = WorkspaceSlice & PatchSlice & ChatSlice & PWASlice & ThemeSlice & ToastSlice & UsageSlice;
 
 export const THEME_STORAGE_KEY = 'laide_theme_preference';
 
@@ -418,6 +429,26 @@ const createToastSlice: StateCreator<AppState, [], [], ToastSlice> = (set) => ({
   }))
 });
 
+const initialUsageRecords = loadStoredUsageRecords();
+
+const createUsageSlice: StateCreator<AppState, [], [], UsageSlice> = (set, get) => ({
+  sessionUsageRecords: initialUsageRecords,
+  recordTokenUsage: (recordData) => {
+    const newRecord: UsageRecord = {
+      ...recordData,
+      id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: Date.now()
+    };
+    const updated = [...get().sessionUsageRecords, newRecord];
+    saveStoredUsageRecords(updated);
+    set({ sessionUsageRecords: updated });
+  },
+  clearSessionUsage: () => {
+    saveStoredUsageRecords([]);
+    set({ sessionUsageRecords: [] });
+  }
+});
+
 export const useAppStore = create<AppState>()((...a) => ({
   ...createWorkspaceSlice(...a),
   ...createPatchSlice(...a),
@@ -425,4 +456,5 @@ export const useAppStore = create<AppState>()((...a) => ({
   ...createPWASlice(...a),
   ...createThemeSlice(...a),
   ...createToastSlice(...a),
+  ...createUsageSlice(...a),
 }));

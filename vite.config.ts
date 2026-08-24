@@ -78,6 +78,15 @@ export default defineConfig(() => {
       cssCodeSplit: true,
       sourcemap: false,
       chunkSizeWarningLimit: 1500,
+      modulePreload: {
+        // vendor-charts (recharts) is only used by the lazy-loaded
+        // ProjectMetadataPanel. Vite's default preloading would otherwise
+        // fetch it on every initial page load "just in case" — skip that
+        // for chunks that are genuinely optional on first paint, since
+        // this app targets phones on cellular connections.
+        resolveDependencies: (_filename, deps) =>
+          deps.filter((dep) => !dep.includes('vendor-charts')),
+      },
       rollupOptions: {
         output: {
           manualChunks(id) {

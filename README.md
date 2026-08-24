@@ -53,4 +53,8 @@ A local-first, privacy-focused in-browser AI development environment and progres
 ## Architecture & Security
 
 - **Zero Server-Side Credential Storage**: No API keys, prompts, or workspace code are sent to intermediary servers other than direct LLM provider endpoints and GitHub API calls made directly from the client.
-- **Encryption**: Cryptographic primitives leverage the standard Web Cryptography API (`crypto.subtle`) for PBKDF2 key derivation (600,000 iterations), AES-256-GCM encryption/decryption, and WebAuthn PRF extensions when supported.
+- **Encryption**: The master key is derived from your passphrase with **Argon2id** (memory-hard, GPU/ASIC-resistant; 3 iterations, 64 MiB memory, parallelism 1), then used for **AES-256-GCM** encryption/decryption via the standard Web Cryptography API (`crypto.subtle`), with WebAuthn PRF extensions when supported.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

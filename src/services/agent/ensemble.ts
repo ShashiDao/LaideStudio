@@ -5,6 +5,7 @@ import { AGENT_TOOLS, validateProjectPath } from './tools';
 import { runProjectTestsDetailed } from '../bundler/testRunner';
 import { McpService } from './mcpClient';
 import { useAppStore } from '../../store';
+import { countTurnTokens, getModelPricing, calculateEstimatedCost } from '../usage/tokenSpend';
 
 export interface EnsembleCandidateProfile {
   id: string;
@@ -450,6 +451,54 @@ export async function runEnsembleDualEvaluation(
     runSimulatedAgentCandidate(userMessage, chatHistory, profileA, projectId, systemPrompt, baseFiles, signal, options),
     runSimulatedAgentCandidate(userMessage, chatHistory, profileB, projectId, systemPrompt, baseFiles, signal, options)
   ]);
+
+  // Record token usage & costs for both candidate model runs
+  try {
+    let promptPreview = typeof userMessage === 'string'
+      ? userMessage
+      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as any)?.text || '' : '');
+    if (promptPreview && promptPreview.length > 100) {
+      promptPreview = promptPreview.slice(0, 100) + '...';
+    }
+
+    if (resA.messages && resA.messages.length > 0) {
+      const tokensA = countTurnTokens(resA.messages, systemPrompt, AGENT_TOOLS);
+      const pricingA = getModelPricing(profileA.provider, profileA.model);
+      const costA = calculateEstimatedCost(tokensA.inputTokens, tokensA.outputTokens, pricingA);
+      useAppStore.getState().recordTokenUsage({
+        projectId,
+        provider: profileA.provider,
+        model: profileA.model,
+        profileLabel: profileA.label,
+        inputTokens: tokensA.inputTokens,
+        outputTokens: tokensA.outputTokens,
+        totalTokens: tokensA.totalTokens,
+        estimatedCostUsd: costA,
+        category: 'ensemble_candidate_a',
+        promptPreview
+      });
+    }
+
+    if (resB.messages && resB.messages.length > 0) {
+      const tokensB = countTurnTokens(resB.messages, systemPrompt, AGENT_TOOLS);
+      const pricingB = getModelPricing(profileB.provider, profileB.model);
+      const costB = calculateEstimatedCost(tokensB.inputTokens, tokensB.outputTokens, pricingB);
+      useAppStore.getState().recordTokenUsage({
+        projectId,
+        provider: profileB.provider,
+        model: profileB.model,
+        profileLabel: profileB.label,
+        inputTokens: tokensB.inputTokens,
+        outputTokens: tokensB.outputTokens,
+        totalTokens: tokensB.totalTokens,
+        estimatedCostUsd: costB,
+        category: 'ensemble_candidate_b',
+        promptPreview
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to record ensemble token usage:', e);
+  }
 
   if (signal?.aborted) {
     throw new Error('Ensemble execution was aborted by user');

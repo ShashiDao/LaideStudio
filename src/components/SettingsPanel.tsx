@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Settings, Plus, Save, Trash2, ShieldCheck, ShieldAlert, Activity, CheckCircle2, 
   ChevronDown, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
   Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
   Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight,
-  Rocket, Sliders
+  Rocket, Sliders, Coins
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
+import { 
+  computeSessionUsageSummary, 
+  formatUsdCost, 
+  formatTokenCount 
+} from '../services/usage/tokenSpend';
 import { 
   DEFAULT_CONTRAST, 
   MIN_CONTRAST, 
@@ -85,10 +90,17 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     ensembleModeEnabled,
     setEnsembleModeEnabled,
     ensembleCandidateBProfileId,
-    setEnsembleCandidateBProfileId
+    setEnsembleCandidateBProfileId,
+    sessionUsageRecords,
+    clearSessionUsage
   } = useAppStore();
   const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
   const [showLockConfirmModal, setShowLockConfirmModal] = useState(false);
+  const [confirmClearUsage, setConfirmClearUsage] = useState(false);
+
+  const sessionSummary = useMemo(() => {
+    return computeSessionUsageSummary(sessionUsageRecords || []);
+  }, [sessionUsageRecords]);
   
   const [editingId, setEditingId] = useState<string | null>(null);
   const [label, setLabel] = useState('');
@@ -1547,6 +1559,80 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
               <span className="truncate">Chat ({formatTokens(tokenUsage.chat)})</span>
             </div>
           </div>
+        </div>
+
+        {/* Session API Cost & Token Tracking */}
+        <div className="bg-bg/80 border border-border/80 rounded p-3 text-xs font-mono space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-text text-[11px] font-semibold">
+              <Coins size={13} className="text-accent" />
+              <span>Session API Spend & Token Usage</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-accent text-[11px] font-bold">
+                {formatUsdCost(sessionSummary.totalCostUsd)}
+              </span>
+              {sessionSummary.recordsCount > 0 && (
+                confirmClearUsage ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearSessionUsage();
+                        setConfirmClearUsage(false);
+                      }}
+                      className="px-1.5 py-0.5 bg-oxide text-white rounded text-[10px] font-bold cursor-pointer transition-colors"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmClearUsage(false)}
+                      className="px-1 py-0.5 bg-surface border border-border text-muted rounded text-[10px] cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClearUsage(true)}
+                    className="p-1 text-muted hover:text-oxide rounded transition-colors cursor-pointer"
+                    title="Reset session token usage counters"
+                    aria-label="Reset session token usage"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-surface/50 border border-border/60 rounded p-1.5">
+              <div className="text-muted text-[9px]">Total Tokens</div>
+              <div className="text-text font-bold text-[11px] mt-0.5">{formatTokenCount(sessionSummary.totalTokens)}</div>
+            </div>
+            <div className="bg-surface/50 border border-border/60 rounded p-1.5">
+              <div className="text-muted text-[9px]">Prompt / Input</div>
+              <div className="text-text font-bold text-[11px] mt-0.5">{formatTokenCount(sessionSummary.totalInputTokens)}</div>
+            </div>
+            <div className="bg-surface/50 border border-border/60 rounded p-1.5">
+              <div className="text-muted text-[9px]">Output / Gen</div>
+              <div className="text-text font-bold text-[11px] mt-0.5">{formatTokenCount(sessionSummary.totalOutputTokens)}</div>
+            </div>
+          </div>
+
+          {sessionSummary.recordsCount > 0 ? (
+            <div className="text-[10px] text-muted flex items-center justify-between pt-0.5">
+              <span>{sessionSummary.recordsCount} LLM call{sessionSummary.recordsCount === 1 ? '' : 's'} recorded</span>
+              <span className="text-accent">Avg {formatUsdCost(sessionSummary.totalCostUsd / sessionSummary.recordsCount)}/call</span>
+            </div>
+          ) : (
+            <div className="text-[10px] text-muted italic text-center py-1">
+              No API requests dispatched yet in this session.
+            </div>
+          )}
         </div>
       </div>
 

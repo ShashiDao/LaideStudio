@@ -2,6 +2,7 @@ import { AGENT_TOOLS, executeAgentTool } from './tools';
 import type { LLMAdapter, LLMContentBlock, LLMMessage, LLMToolCall, LLMTool } from '../llm/llmAdapter';
 import { useAppStore } from '../../store';
 import { McpService } from './mcpClient';
+import { countTurnTokens, getModelPricing, calculateEstimatedCost } from '../usage/tokenSpend';
 
 export interface RunAgentLoopOptions {
   temperature?: number;
@@ -221,6 +222,36 @@ export async function runAgentLoop(
       if (onUpdate) onUpdate([...currentMessages]);
       break;
     }
+  }
+
+  // Record token spend and estimated cost for this agent turn
+  try {
+    const tokenStats = countTurnTokens(currentMessages, systemPrompt, dynamicTools);
+    const pricing = getModelPricing(options?.provider, options?.model || options?.modelName);
+    const estimatedCostUsd = calculateEstimatedCost(tokenStats.inputTokens, tokenStats.outputTokens, pricing);
+
+    let promptPreview = typeof userMessage === 'string'
+      ? userMessage
+      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as any)?.text || '' : '');
+    if (promptPreview && promptPreview.length > 100) {
+      promptPreview = promptPreview.slice(0, 100) + '...';
+    }
+
+    useAppStore.getState().recordTokenUsage({
+      projectId,
+      provider: options?.provider || 'assistant',
+      model: options?.model || options?.modelName || 'assistant',
+      profileLabel: options?.modelName,
+      inputTokens: tokenStats.inputTokens,
+      outputTokens: tokenStats.outputTokens,
+      totalTokens: tokenStats.totalTokens,
+      estimatedCostUsd,
+      category: 'agent_chat',
+      promptPreview,
+      stepCount
+    });
+  } catch (e) {
+    console.warn('Failed to record token usage in agent loop:', e);
   }
 
   return currentMessages;
