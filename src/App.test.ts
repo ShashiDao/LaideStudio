@@ -77,4 +77,35 @@ describe('App Files-tab Header Layout on narrow widths', () => {
       expect(screen.getByText('Delete Project')).toBeDefined();
     });
   });
+
+  it('opens Select Template modal when clicking the + new project button and creates template project', async () => {
+    render(React.createElement(App));
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Project Mobile')).toBeDefined();
+    });
+
+    const createBtn = screen.getByLabelText('Create new project');
+    fireEvent.click(createBtn);
+
+    // Modal should be open with template options
+    expect(screen.getByText('Create New Project')).toBeDefined();
+    expect(screen.getByText('React TypeScript')).toBeDefined();
+    expect(screen.getByText('Tailwind CSS')).toBeDefined();
+    expect(screen.getByText('Empty Project')).toBeDefined();
+
+    // Select Tailwind CSS template
+    const tailwindBtn = screen.getByText('Tailwind CSS').closest('button')!;
+    fireEvent.click(tailwindBtn);
+
+    // Click Create Project
+    const submitBtn = screen.getByText('Create Project');
+    fireEvent.click(submitBtn);
+
+    await waitFor(async () => {
+      const allProjects = await db.projects.toArray();
+      expect(allProjects.length).toBe(2);
+      expect(allProjects.some(p => p.name.includes('Tailwind'))).toBe(true);
+    });
+  });
 });

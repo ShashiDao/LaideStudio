@@ -74,9 +74,16 @@ export default defineConfig(() => {
       },
     },
     build: {
+      target: 'es2022',
+      cssCodeSplit: true,
+      sourcemap: false,
+      chunkSizeWarningLimit: 1500,
       rollupOptions: {
         output: {
           manualChunks(id) {
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/zustand/')) {
+              return 'vendor-react-core';
+            }
             if (id.includes('node_modules/gpt-tokenizer')) {
               return 'vendor-tokenizer';
             }
@@ -86,7 +93,13 @@ export default defineConfig(() => {
             if (id.includes('node_modules/diff')) {
               return 'vendor-diff';
             }
-            if (id.includes('node_modules/@uiw') || id.includes('node_modules/@codemirror/state') || id.includes('node_modules/@codemirror/view') || id.includes('node_modules/@lezer')) {
+            if (id.includes('node_modules/recharts')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('node_modules/hash-wasm')) {
+              return 'vendor-crypto';
+            }
+            if (id.includes('node_modules/@uiw') || id.includes('node_modules/@codemirror') || id.includes('node_modules/@lezer')) {
               return 'vendor-codemirror';
             }
           }

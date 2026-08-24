@@ -159,6 +159,29 @@ describe('ProjectActionsMenu Component', () => {
     expect(onDeleteClick).toHaveBeenCalledTimes(1);
   });
 
+  it('triggers onNewProjectClick when New Project item is clicked', () => {
+    const onNewProjectClick = vi.fn();
+    render(
+      <ProjectActionsMenu
+        project={mockProject}
+        fileCount={12}
+        onOpenGithubImport={() => {}}
+        onOpenGithubPush={() => {}}
+        onUploadClick={() => {}}
+        onExportClick={() => {}}
+        onDeleteClick={() => {}}
+        onNewProjectClick={onNewProjectClick}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText('Workspace actions menu'));
+    expect(screen.getByText('New Project...')).toBeDefined();
+
+    fireEvent.click(screen.getByText('New Project...'));
+    expect(onNewProjectClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('closes when clicking the backdrop', () => {
     render(
       <ProjectActionsMenu

@@ -45,15 +45,17 @@ export async function checkPathCollision(projectId: string, path: string, exclud
 export async function listFiles(projectId: string): Promise<FileItem[]> {
   const files = await db.files.where('projectId').equals(projectId).toArray();
   if (isOpfsSupported()) {
-    for (const file of files) {
-      try {
-        const handle = await getOpfsFileHandle(projectId, file.path, false);
-        const opfsFile = await handle.getFile();
-        file.content = await opfsFile.text();
-      } catch {
-        // Fallback to what's in Dexie if OPFS fails (or migration)
-      }
-    }
+    await Promise.all(
+      files.map(async (file) => {
+        try {
+          const handle = await getOpfsFileHandle(projectId, file.path, false);
+          const opfsFile = await handle.getFile();
+          file.content = await opfsFile.text();
+        } catch {
+          // Fallback to what's in Dexie if OPFS fails (or migration)
+        }
+      })
+    );
   }
   return files;
 }

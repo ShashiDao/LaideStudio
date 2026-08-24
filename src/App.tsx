@@ -29,6 +29,8 @@ import { ProjectMetadataPanel } from './components/ProjectMetadataPanel';
 import { GithubImportModal } from './components/GithubImportModal';
 import { GithubPushModal } from './components/GithubPushModal';
 import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
+import { CreateProjectModal } from './components/CreateProjectModal';
+import { createProjectFromTemplate, type TemplateId } from './services/templates/projectTemplates';
 import { ReloadPrompt } from './components/ReloadPrompt';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Toaster } from './components/Toaster';
@@ -95,6 +97,7 @@ export default function App() {
   const [showProjectStats, setShowProjectStats] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -166,30 +169,35 @@ export default function App() {
     setShowGithubPush(true);
   };
 
-  const handleCreateBlankProject = async () => {
+  const handleCreateProjectFromTemplate = async (name: string, templateId: TemplateId) => {
     try {
-      const newProjId = crypto.randomUUID();
-      const projName = projects.length > 0 ? `Workspace Project ${projects.length + 1}` : 'My Workspace Project';
-      const newProj: Project = {
-        id: newProjId,
-        name: projName,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      await db.projects.put(newProj);
-      await createFile(newProjId, '/README.md', `# ${projName}\nWelcome to LAIDE Studio local workspace.\n`);
+      const { project: newProj, files: createdFiles } = await createProjectFromTemplate(name, templateId);
       const allProjects = await db.projects.toArray();
       setProjects(allProjects);
-      setActiveProjectId(newProjId);
-      setFiles(await listFiles(newProjId));
+      setActiveProjectId(newProj.id);
+      setFiles(createdFiles);
+      if (createdFiles.length > 0) {
+        const preferredFile = createdFiles.find(
+          f => f.path === '/src/App.tsx' || f.path === '/src/main.tsx' || f.path === '/src/main.ts' || f.path === '/index.html' || f.path === '/README.md'
+        ) || createdFiles[0];
+        if (preferredFile) {
+          setActiveFileId(preferredFile.id);
+        }
+      }
+      useAppStore.getState().addToast(`Created project "${newProj.name}"`, 'success');
     } catch (err: any) {
-      console.error('Failed to create blank project', err);
+      console.error('Failed to create project from template', err);
       if (err.name === 'QuotaExceededError') {
         useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
       } else {
         useAppStore.getState().addToast(err.message || 'Failed to create project', 'error');
       }
+      throw err;
     }
+  };
+
+  const handleCreateBlankProject = async () => {
+    setShowCreateProjectModal(true);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -497,6 +505,7 @@ export default function App() {
                       onOpenGithubPush={handleOpenGithubPush}
                       onOpenAnalytics={() => setShowProjectStats(true)}
                       onOpenBisect={() => handleOpenBisect()}
+                      onNewProjectClick={() => setShowCreateProjectModal(true)}
                       onRenameClick={() => setShowRenameModal(true)}
                       onUploadClick={() => fileInputRef.current?.click()}
                       onExportClick={async () => {
@@ -733,6 +742,14 @@ export default function App() {
             initialTestName={bisectInitialTestName}
           />
         )}
+
+        {/* Create Project / Select Template Modal */}
+        <CreateProjectModal
+          isOpen={showCreateProjectModal}
+          onClose={() => setShowCreateProjectModal(false)}
+          onCreateProject={handleCreateProjectFromTemplate}
+          existingProjectCount={projects.length}
+        />
 
         {/* PWA Update / Offline Toast */}
         <ReloadPrompt />

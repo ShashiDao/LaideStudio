@@ -9,7 +9,8 @@ import {
   Edit2,
   GitBranch,
   X,
-  FolderKanban
+  FolderKanban,
+  FolderPlus
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';
@@ -25,6 +26,7 @@ export interface ProjectActionsMenuProps {
   onRenameClick?: () => void;
   onOpenAnalytics?: () => void;
   onOpenBisect?: () => void;
+  onNewProjectClick?: () => void;
   className?: string;
 }
 
@@ -39,6 +41,7 @@ export function ProjectActionsMenu({
   onRenameClick,
   onOpenAnalytics,
   onOpenBisect,
+  onNewProjectClick,
   className = ''
 }: ProjectActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -135,12 +138,29 @@ export function ProjectActionsMenu({
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 scrollbar-thin">
               
               {/* 1. Workspace Section */}
-              {(onRenameClick || onOpenAnalytics || onOpenBisect) && (
+              {(onNewProjectClick || onRenameClick || onOpenAnalytics || onOpenBisect) && (
                 <div className="space-y-1.5">
                   <div className="text-[10px] font-bold text-accent/80 uppercase tracking-wider px-1">
                     Workspace
                   </div>
                   <div className="bg-bg/60 border border-border/70 rounded-lg divide-y divide-border/40 overflow-hidden">
+                    {onNewProjectClick && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction(onNewProjectClick)}
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                        role="menuitem"
+                      >
+                        <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
+                          <FolderPlus size={13} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium leading-tight">New Project...</div>
+                          <div className="text-[9px] text-muted truncate">Choose from starter templates</div>
+                        </div>
+                      </button>
+                    )}
+
                     {onRenameClick && (
                       <button
                         type="button"
