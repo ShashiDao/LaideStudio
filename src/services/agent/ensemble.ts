@@ -1,4 +1,4 @@
-import type { LLMAdapter, LLMContentBlock, LLMMessage, LLMTool, LLMToolCall } from '../llm/llmAdapter';
+import type { LLMAdapter, LLMContentBlock, LLMMessage, LLMTool, LLMToolCall, LLMUsage } from '../llm/llmAdapter';
 import type { PatchDefinition } from './patchSchema';
 import type { FileItem, ProvenanceTestResult } from '../../db';
 import { AGENT_TOOLS, validateProjectPath } from './tools';
@@ -57,16 +57,24 @@ export async function runSimulatedAgentCandidate(
   baseFiles: FileItem[],
   signal?: AbortSignal,
   options?: EnsembleRunOptions
-): Promise<{ patches: PatchDefinition[]; messages: LLMMessage[]; error?: string }> {
+): Promise<{
+  patches: PatchDefinition[];
+  messages: LLMMessage[];
+  error?: string;
+  usage?: LLMUsage;
+  hasReportedUsage?: boolean;
+  stepCount?: number;
+}> {
   const maxSteps = options?.maxSteps ?? 25;
   const mcpServers = useAppStore.getState().mcpServers;
   const dynamicTools: LLMTool[] = [...AGENT_TOOLS];
   const mcpToolMappings = new Map<string, string>();
+  const mcpConnectionErrors: { serverId: string; url: string; error: string }[] = [];
 
   // Collect simulated patches
   const simulatedPatches: PatchDefinition[] = [];
   // Simulated file state in memory
-  let simulatedFiles: FileItem[] = baseFiles.map(f => ({ ...f }));
+  let simulatedFiles: FileItem[] = (baseFiles || []).map(f => ({ ...f }));
 
   for (const server of mcpServers) {
     try {
@@ -79,10 +87,16 @@ export async function runSimulatedAgentCandidate(
           description: t.description || `MCP tool from ${server.url}`,
           parameters: t.inputSchema || { type: 'object', properties: {} }
         });
-        mcpToolMappings.set(safeName, JSON.stringify({ serverId: server.id, originalName: t.name }));
+        mcpToolMappings.set(safeName, JSON.stringify({ serverId: server.id, originalName: t.name, serverUrl: server.url }));
       }
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
       console.warn(`Simulated candidate: failed connecting MCP server ${server.url}:`, e);
+      mcpConnectionErrors.push({
+        serverId: server.id,
+        url: server.url,
+        error: errMsg
+      });
     }
   }
 
@@ -118,7 +132,28 @@ export async function runSimulatedAgentCandidate(
     { role: 'user', content: userContent }
   ];
 
+  if (mcpConnectionErrors.length > 0) {
+    const errorDetails = mcpConnectionErrors
+      .map(err => `• **${err.url}**: ${err.error}`)
+      .join('\n');
+    currentMessages.push({
+      role: 'assistant',
+      content: `⚠️ **MCP Server Connection Failure**\nCould not connect or retrieve tools from MCP server(s):\n${errorDetails}\n\nTools from these servers will not be available during this run.`
+    });
+  }
+
+  let effectiveSystemPrompt = systemPrompt;
+  if (mcpConnectionErrors.length > 0) {
+    const errorText = mcpConnectionErrors.map(e => `- ${e.url}: ${e.error}`).join('\n');
+    effectiveSystemPrompt = (systemPrompt ? `${systemPrompt}\n\n` : '') +
+      `<mcp_connection_warnings>\nFailed to connect to MCP server(s):\n${errorText}\n</mcp_connection_warnings>`;
+  }
+
   let stepCount = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCachedTokens = 0;
+  let hasReportedUsage = false;
 
   try {
     while (true) {
@@ -126,7 +161,7 @@ export async function runSimulatedAgentCandidate(
 
       const stream = profile.adapter.stream({
         messages: currentMessages,
-        systemPrompt,
+        systemPrompt: effectiveSystemPrompt,
         systemPromptCacheable: true,
         tools: dynamicTools,
         temperature: options?.temperature,
@@ -147,6 +182,13 @@ export async function runSimulatedAgentCandidate(
           textContent += yieldResult.text;
         } else if (yieldResult.type === 'tool_call') {
           toolCalls.push(yieldResult.toolCall);
+        } else if (yieldResult.type === 'usage') {
+          if (yieldResult.usage) {
+            totalInputTokens += yieldResult.usage.inputTokens || 0;
+            totalOutputTokens += yieldResult.usage.outputTokens || 0;
+            totalCachedTokens += yieldResult.usage.cachedTokens || 0;
+            hasReportedUsage = true;
+          }
         }
 
         currentMessages[assistantMsgIndex] = {
@@ -178,14 +220,26 @@ export async function runSimulatedAgentCandidate(
         const mcpMapping = mcpToolMappings.get(tc.name);
         if (mcpMapping) {
           try {
-            const { serverId, originalName } = JSON.parse(mcpMapping);
-            const args = JSON.parse(tc.args);
+            const { serverId, originalName, serverUrl } = JSON.parse(mcpMapping);
+            let args: Record<string, unknown> = {};
+            try {
+              args = JSON.parse(tc.args);
+            } catch {
+              args = {};
+            }
             const result = await McpService.executeTool(serverId, originalName, args);
-            resultStr = result.isError
-              ? `Error executing MCP tool: ${JSON.stringify(result.content)}`
-              : result.content.map((c: any) => c.text || JSON.stringify(c)).join('\n');
+            if (result?.isError) {
+              resultStr = `[MCP Error] Tool "${originalName}" (${serverUrl || serverId}) reported an error: ${typeof result.content === 'string' ? result.content : JSON.stringify(result.content)}`;
+            } else if (Array.isArray(result?.content)) {
+              resultStr = result.content
+                .map((c: any) => c.text || JSON.stringify(c))
+                .join('\n');
+            } else {
+              resultStr = typeof result?.content === 'string' ? result.content : JSON.stringify(result ?? {});
+            }
           } catch (e: any) {
-            resultStr = `Error executing MCP tool: ${e?.message || String(e)}`;
+            const errMsg = e instanceof Error ? e.message : String(e);
+            resultStr = `[MCP Connection Error] Failed to execute MCP tool "${tc.name}": ${errMsg}`;
           }
         } else {
           // Execute standard tools in the simulated in-memory context
@@ -349,13 +403,27 @@ export async function runSimulatedAgentCandidate(
 
     return {
       patches: simulatedPatches,
-      messages: currentMessages
+      messages: currentMessages,
+      usage: {
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        cachedTokens: totalCachedTokens
+      },
+      hasReportedUsage,
+      stepCount
     };
   } catch (err: any) {
     return {
       patches: simulatedPatches,
       messages: currentMessages,
-      error: err?.message || String(err)
+      error: err?.message || String(err),
+      usage: {
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        cachedTokens: totalCachedTokens
+      },
+      hasReportedUsage,
+      stepCount
     };
   }
 }
@@ -456,44 +524,68 @@ export async function runEnsembleDualEvaluation(
   try {
     let promptPreview = typeof userMessage === 'string'
       ? userMessage
-      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as any)?.text || '' : '');
+      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as { text?: string } | undefined)?.text || '' : '');
     if (promptPreview && promptPreview.length > 100) {
       promptPreview = promptPreview.slice(0, 100) + '...';
     }
 
     if (resA.messages && resA.messages.length > 0) {
-      const tokensA = countTurnTokens(resA.messages, systemPrompt, AGENT_TOOLS);
+      let inputTokens = resA.usage?.inputTokens ?? 0;
+      let outputTokens = resA.usage?.outputTokens ?? 0;
+      let totalTokens = inputTokens + outputTokens;
+
+      if (!resA.hasReportedUsage || (inputTokens === 0 && outputTokens === 0)) {
+        const tokensA = countTurnTokens(resA.messages, systemPrompt, AGENT_TOOLS);
+        inputTokens = tokensA.inputTokens;
+        outputTokens = tokensA.outputTokens;
+        totalTokens = tokensA.totalTokens;
+      }
+
       const pricingA = getModelPricing(profileA.provider, profileA.model);
-      const costA = calculateEstimatedCost(tokensA.inputTokens, tokensA.outputTokens, pricingA);
+      const costA = calculateEstimatedCost(inputTokens, outputTokens, pricingA);
       useAppStore.getState().recordTokenUsage({
         projectId,
         provider: profileA.provider,
         model: profileA.model,
         profileLabel: profileA.label,
-        inputTokens: tokensA.inputTokens,
-        outputTokens: tokensA.outputTokens,
-        totalTokens: tokensA.totalTokens,
+        inputTokens,
+        outputTokens,
+        cachedTokens: resA.usage?.cachedTokens ? resA.usage.cachedTokens : undefined,
+        totalTokens,
         estimatedCostUsd: costA,
         category: 'ensemble_candidate_a',
-        promptPreview
+        promptPreview,
+        stepCount: resA.stepCount
       });
     }
 
     if (resB.messages && resB.messages.length > 0) {
-      const tokensB = countTurnTokens(resB.messages, systemPrompt, AGENT_TOOLS);
+      let inputTokens = resB.usage?.inputTokens ?? 0;
+      let outputTokens = resB.usage?.outputTokens ?? 0;
+      let totalTokens = inputTokens + outputTokens;
+
+      if (!resB.hasReportedUsage || (inputTokens === 0 && outputTokens === 0)) {
+        const tokensB = countTurnTokens(resB.messages, systemPrompt, AGENT_TOOLS);
+        inputTokens = tokensB.inputTokens;
+        outputTokens = tokensB.outputTokens;
+        totalTokens = tokensB.totalTokens;
+      }
+
       const pricingB = getModelPricing(profileB.provider, profileB.model);
-      const costB = calculateEstimatedCost(tokensB.inputTokens, tokensB.outputTokens, pricingB);
+      const costB = calculateEstimatedCost(inputTokens, outputTokens, pricingB);
       useAppStore.getState().recordTokenUsage({
         projectId,
         provider: profileB.provider,
         model: profileB.model,
         profileLabel: profileB.label,
-        inputTokens: tokensB.inputTokens,
-        outputTokens: tokensB.outputTokens,
-        totalTokens: tokensB.totalTokens,
+        inputTokens,
+        outputTokens,
+        cachedTokens: resB.usage?.cachedTokens ? resB.usage.cachedTokens : undefined,
+        totalTokens,
         estimatedCostUsd: costB,
         category: 'ensemble_candidate_b',
-        promptPreview
+        promptPreview,
+        stepCount: resB.stepCount
       });
     }
   } catch (e) {
@@ -552,26 +644,110 @@ export async function runEnsembleDualEvaluation(
   let requiresUserSelection = false;
   let summaryStr: string;
 
-  if (passedCandidates.length === 1) {
-    chosenCandidate = passedCandidates[0];
-    summaryStr = `Ensemble auto-selected candidate ${chosenCandidate.profile.label} (${chosenCandidate.patches.length} patch(es) passed tests). Other candidate failed test verification.`;
-  } else if (passedCandidates.length === 2) {
-    requiresUserSelection = true;
-    summaryStr = `Both candidates (${profileA.label} and ${profileB.label}) passed all test checks! Review and pick your preferred patch.`;
-  } else {
-    // Neither passed or no patches
-    if (candA.patches.length > 0 && candB.patches.length === 0) {
-      chosenCandidate = candA;
-      summaryStr = `${profileA.label} proposed patches, but tests ${candA.status}. ${profileB.label} proposed no patches.`;
-    } else if (candB.patches.length > 0 && candA.patches.length === 0) {
-      chosenCandidate = candB;
-      summaryStr = `${profileB.label} proposed patches, but tests ${candB.status}. ${profileA.label} proposed no patches.`;
-    } else if (candA.patches.length > 0 && candB.patches.length > 0) {
-      requiresUserSelection = true;
-      summaryStr = `Neither candidate passed all sandboxed tests (A: ${candA.status}, B: ${candB.status}). You may review both diffs manually or pick one to debug.`;
-    } else {
-      summaryStr = 'Neither model candidate proposed code patches.';
+  if (candA.patches.length > 0 && candB.patches.length > 0) {
+    onProgress?.('Running Arbiter (Judge Pass) to select the best candidate...');
+    try {
+      const userMsgStr = typeof userMessage === 'string' 
+        ? userMessage 
+        : (Array.isArray(userMessage) 
+          ? userMessage.filter(m => m.type === 'text').map(m => (m as any).text).join('\n') 
+          : JSON.stringify(userMessage));
+
+      const formatPatches = (patches: PatchDefinition[]) => {
+        return patches.map(p => `--- ${p.path} (${p.type})\nRationale: ${p.rationale}\n\`\`\`\n${p.newContent}\n\`\`\``).join('\n\n');
+      };
+
+      const judgePrompt = `You are an expert Code Arbiter evaluating two candidate patchsets for a project.
+Original User Request:
+${userMsgStr}
+
+Candidate A (${profileA.label}):
+Patches:
+${formatPatches(candA.patches)}
+Test Results A:
+Status: ${candA.testResult?.status}
+Output: ${candA.testResult?.output?.slice(0, 1000) || 'None'}
+
+Candidate B (${profileB.label}):
+Patches:
+${formatPatches(candB.patches)}
+Test Results B:
+Status: ${candB.testResult?.status}
+Output: ${candB.testResult?.output?.slice(0, 1000) || 'None'}
+
+Task: 
+1. Review the patches for correctness and alignment with the user request.
+2. Review the test results (passed > failed).
+3. Select the best candidate. If one passes tests and the other fails, choose the passing one. If both pass or both fail, choose based on code quality and correctness.
+You MUST return your decision as a valid JSON object strictly matching this schema:
+{
+  "winner": "A" | "B",
+  "reasoning": "brief rationale"
+}`;
+
+      const judgeResponse = await profileA.adapter.send({
+        messages: [{ role: 'user', content: judgePrompt }],
+        systemPrompt: 'You are a JSON-only arbitration agent. Always respond with valid JSON containing exactly "winner" and "reasoning" keys.',
+        temperature: 0.1,
+        signal
+      });
+      
+      const jsonMatch = judgeResponse.text.match(/\{[\s\S]*\}/);
+      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+      
+      if (!parsed || (parsed.winner !== 'A' && parsed.winner !== 'B')) {
+        throw new Error('Arbiter returned invalid JSON or winner');
+      }
+
+      chosenCandidate = parsed.winner === 'B' ? candB : candA;
+      summaryStr = `Ensemble Arbiter evaluated both and selected candidate ${chosenCandidate.profile.label}. Reasoning: ${parsed.reasoning}`;
+      requiresUserSelection = false;
+
+      try {
+        const inputTokens = judgeResponse.usage?.inputTokens ?? 0;
+        const outputTokens = judgeResponse.usage?.outputTokens ?? 0;
+        if (inputTokens > 0 || outputTokens > 0) {
+          const pricing = getModelPricing(profileA.provider, profileA.model);
+          const cost = calculateEstimatedCost(inputTokens, outputTokens, pricing);
+          useAppStore.getState().recordTokenUsage({
+            projectId,
+            provider: profileA.provider,
+            model: profileA.model,
+            profileLabel: profileA.label,
+            inputTokens,
+            outputTokens,
+            totalTokens: inputTokens + outputTokens,
+            estimatedCostUsd: cost,
+            category: 'ensemble_arbiter',
+            promptPreview: 'Arbiter (Judge) pass',
+            stepCount: 1
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to record arbiter token usage:', e);
+      }
+
+    } catch (err) {
+      console.error('Arbiter failed:', err);
+      // Fallback
+      if (passedCandidates.length === 1) {
+        chosenCandidate = passedCandidates[0];
+        summaryStr = `Ensemble auto-selected candidate ${chosenCandidate.profile.label} (${chosenCandidate.patches.length} patch(es) passed tests). Arbiter pass failed.`;
+      } else {
+        requiresUserSelection = true;
+        summaryStr = candA.status === 'passed' && candB.status === 'passed'
+          ? `Both candidates passed tests. Arbiter failed, review and pick your preferred patch.`
+          : `Neither candidate passed all sandboxed tests (A: ${candA.status}, B: ${candB.status}). You may review both diffs manually or pick one to debug.`;
+      }
     }
+  } else if (candA.patches.length > 0) {
+      chosenCandidate = candA;
+      summaryStr = `${profileA.label} proposed patches, but ${profileB.label} proposed none. Tests ${candA.status}.`;
+  } else if (candB.patches.length > 0) {
+      chosenCandidate = candB;
+      summaryStr = `${profileB.label} proposed patches, but ${profileA.label} proposed none. Tests ${candB.status}.`;
+  } else {
+      summaryStr = 'Neither model candidate proposed code patches.';
   }
 
   return {

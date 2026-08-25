@@ -38,6 +38,7 @@ export interface ProvenanceTestResult {
   total: number;
   failedTests?: string[];
   output?: string;
+  durationMs?: number;
   status: 'passed' | 'failed' | 'no_tests' | 'error';
   error?: string;
 }

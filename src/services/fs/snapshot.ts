@@ -1,5 +1,5 @@
 import { db, type Snapshot, type FileItem } from '../../db';
-import { listFiles, generateId } from './vfs';
+import { listFiles, generateId, isOpfsSupported, deleteOpfsFile, writeOpfsFile } from './vfs';
 
 export async function createSnapshot(projectId: string, label: string): Promise<Snapshot> {
   const currentFiles = await listFiles(projectId);
@@ -29,18 +29,36 @@ export async function restoreSnapshot(snapshotId: string): Promise<void> {
 
   const filesToRestore: FileItem[] = JSON.parse(snapshot.fileSnapshotJson);
   
-  // Use a Dexie transaction to ensure atomic wipe and restore
+  // 1. Delete all current files for this project in OPFS
+  const currentFiles = await db.files.where('projectId').equals(snapshot.projectId).toArray();
+  const currentFileIds = currentFiles.map(f => f.id);
+  
+  if (isOpfsSupported()) {
+    for (const f of currentFiles) {
+      await deleteOpfsFile(snapshot.projectId, f.path);
+    }
+  }
+
+  // 2. Insert files into Dexie
+  const dbFilesToRestore = isOpfsSupported()
+    ? filesToRestore.map(f => ({ ...f, content: '' }))
+    : filesToRestore;
+
   await db.transaction('rw', db.files, async () => {
-    // 1. Delete all current files for this project
-    const currentFiles = await db.files.where('projectId').equals(snapshot.projectId).toArray();
-    const currentFileIds = currentFiles.map(f => f.id);
     if (currentFileIds.length > 0) {
       await db.files.bulkDelete(currentFileIds);
     }
-    
-    // 2. Insert all files from the snapshot
-    if (filesToRestore.length > 0) {
-      await db.files.bulkAdd(filesToRestore);
+    if (dbFilesToRestore.length > 0) {
+      await db.files.bulkAdd(dbFilesToRestore);
     }
   });
+
+  // 3. Write restored files into OPFS
+  if (isOpfsSupported() && filesToRestore.length > 0) {
+    await Promise.all(
+      filesToRestore.map(async (file) => {
+        await writeOpfsFile(snapshot.projectId, file.path, file.content);
+      })
+    );
+  }
 }

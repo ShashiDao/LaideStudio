@@ -2,7 +2,8 @@ import React from 'react';
 import { hoverTooltip, EditorView, type ViewUpdate } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import type { ProvenanceEntry, ProvenanceTestResult } from '../db';
-import { Sparkles, CheckCircle2, XCircle, AlertCircle, HelpCircle, Clock, Cpu, FileText, Hash, ShieldCheck, X, GitBranch } from 'lucide-react';
+import { Sparkles, CheckCircle2, XCircle, AlertCircle, HelpCircle, Clock, Cpu, FileText, Hash, ShieldCheck, X, GitBranch, BarChart2 } from 'lucide-react';
+import { getTrustColorStyles, type FileTrustScore } from '../services/provenance/trustScore';
 
 export function formatTimestamp(ts: number): string {
   try {
@@ -172,6 +173,8 @@ export interface AiBlameSidePanelProps {
   totalDocLines: number;
   theme: 'oled' | 'paper' | string;
   onOpenBisect?: (testName?: string) => void;
+  fileTrustScore?: FileTrustScore | null;
+  onOpenTrustReport?: () => void;
 }
 
 export const AiBlameSidePanel: React.FC<AiBlameSidePanelProps> = ({
@@ -182,12 +185,17 @@ export const AiBlameSidePanel: React.FC<AiBlameSidePanelProps> = ({
   totalAiLines,
   totalDocLines,
   theme,
-  onOpenBisect
+  onOpenBisect,
+  fileTrustScore,
+  onOpenTrustReport
 }) => {
   if (!isOpen) return null;
 
   const isLight = theme === 'paper';
   const testInfo = formatTestStatus(activeEntry?.testResult);
+  const scoreStyles = fileTrustScore ? getTrustColorStyles(fileTrustScore.score, theme) : {
+    text: 'text-text', bg: 'bg-surface', border: 'border-border', badge: ''
+  };
 
   return (
     <aside
@@ -202,7 +210,7 @@ export const AiBlameSidePanel: React.FC<AiBlameSidePanelProps> = ({
       }`}>
         <div className="flex items-center gap-1.5 font-semibold text-accent text-xs">
           <Sparkles size={14} className="text-accent" />
-          <span>AI Blame Inspector</span>
+          <span>AI Blame & Trust</span>
         </div>
         <button
           onClick={onClose}
@@ -213,20 +221,93 @@ export const AiBlameSidePanel: React.FC<AiBlameSidePanelProps> = ({
         </button>
       </div>
 
-      {/* Summary stats */}
-      <div className={`p-3 border-b ${isLight ? 'border-[#CBD8E2] bg-white' : 'border-border bg-surface/50'}`}>
-        <div className="flex items-center justify-between text-[11px] mb-1">
-          <span className="text-muted">AI Attribution</span>
-          <span className="font-mono font-semibold text-accent">
-            {totalAiLines} / {totalDocLines} lines ({totalDocLines > 0 ? Math.round((totalAiLines / totalDocLines) * 100) : 0}%)
-          </span>
+      {/* Trust Score & Provenance Summary Card */}
+      <div className={`p-3 border-b space-y-2 ${isLight ? 'border-[#CBD8E2] bg-white' : 'border-border bg-surface/50'}`}>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase font-mono tracking-wider text-muted">File Provenance & Trust</span>
+          {fileTrustScore && (
+            <div className="flex items-center gap-1.5">
+              <span className={`font-mono font-bold text-xs ${scoreStyles.text}`}>
+                {fileTrustScore.score}%
+              </span>
+              <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-mono font-bold border ${scoreStyles.badge}`}>
+                {fileTrustScore.grade}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="w-full h-1.5 rounded-full bg-border overflow-hidden">
-          <div 
-            className="h-full bg-accent transition-all duration-300 rounded-full"
-            style={{ width: `${totalDocLines > 0 ? (totalAiLines / totalDocLines) * 100 : 0}%` }}
-          />
+
+        {fileTrustScore ? (
+          <div className="w-full h-1.5 rounded-full bg-border overflow-hidden flex">
+            <div 
+              className="h-full bg-emerald-500 transition-all duration-300"
+              style={{ width: `${(fileTrustScore.verifiedAiLines / Math.max(1, fileTrustScore.totalLines)) * 100}%` }}
+              title={`Verified AI: ${fileTrustScore.verifiedAiLines} lines`}
+            />
+            <div 
+              className="h-full bg-accent transition-all duration-300"
+              style={{ width: `${(fileTrustScore.untestedAiLines / Math.max(1, fileTrustScore.totalLines)) * 100}%` }}
+              title={`Untested AI: ${fileTrustScore.untestedAiLines} lines`}
+            />
+            <div 
+              className="h-full bg-rose-500 transition-all duration-300"
+              style={{ width: `${(fileTrustScore.failingAiLines / Math.max(1, fileTrustScore.totalLines)) * 100}%` }}
+              title={`Failing AI: ${fileTrustScore.failingAiLines} lines`}
+            />
+            <div 
+              className="h-full bg-zinc-400 transition-all duration-300"
+              style={{ width: `${(fileTrustScore.humanLines / Math.max(1, fileTrustScore.totalLines)) * 100}%` }}
+              title={`Human: ${fileTrustScore.humanLines} lines`}
+            />
+          </div>
+        ) : (
+          <div className="w-full h-1.5 rounded-full bg-border overflow-hidden flex">
+            <div 
+              className="h-full bg-accent transition-all duration-300"
+              style={{ width: `${(totalAiLines / Math.max(1, totalDocLines)) * 100}%` }}
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between text-[9.5px] font-mono text-muted">
+          <span>{totalAiLines} / {totalDocLines} lines ({Math.round((totalAiLines / Math.max(1, totalDocLines)) * 100)}%)</span>
+          {fileTrustScore ? (
+            fileTrustScore.tamperProofChainValid ? (
+              <span className="text-emerald-400 flex items-center gap-0.5">🔒 Verified</span>
+            ) : (
+              <span className="text-rose-400 flex items-center gap-0.5">⚠️ Tampered</span>
+            )
+          ) : (
+            <span className="text-accent/80">AI Patched</span>
+          )}
         </div>
+
+        {/* Model breakdown pills for this file */}
+        {fileTrustScore && fileTrustScore.modelAttributions.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1">
+            {fileTrustScore.modelAttributions.map((m, idx) => (
+              <span 
+                key={idx} 
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-mono bg-accent/10 border border-accent/25 text-accent"
+                title={`${m.lines} lines (${m.percentage}%) • ${m.testPassRate}% pass rate`}
+              >
+                <Cpu size={9} />
+                <span>{m.model}</span>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {onOpenTrustReport && (
+          <button
+            type="button"
+            onClick={onOpenTrustReport}
+            className="w-full mt-1.5 py-1 px-2 rounded bg-surface hover:bg-surface-elevated text-muted hover:text-accent border border-border flex items-center justify-center gap-1 text-[10.5px] font-mono transition-colors cursor-pointer"
+          >
+            <BarChart2 size={11} />
+            <span>Full Workspace Trust Report</span>
+          </button>
+        )}
       </div>
 
       {/* Active Line Inspector */}

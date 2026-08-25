@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, X, GitPullRequest, GitBranch } from 'lucide-react';
+import { Loader2, X, GitPullRequest, GitBranch, ShieldCheck, Cpu } from 'lucide-react';
 import { useAppStore } from '../store';
+import { db } from '../db';
 import { createGithubClient } from '../services/github/githubClient';
 import { listFiles } from '../services/fs/vfs';
 import { binaryExtensions } from '../services/fs/zipExport';
+import { 
+  calculateProjectTrustScore, 
+  generateTrustMarkdownReport, 
+  type ProjectTrustScore 
+} from '../services/provenance/trustScore';
 
 function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
   return (
@@ -54,6 +60,8 @@ async function computeGitBlobSha(content: string, isBinary: boolean): Promise<st
 }
 
 export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
+  const { theme, keys } = useAppStore();
+  const isLight = theme === 'paper';
   const defaultDate = new Date().toISOString().slice(0, 10);
   const defaultBranchName = `laide-${defaultDate}`;
   const defaultCommit = `Update from LAIDE Studio (${defaultDate})`;
@@ -64,14 +72,37 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   const [isBaseBranchEdited, setIsBaseBranchEdited] = useState(false);
   const [newBranch, setNewBranch] = useState(defaultBranchName);
   const [commitMessage, setCommitMessage] = useState(defaultCommit);
+  const [includeTrustLedger, setIncludeTrustLedger] = useState(true);
+  const [projectTrust, setProjectTrust] = useState<ProjectTrustScore | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
   const [prUrl, setPrUrl] = useState<string | null>(null);
   const [createdBranch, setCreatedBranch] = useState<string | null>(null);
-  
-  const { keys } = useAppStore();
+
+  // Compute Project / PR Trust Score
+  useEffect(() => {
+    let active = true;
+    const computeTrust = async () => {
+      try {
+        const [files, entries] = await Promise.all([
+          listFiles(projectId),
+          db.provenanceEntries.where('projectId').equals(projectId).toArray()
+        ]);
+        const result = await calculateProjectTrustScore(projectId, files, entries);
+        if (active) {
+          setProjectTrust(result);
+        }
+      } catch (err) {
+        console.warn('Failed to calculate project trust for PR modal', err);
+      }
+    };
+    computeTrust();
+    return () => {
+      active = false;
+    };
+  }, [projectId]);
 
   useEffect(() => {
     let active = true;
@@ -215,7 +246,10 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       const newTreeData = await client.createTree(owner, repo, baseTreeSha, treeEntries);
       
       setProgress('Creating commit...');
-      const finalCommitMsg = (commitMessage || defaultCommit).trim();
+      let finalCommitMsg = (commitMessage || defaultCommit).trim();
+      if (includeTrustLedger && projectTrust) {
+        finalCommitMsg += '\n\n' + generateTrustMarkdownReport(projectTrust);
+      }
       const newCommitData = await client.createCommit(owner, repo, finalCommitMsg, newTreeData.sha, baseCommitSha);
       
       setProgress(`Creating branch '${targetBranch}'...`);
@@ -364,6 +398,60 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
                 className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
               />
             </div>
+
+            {/* PR Trust & Provenance Card */}
+            {projectTrust && (
+              <div className={`p-3 rounded-lg border space-y-2 text-xs font-sans ${
+                isLight ? 'bg-white border-[#CBD8E2]' : 'bg-[#151518] border-[#2A2A2E]'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-semibold text-accent text-[11px]">
+                    <ShieldCheck size={14} />
+                    <span>PR Provenance & Trust Analysis</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="font-mono font-bold text-accent text-xs">
+                      {projectTrust.overallScore}%
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface border border-border text-muted font-semibold">
+                      Grade {projectTrust.overallGrade}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10.5px] font-mono text-muted pt-0.5">
+                  <div className="flex items-center gap-1">
+                    <span>AI Attribution:</span>
+                    <span className="font-semibold text-text">{Math.round(projectTrust.aiRatio * 100)}% AI</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Tests at Patch:</span>
+                    <span className="font-semibold text-emerald-400">{projectTrust.overallTestPassRate}% pass</span>
+                  </div>
+                </div>
+
+                {projectTrust.modelDistribution.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {projectTrust.modelDistribution.map((m, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9.5px] font-mono bg-accent/10 text-accent border border-accent/20">
+                        <Cpu size={9} />
+                        <span>{m.model} ({m.percentage}%)</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <label className="flex items-center gap-2 pt-1 text-[11px] font-sans text-muted cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={includeTrustLedger}
+                    onChange={e => setIncludeTrustLedger(e.target.checked)}
+                    className="rounded border-border text-accent focus:ring-accent accent-accent"
+                  />
+                  <span>Attach AI Provenance & Trust Ledger to PR description</span>
+                </label>
+              </div>
+            )}
 
             {error && (
               <div className="text-xs text-oxide bg-oxide/10 border border-oxide/30 p-3 rounded font-sans break-words flex flex-col gap-2">

@@ -60,4 +60,23 @@ describe('Zip Export Service', () => {
     const ico = importedFiles.find(f => f.path === '/public/favicon.ico');
     expect(ico?.content).toBe('AAABAAEAEBAAAAAAAABoBQAAFgAAACgAAAAQAAAA');
   });
+
+  it('should exclude package-lock.json and AI_CHANGELOG.md from zip export', async () => {
+    await createFile(projectId, '/package.json', '{"name": "test"}');
+    await createFile(projectId, '/package-lock.json', '{"name": "test", "lockfileVersion": 3}');
+    await createFile(projectId, '/AI_CHANGELOG.md', '# AI Changelog\n- History item');
+    await createFile(projectId, '/src/App.tsx', 'export function App() { return null; }');
+
+    const blob = await exportZip(projectId);
+    const arrayBuffer = await blob.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+
+    const paths = Object.keys(zip.files);
+    expect(paths).toContain('package.json');
+    expect(paths).toContain('src/App.tsx');
+    expect(paths).not.toContain('package-lock.json');
+    expect(paths).not.toContain('AI_CHANGELOG.md');
+    expect(paths).not.toContain('ai_changelog.md');
+  });
 });
+

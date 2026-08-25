@@ -33,6 +33,7 @@ import { GithubImportModal } from './components/GithubImportModal';
 import { GithubPushModal } from './components/GithubPushModal';
 import { DeployModal } from './components/DeployModal';
 import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
+import { TrustReportModal } from './components/TrustReportModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { ProjectSearchModal } from './components/ProjectSearchModal';
 import { createProjectFromTemplate, type TemplateId } from './services/templates/projectTemplates';
@@ -106,6 +107,8 @@ export default function App() {
   const [showProjectStats, setShowProjectStats] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
+  const [showTrustReportModal, setShowTrustReportModal] = useState(false);
+  const [trustReportInitialFile, setTrustReportInitialFile] = useState<string | undefined>(undefined);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
@@ -494,6 +497,10 @@ export default function App() {
                       onOpenGithubPush={handleOpenGithubPush}
                       onOpenAnalytics={() => setShowProjectStats(true)}
                       onOpenBisect={() => handleOpenBisect()}
+                      onOpenTrustReport={() => {
+                        setTrustReportInitialFile(undefined);
+                        setShowTrustReportModal(true);
+                      }}
                       onNewProjectClick={() => setShowCreateProjectModal(true)}
                       onRenameClick={() => setShowRenameModal(true)}
                       onUploadClick={() => fileInputRef.current?.click()}
@@ -684,6 +691,10 @@ export default function App() {
                 setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: newContent } : f));
               }}
               onOpenBisect={handleOpenBisect}
+              onOpenTrustReport={(filePath) => {
+                setTrustReportInitialFile(filePath);
+                setShowTrustReportModal(true);
+              }}
             />
           )}
         </main>
@@ -819,6 +830,27 @@ export default function App() {
             isOpen={showFindWhatBrokeModal}
             onClose={() => setShowFindWhatBrokeModal(false)}
             initialTestName={bisectInitialTestName}
+          />
+        )}
+
+        {/* AI Provenance & Trust Score Report Modal */}
+        {activeProject && (
+          <TrustReportModal
+            projectId={activeProject.id}
+            isOpen={showTrustReportModal}
+            onClose={() => setShowTrustReportModal(false)}
+            initialFilePath={trustReportInitialFile}
+            onSelectFile={(filePath) => {
+              const file = files.find(f => f.path === filePath);
+              if (file) {
+                setActiveFileId(file.id);
+                setShowTrustReportModal(false);
+              }
+            }}
+            onOpenBisect={(testName) => {
+              setShowTrustReportModal(false);
+              handleOpenBisect(testName);
+            }}
           />
         )}
 

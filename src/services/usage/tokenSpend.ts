@@ -38,6 +38,7 @@ export interface UsageRecord {
   profileLabel?: string;
   inputTokens: number;
   outputTokens: number;
+  cachedTokens?: number;
   totalTokens: number;
   estimatedCostUsd: number;
   category: 'agent_chat' | 'ensemble_candidate_a' | 'ensemble_candidate_b' | 'bisect' | 'other';
@@ -51,6 +52,7 @@ export interface ModelUsageSummary {
   tokens: number;
   inputTokens: number;
   outputTokens: number;
+  cachedTokens?: number;
   costUsd: number;
   recordsCount: number;
 }
@@ -61,6 +63,7 @@ export interface CategoryUsageSummary {
   tokens: number;
   inputTokens: number;
   outputTokens: number;
+  cachedTokens?: number;
   costUsd: number;
   recordsCount: number;
 }
@@ -69,6 +72,7 @@ export interface SessionUsageSummary {
   totalTokens: number;
   totalInputTokens: number;
   totalOutputTokens: number;
+  totalCachedTokens?: number;
   totalCostUsd: number;
   recordsCount: number;
   byModel: Record<string, ModelUsageSummary>;
@@ -378,6 +382,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
   let totalTokens = 0;
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let totalCachedTokens = 0;
   let totalCostUsd = 0;
 
   const byModel: Record<string, ModelUsageSummary> = {};
@@ -388,6 +393,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
       tokens: 0,
       inputTokens: 0,
       outputTokens: 0,
+      cachedTokens: 0,
       costUsd: 0,
       recordsCount: 0
     },
@@ -397,6 +403,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
       tokens: 0,
       inputTokens: 0,
       outputTokens: 0,
+      cachedTokens: 0,
       costUsd: 0,
       recordsCount: 0
     },
@@ -406,6 +413,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
       tokens: 0,
       inputTokens: 0,
       outputTokens: 0,
+      cachedTokens: 0,
       costUsd: 0,
       recordsCount: 0
     },
@@ -415,6 +423,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
       tokens: 0,
       inputTokens: 0,
       outputTokens: 0,
+      cachedTokens: 0,
       costUsd: 0,
       recordsCount: 0
     },
@@ -424,6 +433,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
       tokens: 0,
       inputTokens: 0,
       outputTokens: 0,
+      cachedTokens: 0,
       costUsd: 0,
       recordsCount: 0
     }
@@ -433,6 +443,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
     totalTokens += r.totalTokens;
     totalInputTokens += r.inputTokens;
     totalOutputTokens += r.outputTokens;
+    totalCachedTokens += r.cachedTokens || 0;
     totalCostUsd += r.estimatedCostUsd;
 
     // By Model
@@ -444,6 +455,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
         tokens: 0,
         inputTokens: 0,
         outputTokens: 0,
+        cachedTokens: 0,
         costUsd: 0,
         recordsCount: 0
       };
@@ -451,6 +463,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
     byModel[modelKey].tokens += r.totalTokens;
     byModel[modelKey].inputTokens += r.inputTokens;
     byModel[modelKey].outputTokens += r.outputTokens;
+    byModel[modelKey].cachedTokens = (byModel[modelKey].cachedTokens || 0) + (r.cachedTokens || 0);
     byModel[modelKey].costUsd += r.estimatedCostUsd;
     byModel[modelKey].recordsCount += 1;
 
@@ -463,6 +476,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
         tokens: 0,
         inputTokens: 0,
         outputTokens: 0,
+        cachedTokens: 0,
         costUsd: 0,
         recordsCount: 0
       };
@@ -470,6 +484,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
     byCategory[cat].tokens += r.totalTokens;
     byCategory[cat].inputTokens += r.inputTokens;
     byCategory[cat].outputTokens += r.outputTokens;
+    byCategory[cat].cachedTokens = (byCategory[cat].cachedTokens || 0) + (r.cachedTokens || 0);
     byCategory[cat].costUsd += r.estimatedCostUsd;
     byCategory[cat].recordsCount += 1;
   }
@@ -478,6 +493,7 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
     totalTokens,
     totalInputTokens,
     totalOutputTokens,
+    totalCachedTokens,
     totalCostUsd,
     recordsCount: records.length,
     byModel,

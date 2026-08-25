@@ -1,4 +1,5 @@
 import { db, type Project, type FileItem, type Snapshot, type ConnectionProfile } from '../db';
+import { getAllFileContent, isOpfsSupported, writeOpfsFile } from './fs/vfs';
 import { getLockConfig, saveLockConfig, type LockConfig } from './lockConfig';
 
 export interface EncryptedBackupPayload {
@@ -41,7 +42,7 @@ export interface BackupValidationResult {
 export async function createEncryptedBackup(): Promise<EncryptedBackupPayload> {
   const [projects, files, snapshots, connectionProfiles] = await Promise.all([
     db.projects.toArray(),
-    db.files.toArray(),
+    getAllFileContent(),
     db.snapshots.toArray(),
     db.connectionProfiles.toArray(),
   ]);
@@ -142,7 +143,10 @@ export async function restoreBackup(backup: EncryptedBackupPayload): Promise<{
       await db.projects.bulkPut(backup.projects);
     }
     if (backup.files && backup.files.length > 0) {
-      await db.files.bulkPut(backup.files);
+      const filesToPut = isOpfsSupported()
+        ? backup.files.map(f => ({ ...f, content: '' }))
+        : backup.files;
+      await db.files.bulkPut(filesToPut);
     }
     if (backup.snapshots && backup.snapshots.length > 0) {
       await db.snapshots.bulkPut(backup.snapshots);
@@ -151,6 +155,14 @@ export async function restoreBackup(backup: EncryptedBackupPayload): Promise<{
       await db.connectionProfiles.bulkPut(backup.connectionProfiles);
     }
   });
+
+  if (isOpfsSupported() && backup.files && backup.files.length > 0) {
+    await Promise.all(
+      backup.files.map(async (file) => {
+        await writeOpfsFile(file.projectId, file.path, file.content);
+      })
+    );
+  }
 
   if (backup.customInstructions && typeof localStorage !== 'undefined') {
     localStorage.setItem('xiom_custom_instructions', backup.customInstructions);

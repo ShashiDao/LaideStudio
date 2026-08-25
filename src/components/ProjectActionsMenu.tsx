@@ -14,7 +14,8 @@ import {
   FileText,
   Copy,
   Rocket,
-  Search
+  Search,
+  ShieldCheck
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';
@@ -34,6 +35,7 @@ export interface ProjectActionsMenuProps {
   onRenameClick?: () => void;
   onOpenAnalytics?: () => void;
   onOpenBisect?: () => void;
+  onOpenTrustReport?: () => void;
   onNewProjectClick?: () => void;
   className?: string;
 }
@@ -53,6 +55,7 @@ export function ProjectActionsMenu({
   onRenameClick,
   onOpenAnalytics,
   onOpenBisect,
+  onOpenTrustReport,
   onNewProjectClick,
   className = ''
 }: ProjectActionsMenuProps) {
@@ -240,6 +243,26 @@ export function ProjectActionsMenu({
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-medium leading-tight">Find What Broke This</div>
                           <div className="text-[9px] text-muted truncate">Bisect failing test in history</div>
+                        </div>
+                      </button>
+                    )}
+
+                    {onOpenTrustReport && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction(onOpenTrustReport)}
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                        role="menuitem"
+                      >
+                        <div className="p-1 rounded bg-accent/15 text-accent border border-accent/30 shrink-0">
+                          <ShieldCheck size={13} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium leading-tight text-accent flex items-center gap-1.5">
+                            <span>Trust & Provenance</span>
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-accent/20 text-accent font-semibold">Ledger</span>
+                          </div>
+                          <div className="text-[9px] text-muted truncate">AI attribution & test pass audit</div>
                         </div>
                       </button>
                     )}

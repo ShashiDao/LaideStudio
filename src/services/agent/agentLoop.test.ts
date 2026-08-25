@@ -4,6 +4,7 @@ import { runAgentLoop } from './agentLoop';
 import { useAppStore } from '../../store';
 import { db } from '../../db';
 import { listFiles } from '../fs/vfs';
+import { McpService } from './mcpClient';
 import type { LLMAdapter, LLMRequest, LLMStreamYield } from '../llm/llmAdapter';
 
 describe('agentLoop', () => {
@@ -249,5 +250,147 @@ describe('agentLoop', () => {
         data: 'iVBORw0KGgoAAAANSUhEUg=='
       }
     ]);
+  });
+
+  it('records accurate per-call token usage from stream usage events into useAppStore', async () => {
+    useAppStore.getState().clearSessionUsage();
+
+    const mockAdapter: LLMAdapter = {
+      countTokens: async () => 10,
+      send: async () => ({ text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }),
+      async *stream(_req: LLMRequest): AsyncGenerator<LLMStreamYield, void, unknown> {
+        yield { type: 'text', text: 'Analyzing project...' };
+        yield {
+          type: 'usage',
+          usage: {
+            inputTokens: 1420,
+            outputTokens: 385,
+            cachedTokens: 256
+          }
+        };
+      }
+    };
+
+    await runAgentLoop(
+      'Verify token tracking',
+      [],
+      mockAdapter,
+      projectId,
+      undefined,
+      undefined,
+      undefined,
+      10,
+      {
+        provider: 'anthropic',
+        model: 'claude-3-7-sonnet',
+        modelName: 'Claude 3.7 Sonnet'
+      }
+    );
+
+    const records = useAppStore.getState().sessionUsageRecords;
+    expect(records.length).toBeGreaterThan(0);
+    const lastRecord = records[records.length - 1];
+    expect(lastRecord.inputTokens).toBe(1420);
+    expect(lastRecord.outputTokens).toBe(385);
+    expect(lastRecord.cachedTokens).toBe(256);
+    expect(lastRecord.totalTokens).toBe(1805);
+    expect(lastRecord.provider).toBe('anthropic');
+    expect(lastRecord.model).toBe('claude-3-7-sonnet');
+    expect(lastRecord.category).toBe('agent_chat');
+    expect(lastRecord.estimatedCostUsd).toBeGreaterThan(0);
+  });
+
+  it('surfaces MCP connection failures in the message stream when server fails to connect', async () => {
+    useAppStore.getState().setMcpServers([
+      { id: 'mcp-broken', url: 'http://localhost:9999/broken-sse' }
+    ]);
+
+    vi.spyOn(McpService, 'connect').mockRejectedValueOnce(new Error('ECONNREFUSED connect to MCP server'));
+
+    let lastUpdatedMessages: any[] = [];
+    const mockAdapter: LLMAdapter = {
+      countTokens: async () => 10,
+      send: async () => ({ text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }),
+      async *stream(req: LLMRequest): AsyncGenerator<LLMStreamYield, void, unknown> {
+        // System prompt should contain MCP connection warnings
+        expect(req.systemPrompt).toContain('ECONNREFUSED connect to MCP server');
+        yield { type: 'text', text: 'I noticed the MCP server is offline.' };
+      }
+    };
+
+    const finalMessages = await runAgentLoop(
+      'Use the MCP tool please',
+      [],
+      mockAdapter,
+      projectId,
+      'Base prompt',
+      (updated) => {
+        lastUpdatedMessages = updated;
+      }
+    );
+
+    // Should contain the warning notice in the chat messages
+    const warningMsg = finalMessages.find(m => m.role === 'assistant' && typeof m.content === 'string' && m.content.includes('MCP Server Connection Failure'));
+    expect(warningMsg).toBeDefined();
+    expect(warningMsg?.content).toContain('http://localhost:9999/broken-sse');
+    expect(warningMsg?.content).toContain('ECONNREFUSED connect to MCP server');
+
+    // onUpdate must have been called with the messages containing the warning
+    expect(lastUpdatedMessages.some(m => typeof m.content === 'string' && m.content.includes('MCP Server Connection Failure'))).toBe(true);
+
+    useAppStore.getState().setMcpServers([]);
+  });
+
+  it('surfaces MCP tool execution failures in the tool-result stream', async () => {
+    useAppStore.getState().setMcpServers([
+      { id: 'mcp-working', url: 'http://localhost:3001/sse' }
+    ]);
+
+    vi.spyOn(McpService, 'connect').mockResolvedValueOnce({} as any);
+    vi.spyOn(McpService, 'listTools').mockResolvedValueOnce([
+      {
+        name: 'query_db',
+        description: 'Query database',
+        inputSchema: { type: 'object', properties: { q: { type: 'string' } } },
+        serverId: 'mcp-working'
+      }
+    ]);
+    vi.spyOn(McpService, 'executeTool').mockRejectedValueOnce(new Error('Network timeout calling MCP tool query_db'));
+
+    let step = 0;
+    const mockAdapter: LLMAdapter = {
+      countTokens: async () => 10,
+      send: async () => ({ text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }),
+      async *stream(_req: LLMRequest): AsyncGenerator<LLMStreamYield, void, unknown> {
+        step++;
+        if (step === 1) {
+          yield {
+            type: 'tool_call',
+            toolCall: {
+              id: 'call_mcp_1',
+              name: 'mcp_query_db',
+              args: JSON.stringify({ q: 'SELECT *' })
+            }
+          };
+        } else {
+          yield { type: 'text', text: 'MCP query failed as shown above.' };
+        }
+      }
+    };
+
+    const finalMessages = await runAgentLoop(
+      'Run a query',
+      [],
+      mockAdapter,
+      projectId
+    );
+
+    // Verify tool result contains formatted MCP connection error
+    const toolMsg = finalMessages.find(m => m.role === 'tool' && m.toolCallId === 'call_mcp_1');
+    expect(toolMsg).toBeDefined();
+    expect(toolMsg?.content).toContain('[MCP Connection Error]');
+    expect(toolMsg?.content).toContain('Network timeout calling MCP tool query_db');
+
+    useAppStore.getState().setMcpServers([]);
   });
 });

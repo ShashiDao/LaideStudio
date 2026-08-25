@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Copy, Check, Search, Sparkles } from 'lucide-react';
+import { X, Copy, Check, Search, Sparkles, ShieldCheck } from 'lucide-react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
@@ -21,6 +21,7 @@ import { useAppStore } from '../store';
 import { EditorFindReplace } from './EditorFindReplace';
 import { getFileAiBlameCached } from '../services/provenance/blame';
 import { createAiBlameHoverTooltip, createAiBlameCursorListener, AiBlameSidePanel } from './EditorAiBlame';
+import { calculateFileTrustScore, getTrustColorStyles } from '../services/provenance/trustScore';
 
 export const oledEditorTheme = createTheme({
   theme: 'dark',
@@ -135,11 +136,13 @@ export async function getLanguageExtensionAsync(path: string): Promise<Extension
 export function Editor({ 
   file, 
   onContentChanged,
-  onOpenBisect
+  onOpenBisect,
+  onOpenTrustReport
 }: { 
   file: FileItem, 
   onContentChanged: (newContent: string) => void,
-  onOpenBisect?: (testName?: string) => void
+  onOpenBisect?: (testName?: string) => void,
+  onOpenTrustReport?: (filePath?: string) => void
 }) {
   const { setActiveFileId, theme, addToast, editorNavigationTarget, setEditorNavigationTarget } = useAppStore();
   const [content, setContent] = useState(file.content);
@@ -192,6 +195,11 @@ export function Editor({
     return getFileAiBlameCached(file.path, provenanceEntries, content);
   }, [file.path, provenanceEntries, content]);
 
+  const fileTrustScore = useMemo(() => {
+    return calculateFileTrustScore(file.path, content, provenanceEntries);
+  }, [file.path, content, provenanceEntries]);
+
+  const trustColorStyles = getTrustColorStyles(fileTrustScore.score, theme);
   const activeBlameEntry = blameResult.blameMap.get(activeLineNumber ?? 1) || null;
 
   const handleCopyPath = () => {
@@ -581,6 +589,25 @@ export function Editor({
           {file.path}
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* File Trust Score Badge */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenTrustReport) {
+                onOpenTrustReport(file.path);
+              } else {
+                setIsBlameOpen(true);
+              }
+            }}
+            aria-label="File Trust Score"
+            title={`File Trust Score: ${fileTrustScore.score}% (${fileTrustScore.grade}) • Click to view full AI provenance & trust analysis`}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer shadow-xs active:scale-95 ${trustColorStyles.badge}`}
+          >
+            <ShieldCheck size={12} className="shrink-0" />
+            <span className="font-bold">Trust {fileTrustScore.score}%</span>
+            <span className="opacity-80 text-[10px]">({fileTrustScore.grade})</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsBlameOpen(prev => !prev)}
@@ -705,6 +732,8 @@ export function Editor({
           totalDocLines={blameResult.lines.length}
           theme={theme}
           onOpenBisect={onOpenBisect}
+          fileTrustScore={fileTrustScore}
+          onOpenTrustReport={() => onOpenTrustReport?.(file.path)}
         />
       </div>
     </div>

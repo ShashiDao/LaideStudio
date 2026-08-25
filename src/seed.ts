@@ -1,4 +1,5 @@
 import { db, type Project, type FileItem } from './db';
+import { getAllFileContent, writeOpfsFile, isOpfsSupported } from './services/fs/vfs';
 
 export async function seedDemoData() {
   const existingProjectsCount = await db.projects.count();
@@ -34,7 +35,16 @@ export async function seedDemoData() {
   };
 
   await db.projects.put(demoProject);
-  await db.files.bulkPut([file1, file2]);
+  const dbFiles = isOpfsSupported() ? [
+    { ...file1, content: '' },
+    { ...file2, content: '' }
+  ] : [file1, file2];
+  await db.files.bulkPut(dbFiles);
+
+  if (isOpfsSupported()) {
+    await writeOpfsFile(demoProjectId, file1.path, file1.content);
+    await writeOpfsFile(demoProjectId, file2.path, file2.content);
+  }
 
   console.log('[Seed] Demo project and files created successfully.');
 }
@@ -43,7 +53,7 @@ export async function testDatabaseReadback() {
   await seedDemoData();
 
   const projects = await db.projects.toArray();
-  const files = await db.files.where('projectId').equals('demo-project-1').toArray();
+  const files = await getAllFileContent('demo-project-1');
 
   return {
     projects,

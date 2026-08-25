@@ -11,7 +11,9 @@ import {
   renameFile,
   deleteFolder,
   deleteProject,
-  renameProject
+  renameProject,
+  getAllFileContent,
+  isOpfsSupported,
 } from './vfs';
 
 describe('Virtual File System', () => {
@@ -257,6 +259,40 @@ describe('Virtual File System', () => {
     it('should return empty array when given empty entries', async () => {
       const res = await bulkCreateOrUpdateFiles(projectId, []);
       expect(res).toEqual([]);
+    });
+  });
+
+  describe('getAllFileContent', () => {
+    it('should fetch all files across projects when called with no arguments', async () => {
+      await createFile('proj-a', '/file-a.txt', 'content A');
+      await createFile('proj-b', '/file-b.txt', 'content B');
+
+      const allFiles = await getAllFileContent();
+      expect(allFiles.length).toBeGreaterThanOrEqual(2);
+      expect(allFiles.find(f => f.path === '/file-a.txt')?.content).toBe('content A');
+      expect(allFiles.find(f => f.path === '/file-b.txt')?.content).toBe('content B');
+    });
+
+    it('should fetch files for a specific project ID string', async () => {
+      await createFile('proj-x', '/x1.txt', 'content X1');
+      await createFile('proj-x', '/x2.txt', 'content X2');
+      await createFile('proj-y', '/y1.txt', 'content Y1');
+
+      const xFiles = await getAllFileContent('proj-x');
+      expect(xFiles).toHaveLength(2);
+      expect(xFiles.every(f => f.projectId === 'proj-x')).toBe(true);
+      expect(xFiles.find(f => f.path === '/x1.txt')?.content).toBe('content X1');
+    });
+
+    it('should hydrate an explicit array of FileItems', async () => {
+      const file = await createFile(projectId, '/explicit.txt', 'explicit content');
+      const hydrated = await getAllFileContent([file]);
+      expect(hydrated).toHaveLength(1);
+      expect(hydrated[0].content).toBe('explicit content');
+    });
+
+    it('should report isOpfsSupported accurately', () => {
+      expect(typeof isOpfsSupported()).toBe('boolean');
     });
   });
 });

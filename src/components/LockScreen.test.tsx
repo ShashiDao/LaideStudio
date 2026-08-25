@@ -32,20 +32,30 @@ describe('LockScreen Passphrase Security', () => {
     expect(getStrength('123456789').score).toBe(1);
   });
 
-  it('marks low entropy 10+ character passphrases as Weak or Fair', () => {
-    // Only lowercase letters: 10 * log2(26) = ~47 -> Fair
-    const resAllLower = getStrength('abcdefghij');
-    expect(resAllLower.label).toBe('Fair');
-    expect(resAllLower.score).toBe(2);
+  it('marks repetitive or low entropy 10+ character passphrases as Weak or Fair', () => {
+    // 12 repeated characters: caught by repetition estimator -> Weak
+    const resRepeat = getStrength('aaaaaaaaaaaa');
+    expect(resRepeat.label).toBe('Weak');
+    expect(resRepeat.score).toBe(1);
+
+    // Dictionary repetition: 'passwordpassword' -> Weak
+    const resDict = getStrength('passwordpassword');
+    expect(resDict.label).toBe('Weak');
+    expect(resDict.score).toBe(1);
+
+    // Predictable combo: dictionary word + year -> Fair (score 2)
+    const resFair = getStrength('sunshine1985');
+    expect(resFair.label).toBe('Fair');
+    expect(resFair.score).toBe(2);
   });
 
   it('marks mixed complex passphrases (10+ characters) as Good or Strong', () => {
-    // 10 chars with lower, upper, numbers, symbols: pool = 26+26+10+32 = 94, entropy = 10 * log2(94) = ~65.5 -> Good
-    const resGood = getStrength('P@ssw0rd12');
-    expect(resGood.score).toBeGreaterThanOrEqual(3);
-    expect(['Good', 'Strong']).toContain(resGood.label);
+    // Multi-word passphrase
+    const resDiceware = getStrength('correct-horse-battery-staple');
+    expect(resDiceware.score).toBeGreaterThanOrEqual(3);
+    expect(['Good', 'Strong']).toContain(resDiceware.label);
 
-    // 16 chars with full variety -> Strong
+    // 23 chars with full variety and high entropy -> Strong
     const resStrong = getStrength('C0mpl3x!P@ssphrase#2026');
     expect(resStrong.label).toBe('Strong');
     expect(resStrong.score).toBe(4);

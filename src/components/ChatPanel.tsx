@@ -10,6 +10,8 @@ import {
   Files, 
   Sparkles, 
   AlertCircle,
+  AlertTriangle,
+  Server,
   Eye,
   X,
   GitMerge,
@@ -76,6 +78,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
   const [profileLabel, setProfileLabel] = useState('');
   const [contextFiles, setContextFiles] = useState<FileItem[]>([]);
   const [contextExpanded, setContextExpanded] = useState(false);
+  const [expandedToolResults, setExpandedToolResults] = useState<Record<string, boolean>>({});
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -383,7 +386,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
         const args = JSON.parse(tc.args);
         return (
           <div key={tc.id} className="mt-2 border border-border bg-surface/50 rounded-lg p-3 text-sm">
-            <div className="flex items-center gap-2 mb-2 text-accent font-sans  text-xs">
+            <div className="flex items-center gap-2 mb-2 text-accent font-sans text-xs">
               <Code size={14} />
               Proposed Patch: {args.type}
             </div>
@@ -396,10 +399,77 @@ export function ChatPanel({ projectId }: { projectId: string }) {
       }
     }
     
+    const toolResultMsg = chatHistory.find(m => m.role === 'tool' && m.toolCallId === tc.id);
+    const isMcpTool = tc.name.startsWith('mcp_') || (toolResultMsg?.toolName && toolResultMsg.toolName.startsWith('mcp_'));
+    const cleanToolName = isMcpTool ? tc.name.replace(/^mcp_/, '') : tc.name;
+    const resultContent = toolResultMsg ? (typeof toolResultMsg.content === 'string' ? toolResultMsg.content : JSON.stringify(toolResultMsg.content)) : null;
+    const isError = !!resultContent && (
+      resultContent.includes('[MCP Error]') || 
+      resultContent.includes('[MCP Connection Error]') || 
+      resultContent.startsWith('Error:') || 
+      resultContent.startsWith('Error executing MCP tool')
+    );
+    const isExpanded = !!expandedToolResults[tc.id];
+
+    if (isError) {
+      return (
+        <div key={tc.id} className="mt-2 border border-oxide/40 bg-oxide/10 rounded-lg p-2.5 text-xs font-sans">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 font-semibold text-oxide">
+              <AlertTriangle size={14} className="shrink-0" />
+              <span>{isMcpTool ? `MCP Tool Error (${cleanToolName})` : `Tool Error (${cleanToolName})`}</span>
+            </div>
+            {resultContent && (
+              <button
+                type="button"
+                onClick={() => setExpandedToolResults(prev => ({ ...prev, [tc.id]: !prev[tc.id] }))}
+                className="text-[10px] text-oxide hover:underline cursor-pointer shrink-0"
+              >
+                {isExpanded ? 'Hide Details' : 'View Details'}
+              </button>
+            )}
+          </div>
+          {isExpanded && (
+            <pre className="mt-2 p-2 rounded bg-surface border border-oxide/30 font-mono text-[11px] text-oxide whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+              {resultContent}
+            </pre>
+          )}
+        </div>
+      );
+    }
+
     return (
-      <div key={tc.id} className="mt-1 text-xs text-muted font-sans flex items-center gap-1">
-        <Cpu size={12} />
-        Used tool: {tc.name}
+      <div key={tc.id} className="mt-1.5 border border-border/70 bg-surface/50 rounded-md p-2 text-xs font-sans">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-muted font-mono text-[11px]">
+            {isMcpTool ? (
+              <Server size={12} className="text-accent shrink-0" />
+            ) : (
+              <Cpu size={12} className="text-accent shrink-0" />
+            )}
+            <span className="text-accent font-semibold">{isMcpTool ? 'MCP Tool:' : 'Tool:'}</span>
+            <span className="text-text">{cleanToolName}</span>
+          </div>
+          {resultContent ? (
+            <button
+              type="button"
+              onClick={() => setExpandedToolResults(prev => ({ ...prev, [tc.id]: !prev[tc.id] }))}
+              className="text-[10px] text-muted hover:text-accent font-sans underline cursor-pointer shrink-0"
+            >
+              {isExpanded ? 'Hide Result' : 'View Result'}
+            </button>
+          ) : (
+            <div className="flex items-center gap-1 text-[10px] text-accent">
+              <Loader2 size={10} className="animate-spin" />
+              <span>Running...</span>
+            </div>
+          )}
+        </div>
+        {isExpanded && resultContent && (
+          <pre className="mt-2 p-2 rounded bg-code-bg border border-border font-mono text-[10px] text-text whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+            {resultContent}
+          </pre>
+        )}
       </div>
     );
   };

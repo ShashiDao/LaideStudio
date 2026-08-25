@@ -4,9 +4,9 @@ export function generateId(): string {
   return crypto.randomUUID();
 }
 
-const isOpfsSupported = () => typeof navigator !== 'undefined' && navigator.storage && !!navigator.storage.getDirectory;
+export const isOpfsSupported = (): boolean => typeof navigator !== 'undefined' && !!navigator.storage && typeof navigator.storage.getDirectory === 'function';
 
-async function getOpfsFileHandle(projectId: string, path: string, create: boolean = false) {
+export async function getOpfsFileHandle(projectId: string, path: string, create: boolean = false) {
   const root = await navigator.storage.getDirectory();
   const projDir = await root.getDirectoryHandle(projectId, { create: true });
   
@@ -20,6 +20,37 @@ async function getOpfsFileHandle(projectId: string, path: string, create: boolea
   }
   
   return await currentDir.getFileHandle(fileName, { create });
+}
+
+export async function writeOpfsFile(projectId: string, path: string, content: string): Promise<void> {
+  if (!isOpfsSupported()) return;
+  try {
+    const handle = await getOpfsFileHandle(projectId, path, true);
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+  } catch (e) {
+    console.warn(`OPFS write failed for ${path}`, e);
+  }
+}
+
+export async function deleteOpfsFile(projectId: string, path: string): Promise<void> {
+  if (!isOpfsSupported()) return;
+  try {
+    const root = await navigator.storage.getDirectory();
+    const projDir = await root.getDirectoryHandle(projectId, { create: false });
+    const parts = path.split('/').filter(Boolean);
+    const fileName = parts.pop();
+    if (fileName) {
+      let currentDir = projDir;
+      for (const part of parts) {
+        currentDir = await currentDir.getDirectoryHandle(part, { create: false });
+      }
+      await currentDir.removeEntry(fileName);
+    }
+  } catch {
+    // Ignore if not present in OPFS
+  }
 }
 
 export async function checkPathCollision(projectId: string, path: string, excludeFileId?: string): Promise<void> {
@@ -42,17 +73,31 @@ export async function checkPathCollision(projectId: string, path: string, exclud
   }
 }
 
-export async function listFiles(projectId: string): Promise<FileItem[]> {
-  const files = await db.files.where('projectId').equals(projectId).toArray();
+/**
+ * Loads full file content from OPFS (or Dexie fallback) for a project, a given list of files, or all files.
+ * If projectId is passed as string, queries and resolves all files for that project.
+ * If an array of FileItem is passed, loads content for each file in the array.
+ * If omitted or undefined, loads and returns all files across the entire database.
+ */
+export async function getAllFileContent(projectIdOrFiles?: string | FileItem[]): Promise<FileItem[]> {
+  let files: FileItem[];
+  if (typeof projectIdOrFiles === 'string') {
+    files = await db.files.where('projectId').equals(projectIdOrFiles).toArray();
+  } else if (Array.isArray(projectIdOrFiles)) {
+    files = projectIdOrFiles;
+  } else {
+    files = await db.files.toArray();
+  }
+
   if (isOpfsSupported()) {
     await Promise.all(
       files.map(async (file) => {
         try {
-          const handle = await getOpfsFileHandle(projectId, file.path, false);
+          const handle = await getOpfsFileHandle(file.projectId, file.path, false);
           const opfsFile = await handle.getFile();
           file.content = await opfsFile.text();
         } catch {
-          // Fallback to what's in Dexie if OPFS fails (or migration)
+          // Fallback to what's in Dexie if OPFS read fails or file is only in Dexie
         }
       })
     );
@@ -60,36 +105,23 @@ export async function listFiles(projectId: string): Promise<FileItem[]> {
   return files;
 }
 
+export async function listFiles(projectId: string): Promise<FileItem[]> {
+  return getAllFileContent(projectId);
+}
+
 export async function readFile(id: string): Promise<FileItem> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
   
-  if (isOpfsSupported()) {
-    try {
-      const handle = await getOpfsFileHandle(file.projectId, file.path, false);
-      const opfsFile = await handle.getFile();
-      file.content = await opfsFile.text();
-    } catch {
-      // Fallback
-    }
-  }
-  return file;
+  const [hydrated] = await getAllFileContent([file]);
+  return hydrated || file;
 }
 
 export async function writeFile(id: string, content: string): Promise<FileItem> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
   
-  if (isOpfsSupported()) {
-    try {
-      const handle = await getOpfsFileHandle(file.projectId, file.path, true);
-      const writable = await handle.createWritable();
-      await writable.write(content);
-      await writable.close();
-    } catch (e) {
-      console.warn("OPFS write failed", e);
-    }
-  }
+  await writeOpfsFile(file.projectId, file.path, content);
   
   // Store empty content in Dexie if OPFS is supported, to save DB space
   const dbContent = isOpfsSupported() ? '' : content;
@@ -114,16 +146,7 @@ export async function createFile(projectId: string, path: string, content: strin
     await db.files.add(newFile);
   });
   
-  if (isOpfsSupported()) {
-    try {
-      const handle = await getOpfsFileHandle(projectId, path, true);
-      const writable = await handle.createWritable();
-      await writable.write(content);
-      await writable.close();
-    } catch (e) {
-      console.warn("OPFS create failed", e);
-    }
-  }
+  await writeOpfsFile(projectId, path, content);
   
   return { ...newFile, content };
 }
@@ -204,24 +227,7 @@ export async function deleteFile(id: string): Promise<void> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
   
-  if (isOpfsSupported()) {
-    try {
-      const root = await navigator.storage.getDirectory();
-      const projDir = await root.getDirectoryHandle(file.projectId, { create: false });
-      const parts = file.path.split('/').filter(Boolean);
-      const fileName = parts.pop();
-      if (fileName) {
-        let currentDir = projDir;
-        for (const part of parts) {
-          currentDir = await currentDir.getDirectoryHandle(part, { create: false });
-        }
-        await currentDir.removeEntry(fileName);
-      }
-    } catch {
-      // Ignore
-    }
-  }
-  
+  await deleteOpfsFile(file.projectId, file.path);
   await db.files.delete(id);
 }
 
@@ -229,34 +235,12 @@ export async function renameFile(id: string, newPath: string): Promise<FileItem>
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
   
-  let currentContent = file.content;
+  const [hydrated] = await getAllFileContent([file]);
+  const currentContent = hydrated ? hydrated.content : file.content;
+
   if (isOpfsSupported()) {
-    try {
-      const handle = await getOpfsFileHandle(file.projectId, file.path, false);
-      const opfsFile = await handle.getFile();
-      currentContent = await opfsFile.text();
-      
-      // Delete old
-      const root = await navigator.storage.getDirectory();
-      const projDir = await root.getDirectoryHandle(file.projectId, { create: false });
-      const oldParts = file.path.split('/').filter(Boolean);
-      const oldFileName = oldParts.pop();
-      if (oldFileName) {
-        let currentDir = projDir;
-        for (const part of oldParts) {
-          currentDir = await currentDir.getDirectoryHandle(part, { create: false });
-        }
-        await currentDir.removeEntry(oldFileName);
-      }
-      
-      // Create new
-      const newHandle = await getOpfsFileHandle(file.projectId, newPath, true);
-      const writable = await newHandle.createWritable();
-      await writable.write(currentContent);
-      await writable.close();
-    } catch {
-      // Fallback
-    }
+    await deleteOpfsFile(file.projectId, file.path);
+    await writeOpfsFile(file.projectId, newPath, currentContent);
   }
   
   const updated = { ...file, path: newPath, updatedAt: Date.now() };
@@ -283,21 +267,7 @@ export async function deleteFolder(projectId: string, folderPath: string): Promi
   
   if (isOpfsSupported()) {
     for (const f of filesToDelete) {
-      try {
-        const root = await navigator.storage.getDirectory();
-        const projDir = await root.getDirectoryHandle(projectId, { create: false });
-        const parts = f.path.split('/').filter(Boolean);
-        const fileName = parts.pop();
-        if (fileName) {
-          let currentDir = projDir;
-          for (const part of parts) {
-            currentDir = await currentDir.getDirectoryHandle(part, { create: false });
-          }
-          await currentDir.removeEntry(fileName);
-        }
-      } catch {
-        // Ignore
-      }
+      await deleteOpfsFile(projectId, f.path);
     }
   }
   

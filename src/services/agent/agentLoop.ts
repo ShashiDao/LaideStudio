@@ -30,6 +30,7 @@ export async function runAgentLoop(
   const mcpServers = useAppStore.getState().mcpServers;
   const dynamicTools: LLMTool[] = [...AGENT_TOOLS];
   const mcpToolMappings = new Map<string, string>();
+  const mcpConnectionErrors: { serverId: string; url: string; error: string }[] = [];
 
   // Initialize MCP tools
   for (const server of mcpServers) {
@@ -43,15 +44,16 @@ export async function runAgentLoop(
           description: t.description || `MCP tool from ${server.url}`,
           parameters: t.inputSchema || { type: 'object', properties: {} }
         });
-        mcpToolMappings.set(safeName, JSON.stringify({ serverId: server.id, originalName: t.name }));
+        mcpToolMappings.set(safeName, JSON.stringify({ serverId: server.id, originalName: t.name, serverUrl: server.url }));
       }
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
       console.warn(`Failed to connect or fetch tools from MCP server ${server.url}:`, e);
-      // Surface failure as a generic error tool if connection fails completely?
-      // For now, if connect fails, we just log and ignore. The tools won't be available.
-      // Wait, the prompt says: "Handle per-server connect/reconnect and surface failures as tool-call errors rather than crashing the loop."
-      // If we can't connect, maybe we still expose a "dummy" tool that returns the error? 
-      // But if we can't connect we don't know the tools. So if it fails during execution we return tool-call error.
+      mcpConnectionErrors.push({
+        serverId: server.id,
+        url: server.url,
+        error: errMsg
+      });
     }
   }
 
@@ -88,16 +90,37 @@ export async function runAgentLoop(
     { role: 'user', content: userContent }
   ];
 
+  if (mcpConnectionErrors.length > 0) {
+    const errorDetails = mcpConnectionErrors
+      .map(err => `• **${err.url}**: ${err.error}`)
+      .join('\n');
+    currentMessages.push({
+      role: 'assistant',
+      content: `⚠️ **MCP Server Connection Failure**\nCould not connect or retrieve tools from MCP server(s):\n${errorDetails}\n\nTools from these servers will not be available during this session.`
+    });
+  }
+
   if (onUpdate) onUpdate([...currentMessages]);
 
+  let effectiveSystemPrompt = systemPrompt;
+  if (mcpConnectionErrors.length > 0) {
+    const errorText = mcpConnectionErrors.map(e => `- ${e.url}: ${e.error}`).join('\n');
+    effectiveSystemPrompt = (systemPrompt ? `${systemPrompt}\n\n` : '') +
+      `<mcp_connection_warnings>\nFailed to connect to MCP server(s):\n${errorText}\n</mcp_connection_warnings>`;
+  }
+
   let stepCount = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCachedTokens = 0;
+  let hasReportedUsage = false;
 
   while (true) {
     if (signal?.aborted) break;
 
     const stream = adapter.stream({
       messages: currentMessages,
-      systemPrompt,
+      systemPrompt: effectiveSystemPrompt,
       systemPromptCacheable: true,
       tools: dynamicTools,
       temperature: options?.temperature,
@@ -120,6 +143,13 @@ export async function runAgentLoop(
           textContent += yieldResult.text;
         } else if (yieldResult.type === 'tool_call') {
           toolCalls.push(yieldResult.toolCall);
+        } else if (yieldResult.type === 'usage') {
+          if (yieldResult.usage) {
+            totalInputTokens += yieldResult.usage.inputTokens || 0;
+            totalOutputTokens += yieldResult.usage.outputTokens || 0;
+            totalCachedTokens += yieldResult.usage.cachedTokens || 0;
+            hasReportedUsage = true;
+          }
         }
         
         // Update the placeholder
@@ -179,18 +209,26 @@ export async function runAgentLoop(
       const mcpMapping = mcpToolMappings.get(tc.name);
       if (mcpMapping) {
         try {
-          const { serverId, originalName } = JSON.parse(mcpMapping);
-          const args = JSON.parse(tc.args);
+          const { serverId, originalName, serverUrl } = JSON.parse(mcpMapping);
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(tc.args);
+          } catch {
+            args = {};
+          }
           const result = await McpService.executeTool(serverId, originalName, args);
-          if (result.isError) {
-            resultStr = `Error executing MCP tool: ${JSON.stringify(result.content)}`;
-          } else {
+          if (result?.isError) {
+            resultStr = `[MCP Error] Tool "${originalName}" (${serverUrl || serverId}) reported an error: ${typeof result.content === 'string' ? result.content : JSON.stringify(result.content)}`;
+          } else if (Array.isArray(result?.content)) {
             resultStr = result.content
               .map((c: any) => c.text || JSON.stringify(c))
               .join('\n');
+          } else {
+            resultStr = typeof result?.content === 'string' ? result.content : JSON.stringify(result ?? {});
           }
         } catch (e) {
-          resultStr = `Error executing MCP tool: ${e instanceof Error ? e.message : String(e)}`;
+          const errMsg = e instanceof Error ? e.message : String(e);
+          resultStr = `[MCP Connection Error] Failed to execute MCP tool "${tc.name}": ${errMsg}`;
         }
       } else {
         const currentAssistantMsg = currentMessages[assistantMsgIndex];
@@ -226,13 +264,23 @@ export async function runAgentLoop(
 
   // Record token spend and estimated cost for this agent turn
   try {
-    const tokenStats = countTurnTokens(currentMessages, systemPrompt, dynamicTools);
+    let inputTokens = totalInputTokens;
+    let outputTokens = totalOutputTokens;
+    let totalTokens = inputTokens + outputTokens;
+
+    if (!hasReportedUsage || (inputTokens === 0 && outputTokens === 0)) {
+      const tokenStats = countTurnTokens(currentMessages, systemPrompt, dynamicTools);
+      inputTokens = tokenStats.inputTokens;
+      outputTokens = tokenStats.outputTokens;
+      totalTokens = tokenStats.totalTokens;
+    }
+
     const pricing = getModelPricing(options?.provider, options?.model || options?.modelName);
-    const estimatedCostUsd = calculateEstimatedCost(tokenStats.inputTokens, tokenStats.outputTokens, pricing);
+    const estimatedCostUsd = calculateEstimatedCost(inputTokens, outputTokens, pricing);
 
     let promptPreview = typeof userMessage === 'string'
       ? userMessage
-      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as any)?.text || '' : '');
+      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as { text?: string } | undefined)?.text || '' : '');
     if (promptPreview && promptPreview.length > 100) {
       promptPreview = promptPreview.slice(0, 100) + '...';
     }
@@ -242,9 +290,10 @@ export async function runAgentLoop(
       provider: options?.provider || 'assistant',
       model: options?.model || options?.modelName || 'assistant',
       profileLabel: options?.modelName,
-      inputTokens: tokenStats.inputTokens,
-      outputTokens: tokenStats.outputTokens,
-      totalTokens: tokenStats.totalTokens,
+      inputTokens,
+      outputTokens,
+      cachedTokens: totalCachedTokens > 0 ? totalCachedTokens : undefined,
+      totalTokens,
       estimatedCostUsd,
       category: 'agent_chat',
       promptPreview,

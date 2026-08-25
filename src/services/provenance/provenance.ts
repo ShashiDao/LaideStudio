@@ -1,4 +1,5 @@
 import { db, type ProvenanceEntry } from '../../db';
+import { getAllFileContent } from '../fs/vfs';
 
 export const GENESIS_HASH = '0'.repeat(64);
 
@@ -197,7 +198,7 @@ export async function runBackgroundTestsForProvenance(
 ): Promise<import('../../db').ProvenanceTestResult | null> {
   if (!entryIds || entryIds.length === 0) return null;
   try {
-    const files = await db.files.where('projectId').equals(projectId).toArray();
+    const files = await getAllFileContent(projectId);
     const { runProjectTestsDetailed } = await import('../bundler/testRunner');
     const testResult = await runProjectTestsDetailed(files);
 

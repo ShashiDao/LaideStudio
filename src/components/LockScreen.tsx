@@ -6,20 +6,8 @@ import { isPasskeyPrfSupported, enrollPasskey, unlockWithPasskey, type PasskeyDa
 import { generateRecoveryPhrase, createRecoveryBundle, unlockWithRecoveryPhrase, validateRecoveryPhrase, type RecoveryData } from '../services/recovery';
 import { useAppStore } from '../store';
 
-export function getStrength(p: string) {
-  let pool = 0;
-  if (/[a-z]/.test(p)) pool += 26;
-  if (/[A-Z]/.test(p)) pool += 26;
-  if (/[0-9]/.test(p)) pool += 10;
-  if (/[^a-zA-Z0-9]/.test(p)) pool += 32;
-  
-  const entropy = p.length * Math.log2(pool || 1);
-  if (p.length === 0) return { label: '', color: 'bg-transparent', score: 0 };
-  if (p.length < 10 || entropy < 40) return { label: 'Weak', color: 'bg-red-500', score: 1 };
-  if (entropy < 60) return { label: 'Fair', color: 'bg-yellow-500', score: 2 };
-  if (entropy < 80) return { label: 'Good', color: 'bg-blue-500', score: 3 };
-  return { label: 'Strong', color: 'bg-moss', score: 4 };
-}
+import { getStrength, type StrengthResult } from '../services/passwordStrength';
+export { getStrength, type StrengthResult };
 
 export function LockScreen() {
   const { setKeys } = useAppStore();
@@ -470,11 +458,13 @@ export function LockScreen() {
                   />
                 ))}
               </div>
-              <div className="mt-1 flex items-center justify-between text-[10px] font-sans">
-                <span className="text-muted">
-                  {passphrase.length < 10 && passphrase.length > 0 ? `${10 - passphrase.length} more characters needed` : ''}
+              <div className="mt-1 flex items-center justify-between text-[10px] font-sans gap-2">
+                <span className="text-muted truncate">
+                  {passphrase.length < 10 && passphrase.length > 0 
+                    ? `${10 - passphrase.length} more characters needed` 
+                    : strength.warning || (strength.entropy > 0 ? `~${strength.entropy} bits entropy` : '')}
                 </span>
-                <span className={` font-semibold ${strength.label === 'Weak' ? 'text-oxide' : 'text-muted'}`}>
+                <span className={` font-semibold shrink-0 ${strength.label === 'Weak' ? 'text-oxide' : 'text-muted'}`}>
                   {strength.label}
                 </span>
               </div>

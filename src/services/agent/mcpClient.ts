@@ -57,7 +57,7 @@ export class McpService {
       }));
     } catch (e) {
       console.error(`Failed to list tools for MCP server ${id}`, e);
-      return [];
+      throw e;
     }
   }
 

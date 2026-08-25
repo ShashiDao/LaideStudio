@@ -1,6 +1,6 @@
 ## Current State
-- Phase: FEATURE-07
-- Last verified working: Full test suite passes cleanly with 58 test files and 392 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors on modified files.
+- Phase: HOTFIX-45
+- Last verified working: Full test suite passes cleanly with 62 test files and 435 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,118 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-45] Surface AI Provenance & Trust Score for Files and PRs — 2026-08-25
+Prompt: Lean into the provenance/bisect system — you already have a tamper-evident hash-chained ledger of every AI edit plus a bisect tool. Surface it as a "trust score" per file/PR showing which lines were AI-written, by which model, whether tests passed at that point — genuinely differentiated for an AI-native IDE
+Files touched:
+- `src/services/provenance/trustScore.ts` (new)
+- `src/services/provenance/trustScore.test.ts` (new)
+- `src/components/TrustReportModal.tsx` (new)
+- `src/components/TrustReportModal.test.tsx` (new)
+- `src/components/Editor.tsx` (modified)
+- `src/components/EditorAiBlame.tsx` (modified)
+- `src/components/EditorAiBlame.test.tsx` (modified)
+- `src/components/GithubPushModal.tsx` (modified)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/App.tsx` (modified)
+Changed:
+- Implemented `calculateFileTrustScore` and `calculateProjectTrustScore` in `src/services/provenance/trustScore.ts` calculating quantitative trust metrics (0-100%, A+ to F letter grades), line-level AI/human attribution, model breakdowns, and test verification rates with penalty enforcement for broken hash chains.
+- Built interactive `TrustReportModal` featuring workspace-level metric cards, interactive file-by-file trust score tables with search & sorting, deep-dive line inspection, single-click PR Markdown generation, and cryptographic JSON ledger export.
+- Integrated real-time Trust Score badges and inspection panels into the `Editor` header and `AiBlameSidePanel`, linking directly to the full trust report and test bisecting tool.
+- Integrated PR Trust & Provenance Analysis into `GithubPushModal` with optional automated Markdown audit trail attachment for commit messages and pull requests.
+- Added Trust & Provenance entry to `ProjectActionsMenu` and comprehensive Vitest unit test suites covering scoring mathematics, markdown reporting, and UI modals.
+Decisions: Weighted human-authored and test-verified AI lines at 100%, untested AI lines at 85%, and failing-test AI lines at 20%, applying a 40% penalty if the SHA-256 tamper-evident chain verification fails.
+Deviations: none
+Verified: `npx vitest run` passing cleanly across all 62 test files (435 tests); `compile_applet` builds without errors; `lint_applet` passes with 0 errors.
+Open questions: none
+
+### [HOTFIX-44] Exclude package-lock.json and AI_CHANGELOG.md from ZIP Exports — 2026-08-25
+Prompt: package-lock.json (327KB) and AI_CHANGELOG.md (195KB!) are both in the shipped zip — the changelog especially seems like it should be a doc artifact, not something bundled into the app every session.
+Files touched:
+- `src/services/fs/zipExport.ts` (modified)
+- `src/services/fs/zipExport.test.ts` (modified)
+Changed:
+- Added `ZIP_EXPORT_EXCLUDED_FILES` list and `isExcludedFromZipExport` helper in `zipExport.ts` targeting `package-lock.json` and `ai_changelog.md` (case-insensitively for both exact relative paths and file names).
+- Updated `exportZip` to filter out excluded files during ZIP generation loop.
+- Added automated unit tests in `zipExport.test.ts` asserting that `package-lock.json` and `AI_CHANGELOG.md` are omitted from the exported ZIP bundle while standard project source files remain intact.
+Decisions: Kept exclusion definitions local to `zipExport.ts` to avoid circular dependencies with `prompts.ts`, matching file names case-insensitively.
+Deviations: none
+Verified: `npm test src/services/fs/zipExport.test.ts` and full Vitest suite passing (60 test files, 428 tests); `compile_applet` clean build; `lint_applet` passing with 0 errors.
+Open questions: none
+
+### [HOTFIX-43] Surface MCP Connection and Execution Failures in Chat & Tool-Result Stream — 2026-08-25
+Prompt: Surface MCP connection failures in the chat/tool-result stream, not just console.warn.
+Files touched:
+- `src/services/agent/mcpClient.ts` (modified)
+- `src/services/agent/agentLoop.ts` (modified)
+- `src/services/agent/agentLoop.test.ts` (modified)
+- `src/services/agent/ensemble.ts` (modified)
+- `src/services/agent/ensemble.test.ts` (modified)
+- `src/components/ChatPanel.tsx` (modified)
+Changed:
+- Updated `McpService.listTools` to propagate connection/listing errors rather than swallowing them into an empty array.
+- Captured per-server MCP connection errors in `agentLoop.ts` and `ensemble.ts`, injecting structured warning notices into `currentMessages` for immediate visibility in the user's chat stream and including `<mcp_connection_warnings>` in the system prompt.
+- Formatted MCP tool execution failures as explicit `[MCP Error]` and `[MCP Connection Error]` results in tool-call response messages.
+- Updated `renderToolCall` in `ChatPanel.tsx` to distinguish MCP tools, show collapsible tool execution results, and render prominent error alert banners for MCP / tool execution failures.
+- Added comprehensive unit tests in `agentLoop.test.ts` and `ensemble.test.ts` verifying MCP connection failure notifications, system prompt warnings, and formatted tool-result error messages.
+Decisions: Retained execution flow when MCP connection fails so standard agent tools continue operating while clearly informing the user and model of disconnected MCP servers.
+Deviations: none
+Verified: Vitest unit tests in `agentLoop.test.ts` and `ensemble.test.ts` passing; `compile_applet` succeeds with 0 errors; `lint_applet` succeeds with 0 errors.
+Open questions: none
+
+### [HOTFIX-42] Wire Stream Usage Events into Agent Loop and Ensemble — 2026-08-25
+Prompt: Wire the dropped usage events into agentLoop/ensemble for accurate per-call cost accounting.
+Files touched:
+- `src/services/agent/agentLoop.ts` (modified)
+- `src/services/agent/agentLoop.test.ts` (modified)
+- `src/services/agent/ensemble.ts` (modified)
+- `src/services/agent/ensemble.test.ts` (modified)
+- `src/services/usage/tokenSpend.ts` (modified)
+Changed:
+- Captured `{ type: 'usage' }` stream events in `agentLoop.ts` and `ensemble.ts` during multi-step tool-calling agent executions, accumulating exact input, output, and cached tokens reported by LLM providers.
+- Updated `runAgentLoop` and `runEnsembleDualEvaluation` to record exact per-call token counts and costs into `useAppStore` with robust fallback to `countTurnTokens` when usage events are omitted.
+- Extended `UsageRecord`, `ModelUsageSummary`, `CategoryUsageSummary`, and `SessionUsageSummary` interfaces to support `cachedTokens` tracking and aggregation in `computeSessionUsageSummary`.
+- Added unit tests in `agentLoop.test.ts` and `ensemble.test.ts` to verify capture of stream usage events and accurate token spend recording.
+Decisions: Retained `countTurnTokens` as a fallback mechanism for any mock or custom adapters that do not emit stream usage events; passed `stepCount` and `cachedTokens` through into usage records.
+Deviations: none
+Verified: Vitest unit tests in `agentLoop.test.ts` and `ensemble.test.ts` passing; full test suite passing (60 test files, 423 tests); `compile_applet` succeeds with 0 errors; `lint_applet` succeeds with 0 errors.
+Open questions: none
+
+### [HOTFIX-41] Real zxcvbn-Style Password Strength Estimator — 2026-08-25
+Prompt: Replace the naive strength meter with a real estimator (zxcvbn-style) that catches repetition/dictionary patterns.
+Files touched:
+- `src/services/passwordStrength.ts` (new)
+- `src/services/passwordStrength.test.ts` (new)
+- `src/components/LockScreen.tsx` (modified)
+- `src/components/LockScreen.test.tsx` (modified)
+Changed:
+- Implemented full zxcvbn-style passphrase strength estimator in `passwordStrength.ts` with dictionary matching (common passwords, BIP-39 words, reversed terms, l33tspeak substitutions), character and substring repetition matching, sequential run detection (numbers, alphabets), spatial keyboard walk analysis (QWERTY rows), and date detection.
+- Utilized dynamic programming to compute the optimal multi-token segmentation with minimum crack guesses and entropy estimation, enforcing 10-character minimums and realistic score thresholds (Weak < 10^6, Fair 10^6–10^8, Good 10^8–10^11, Strong >= 10^11).
+- Updated `LockScreen.tsx` to use the estimator and display dynamic contextual pattern warnings/entropy details alongside score bars.
+- Added comprehensive unit tests in `passwordStrength.test.ts` and updated `LockScreen.test.tsx` to verify pattern detection and resistance to repeats and common words.
+Decisions: Re-exported `getStrength` and `StrengthResult` from `LockScreen.tsx` for seamless backwards compatibility; leveraged existing 2,048-word BIP-39 wordlist for dictionary matching.
+Deviations: none
+Verified: 10 new unit tests in `passwordStrength.test.ts` and updated `LockScreen.test.tsx` passing; full test suite passes (60 test files, 421 tests); `compile_applet` builds with 0 errors; linter passes with 0 errors on modified files.
+Open questions: none
+
+### [HOTFIX-40] Unified Root OPFS/Dexie Access via getAllFileContent — 2026-08-25
+Prompt: Fix the OPFS/Dexie inconsistency at the root (a single getAllFileContent() used everywhere) rather than patching each call site.
+Files touched:
+- `src/services/fs/vfs.ts` (modified)
+- `src/services/fs/vfs.test.ts` (modified)
+- `src/services/backup.ts` (modified)
+- `src/services/fs/snapshot.ts` (modified)
+- `src/services/provenance/provenance.ts` (modified)
+- `src/seed.ts` (modified)
+Changed:
+- Implemented and exported centralized `getAllFileContent` in `vfs.ts` supporting retrieval across all projects, by project ID, or from a list of `FileItem` records, automatically resolving content from OPFS or Dexie fallback.
+- Exported atomic `writeOpfsFile`, `deleteOpfsFile`, and robust `isOpfsSupported` boolean helper to standardize all file operations across the codebase.
+- Refactored `listFiles`, `readFile`, `writeFile`, `createFile`, `deleteFile`, and `renameFile` in `vfs.ts` to route through unified OPFS and Dexie helpers.
+- Updated `backup.ts` (`createEncryptedBackup` and `restoreBackup`), `snapshot.ts` (`restoreSnapshot`), `provenance.ts` (`runBackgroundTestsForProvenance`), and `seed.ts` to use `getAllFileContent` and unified VFS routines.
+Decisions: Made `isOpfsSupported()` return a strict boolean checking `navigator.storage.getDirectory` function existence; allowed `getAllFileContent` to handle polymorphic argument types (undefined, projectId string, or FileItem array).
+Deviations: none
+Verified: Added test suite in `vfs.test.ts` verifying `getAllFileContent` project filtering, global array retrieval, FileItem hydration, and `isOpfsSupported`; full test suite passes (59 test files, 411 tests); clean build verified via `compile_applet`.
+Open questions: none
 
 ### [FEATURE-07] Dynamic Theme Contrast Fine-Tuning — 2026-08-24
 Prompt: Add a slider in the Settings panel to let users fine-tune the contrast of the active theme (OLED or Paper), updating CSS variables dynamically.
@@ -2315,3 +2427,17 @@ Verified: Added unit tests in `session.test.ts` and UI tests in `LockScreen.test
 Open questions: none
 
 
+
+### [HOTFIX-46] Ensemble Auto-Arbiter — 2026-08-25
+Prompt: Add a third 'judge' pass that diffs both ensemble candidates against test runner results and recommends one automatically, removing the need for manual human selection when both candidates pass or fail.
+Files touched:
+/src/services/agent/ensemble.ts (modified)
+/src/services/agent/ensemble.test.ts (modified)
+Changed:
+- Replaced the hardcoded candidate selection fallback in `runEnsembleDualEvaluation` with an LLM judge pass.
+- Added Arbiter Prompt that analyzes patches and test results to decide the winner when both candidates propose patches.
+- Updated `ensemble.test.ts` to mock the judge pass correctly, verifying that it sets `requiresUserSelection` to false.
+Decisions: Kept the Arbiter pass within `ensemble.ts` alongside test verification rather than pushing it to the UI layer so the UI simply consumes the chosen candidate. We use `profileA.adapter` as the judge model automatically for simplicity.
+Deviations: none
+Verified: `npm run lint` succeeded. `npx vitest run src/services/agent/ensemble.test.ts` passed (7 tests). Applet compiled cleanly.
+Open questions: none
