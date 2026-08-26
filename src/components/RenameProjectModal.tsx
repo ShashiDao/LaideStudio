@@ -60,9 +60,9 @@ export function RenameProjectModal({
       setError(null);
       await onRename(project.id, trimmed);
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Rename project failed', err);
-      setError(err.message || 'Failed to rename workspace');
+      setError(err instanceof Error ? err.message : 'Failed to rename workspace');
     } finally {
       setIsSubmitting(false);
     }

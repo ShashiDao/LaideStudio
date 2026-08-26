@@ -2,6 +2,7 @@ import { create, StateCreator } from 'zustand';
 import type { KeyMaterial } from './services/crypto';
 import type { PatchDefinition } from './services/agent/patchSchema';
 import type { LLMMessage } from './services/llm/llmAdapter';
+import type { BeforeInstallPromptEvent } from './types';
 import { DEFAULT_MANIFEST_EXCLUDE_PATTERNS } from './services/agent/prompts';
 
 export interface TokenUsage {
@@ -91,8 +92,8 @@ export interface ChatSlice {
 }
 
 export interface PWASlice {
-  deferredInstallPrompt: any;
-  setDeferredInstallPrompt: (prompt: any) => void;
+  deferredInstallPrompt: BeforeInstallPromptEvent | null;
+  setDeferredInstallPrompt: (prompt: BeforeInstallPromptEvent | null) => void;
   showInstallPrompt: boolean;
   setShowInstallPrompt: (show: boolean) => void;
   triggerInstallEngagement: () => void;

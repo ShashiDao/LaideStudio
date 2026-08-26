@@ -232,12 +232,12 @@ export async function runSimulatedAgentCandidate(
               resultStr = `[MCP Error] Tool "${originalName}" (${serverUrl || serverId}) reported an error: ${typeof result.content === 'string' ? result.content : JSON.stringify(result.content)}`;
             } else if (Array.isArray(result?.content)) {
               resultStr = result.content
-                .map((c: any) => c.text || JSON.stringify(c))
+                .map((c) => ('text' in c && typeof c.text === 'string' ? c.text : JSON.stringify(c)))
                 .join('\n');
             } else {
               resultStr = typeof result?.content === 'string' ? result.content : JSON.stringify(result ?? {});
             }
-          } catch (e: any) {
+          } catch (e) {
             const errMsg = e instanceof Error ? e.message : String(e);
             resultStr = `[MCP Connection Error] Failed to execute MCP tool "${tc.name}": ${errMsg}`;
           }
@@ -246,8 +246,9 @@ export async function runSimulatedAgentCandidate(
           let args: Record<string, unknown> = {};
           try {
             args = JSON.parse(tc.args);
-          } catch (err: any) {
-            resultStr = `Error: Failed to parse tool arguments: ${err?.message || String(err)}`;
+          } catch (err) {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            resultStr = `Error: Failed to parse tool arguments: ${errMsg}`;
           }
 
           if (!resultStr) {
@@ -412,11 +413,11 @@ export async function runSimulatedAgentCandidate(
       hasReportedUsage,
       stepCount
     };
-  } catch (err: any) {
+  } catch (err) {
     return {
       patches: simulatedPatches,
       messages: currentMessages,
-      error: err?.message || String(err),
+      error: err instanceof Error ? err.message : String(err),
       usage: {
         inputTokens: totalInputTokens,
         outputTokens: totalOutputTokens,
@@ -650,7 +651,7 @@ export async function runEnsembleDualEvaluation(
       const userMsgStr = typeof userMessage === 'string' 
         ? userMessage 
         : (Array.isArray(userMessage) 
-          ? userMessage.filter(m => m.type === 'text').map(m => (m as any).text).join('\n') 
+          ? userMessage.filter((m): m is Extract<LLMContentBlock, { type: 'text' }> => m.type === 'text').map(m => m.text).join('\n') 
           : JSON.stringify(userMessage));
 
       const formatPatches = (patches: PatchDefinition[]) => {

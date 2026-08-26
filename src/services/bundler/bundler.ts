@@ -114,12 +114,12 @@ export async function bundle(
       reject(new Error(`Build timed out after 45s while: "${lastStatus}". This can happen on a slow connection, an unusually large dependency, or — if this keeps happening on the same step — a real bug at that stage. Check your connection and try again.`));
     }, BUILD_TIMEOUT_MS);
 
-    const safeResolve = (val: any) => {
+    const safeResolve = (val: unknown) => {
       clearTimeout(timeoutHandle);
-      resolve(val);
+      resolve(val as string);
     };
 
-    const safeReject = (err: any) => {
+    const safeReject = (err: Error) => {
       clearTimeout(timeoutHandle);
       reject(err);
     };
@@ -149,8 +149,8 @@ export async function clearDependencyCache(): Promise<boolean> {
 
   const w = getBundlerWorker();
   const id = ++currentId;
-  return new Promise((resolve, reject) => {
-    callbacks.set(id, { resolve, reject });
+  return new Promise<boolean>((resolve, reject) => {
+    callbacks.set(id, { resolve: (val) => resolve(val as boolean), reject });
     w.postMessage({
       type: 'CLEAR_CACHE',
       id
@@ -171,8 +171,8 @@ export async function getDependencyCacheInfo(): Promise<{ count: number }> {
 
   const w = getBundlerWorker();
   const id = ++currentId;
-  return new Promise((resolve, reject) => {
-    callbacks.set(id, { resolve, reject });
+  return new Promise<{ count: number }>((resolve, reject) => {
+    callbacks.set(id, { resolve: (val) => resolve(val as { count: number }), reject });
     w.postMessage({
       type: 'GET_CACHE_INFO',
       id

@@ -5,6 +5,20 @@ export interface PasskeyData {
   wrappedMasterKey: string;
 }
 
+/**
+ * The WebAuthn PRF extension isn't yet part of TypeScript's DOM lib typings,
+ * so we define its shape locally rather than casting through `any`.
+ */
+interface PrfExtensionResults {
+  prf?: {
+    enabled?: boolean;
+    results?: {
+      first?: ArrayBuffer;
+      second?: ArrayBuffer;
+    };
+  };
+}
+
 export async function isPasskeyPrfSupported(): Promise<boolean> {
   if (typeof window === 'undefined' || !window.PublicKeyCredential) return false;
   try {
@@ -70,7 +84,7 @@ export async function enrollPasskey(masterKeyBytes: Uint8Array): Promise<Passkey
 
     if (!cred) return null;
 
-    const extResults = cred.getClientExtensionResults() as any;
+    const extResults = cred.getClientExtensionResults() as PrfExtensionResults;
     if (!extResults.prf || !extResults.prf.enabled) {
       return null;
     }
@@ -90,7 +104,7 @@ export async function enrollPasskey(masterKeyBytes: Uint8Array): Promise<Passkey
       }) as PublicKeyCredential | null;
 
       if (!assertCred) return null;
-      const assertExt = assertCred.getClientExtensionResults() as any;
+      const assertExt = assertCred.getClientExtensionResults() as PrfExtensionResults;
       if (!assertExt.prf || !assertExt.prf.results || !assertExt.prf.results.first) {
         return null;
       }
@@ -141,7 +155,7 @@ export async function unlockWithPasskey(passkeyData: PasskeyData): Promise<Uint8
 
     if (!cred) return null;
 
-    const extResults = cred.getClientExtensionResults() as any;
+    const extResults = cred.getClientExtensionResults() as PrfExtensionResults;
     if (!extResults.prf || !extResults.prf.results || !extResults.prf.results.first) {
       return null;
     }

@@ -1,10 +1,17 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
+export interface McpJsonSchema {
+  type: 'object';
+  properties?: Record<string, unknown>;
+  required?: string[];
+  [key: string]: unknown;
+}
+
 export interface McpTool {
   name: string;
   description?: string;
-  inputSchema: any;
+  inputSchema: McpJsonSchema;
   serverId: string; // To trace which server this came from
 }
 
@@ -61,7 +68,7 @@ export class McpService {
     }
   }
 
-  static async executeTool(id: string, name: string, args: Record<string, unknown>): Promise<any> {
+  static async executeTool(id: string, name: string, args: Record<string, unknown>): Promise<Awaited<ReturnType<Client['callTool']>>> {
     const client = this.clients.get(id);
     if (!client) throw new Error(`MCP client ${id} not connected`);
     

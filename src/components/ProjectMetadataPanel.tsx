@@ -53,8 +53,34 @@ const MODEL_COLORS = [
   '#64748b'  // slate
 ];
 
+// Both custom tooltips below render chart-data points whose exact shape
+// varies per chart (language breakdown vs. token-spend history); the
+// component reads fields defensively with fallbacks, so this local shape
+// covers every field either tooltip actually accesses.
+interface ChartTooltipDatum {
+  color?: string;
+  name?: string;
+  label?: string;
+  linesOfCode?: number;
+  percentage?: number | string;
+  filesCount?: number;
+  bytes?: number;
+  tokens?: number;
+  totalTokens?: number;
+  value?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  recordsCount?: number;
+}
+
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload: ChartTooltipDatum }>;
+}
+
 // Custom tooltip for Codebase language chart
-function CustomLanguageTooltip({ active, payload }: any) {
+function CustomLanguageTooltip({ active, payload }: ChartTooltipProps) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
@@ -64,9 +90,9 @@ function CustomLanguageTooltip({ active, payload }: any) {
           <span>{data.name}</span>
         </div>
         <div className="text-text/90 mt-1 flex flex-col gap-0.5 text-[10px]">
-          <div>Lines of Code: <span className="font-semibold text-accent">{data.linesOfCode.toLocaleString()}</span> ({data.percentage}%)</div>
+          <div>Lines of Code: <span className="font-semibold text-accent">{(data.linesOfCode ?? 0).toLocaleString()}</span> ({data.percentage}%)</div>
           <div>Files: <span className="font-semibold text-accent">{data.filesCount}</span></div>
-          <div>Size: <span className="text-muted">{formatBytes(data.bytes)}</span></div>
+          <div>Size: <span className="text-muted">{formatBytes(data.bytes ?? 0)}</span></div>
         </div>
       </div>
     );
@@ -75,7 +101,7 @@ function CustomLanguageTooltip({ active, payload }: any) {
 }
 
 // Custom tooltip for Token Spend charts
-function CustomUsageTooltip({ active, payload }: any) {
+function CustomUsageTooltip({ active, payload }: ChartTooltipProps) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
@@ -85,7 +111,7 @@ function CustomUsageTooltip({ active, payload }: any) {
           <span>{data.name || data.label || 'Run'}</span>
         </div>
         <div className="text-text/90 mt-1 flex flex-col gap-0.5 text-[10px]">
-          <div>Total Tokens: <span className="font-semibold text-accent">{formatTokenCount(data.tokens || data.totalTokens || data.value)}</span></div>
+          <div>Total Tokens: <span className="font-semibold text-accent">{formatTokenCount(data.tokens ?? data.totalTokens ?? data.value ?? 0)}</span></div>
           {data.inputTokens !== undefined && (
             <div>Input / Prompt: <span className="text-text">{formatTokenCount(data.inputTokens)}</span></div>
           )}
@@ -179,7 +205,7 @@ export function ProjectMetadataPanel({
   // Turn-by-turn history chart data
   const spendHistoryChartData = usageSummary.records.map((r, idx) => ({
     name: `Turn #${idx + 1}`,
-    label: `${r.category === 'ensemble_candidate_a' ? 'Candidate A' : r.category === 'ensemble_candidate_b' ? 'Candidate B' : 'Chat'} (${r.model})`,
+    label: `${r.category === 'ensemble_candidate_a' ? 'Candidate A' : r.category === 'ensemble_candidate_b' ? 'Candidate B' : r.category === 'ensemble_arbiter' ? 'Arbiter' : 'Chat'} (${r.model})`,
     value: r.totalTokens,
     totalTokens: r.totalTokens,
     inputTokens: r.inputTokens,

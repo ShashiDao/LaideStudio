@@ -41,7 +41,7 @@ export interface UsageRecord {
   cachedTokens?: number;
   totalTokens: number;
   estimatedCostUsd: number;
-  category: 'agent_chat' | 'ensemble_candidate_a' | 'ensemble_candidate_b' | 'bisect' | 'other';
+  category: 'agent_chat' | 'ensemble_candidate_a' | 'ensemble_candidate_b' | 'ensemble_arbiter' | 'bisect' | 'other';
   promptPreview?: string;
   stepCount?: number;
 }
@@ -410,6 +410,16 @@ export function computeSessionUsageSummary(records: UsageRecord[]): SessionUsage
     ensemble_candidate_b: {
       category: 'ensemble_candidate_b',
       label: 'Ensemble Candidate B',
+      tokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      costUsd: 0,
+      recordsCount: 0
+    },
+    ensemble_arbiter: {
+      category: 'ensemble_arbiter',
+      label: 'Ensemble Arbiter (Judge)',
       tokens: 0,
       inputTokens: 0,
       outputTokens: 0,

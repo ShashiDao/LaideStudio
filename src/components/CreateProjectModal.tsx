@@ -110,9 +110,9 @@ export function CreateProjectModal({
       setError(null);
       await onCreateProject(trimmed, selectedTemplateId);
       onClose();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to create project from template', err);
-      setError(err.message || 'Failed to create project');
+      setError(err instanceof Error ? err.message : 'Failed to create project');
     } finally {
       setIsSubmitting(false);
     }

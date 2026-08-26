@@ -202,9 +202,9 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
 
         // Only push to appliedPaths after write and provenance operation actually succeeds
         appliedPaths.push(patch.path);
-      } catch (err: any) {
+      } catch (err) {
         console.error(`Failed to apply patch to ${patch.path}:`, err);
-        errors.push(`${patch.path}: ${err?.message || String(err)}`);
+        errors.push(`${patch.path}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     

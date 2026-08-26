@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { FileText, MessageSquare, MonitorPlay, Upload, FolderPlus, Plus, Settings, ChevronDown, Trash2, AlertTriangle, X, Terminal, BarChart3 } from 'lucide-react';
 import { useAppStore, type TabId } from './store';
+import type { BeforeInstallPromptEvent } from './types';
 import { testDatabaseReadback } from './seed';
 import { db, type FileItem, type Project } from './db';
 import { exportZip } from './services/fs/zipExport';
@@ -142,9 +143,9 @@ export default function App() {
       const allProjects = await db.projects.toArray();
       setProjects(allProjects);
       useAppStore.getState().addToast(`Workspace renamed to "${updated.name}"`, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to rename project', err);
-      useAppStore.getState().addToast(err.message || 'Failed to rename workspace', 'error');
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to rename workspace', 'error');
       throw err;
     }
   };
@@ -203,12 +204,12 @@ export default function App() {
         }
       }
       useAppStore.getState().addToast(`Created project "${newProj.name}"`, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to create project from template', err);
-      if (err.name === 'QuotaExceededError') {
+      if (err instanceof Error && err.name === 'QuotaExceededError') {
         useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
       } else {
-        useAppStore.getState().addToast(err.message || 'Failed to create project', 'error');
+        useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to create project', 'error');
       }
       throw err;
     }
@@ -305,12 +306,12 @@ export default function App() {
         `Successfully loaded ${totalImported} file${totalImported !== 1 ? 's' : ''} into "${targetProjectName}"`,
         'success'
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to process uploaded files', err);
-      if (err.name === 'QuotaExceededError') {
+      if (err instanceof Error && err.name === 'QuotaExceededError') {
         useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
       } else {
-        useAppStore.getState().addToast(err.message || 'Failed to upload files', 'error');
+        useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to upload files', 'error');
       }
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -338,7 +339,7 @@ export default function App() {
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the browser's default install banner
       e.preventDefault();
-      setDeferredInstallPrompt(e);
+      setDeferredInstallPrompt(e as BeforeInstallPromptEvent);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);

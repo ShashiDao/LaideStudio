@@ -7,6 +7,37 @@ import type {
   LLMToolCall 
 } from '../llmAdapter';
 
+/**
+ * OpenAI-compatible Chat Completions API shapes (used by OpenAI-compatible
+ * endpoints, OpenRouter, Ollama, etc). Hand-rolled to cover exactly the
+ * fields this file reads or writes.
+ */
+type OpenAICompatibleContent = string | Array<
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+>;
+
+interface RawToolCall {
+  id?: string;
+  index: number;
+  function?: { name?: string; arguments?: string };
+}
+
+interface StreamChoiceDelta {
+  content?: string;
+  tool_calls?: RawToolCall[];
+}
+
+interface StreamChoice {
+  delta?: StreamChoiceDelta;
+  finish_reason?: string;
+}
+
+interface StreamEvent {
+  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  choices?: StreamChoice[];
+}
+
 export class OpenAICompatibleProvider implements LLMAdapter {
   constructor(
     private baseUrl: string,
@@ -29,7 +60,7 @@ export class OpenAICompatibleProvider implements LLMAdapter {
       messages.push({ role: 'system', content: req.systemPrompt });
     }
     for (const m of req.messages) {
-      let content: any = m.content;
+      let content: OpenAICompatibleContent = typeof m.content === 'string' ? m.content : '';
       if (Array.isArray(m.content)) {
         content = m.content.map(b => {
           if (b.type === 'text') {
@@ -120,10 +151,10 @@ export class OpenAICompatibleProvider implements LLMAdapter {
     
     let toolCalls: LLMToolCall[] | undefined;
     if (choice?.message?.tool_calls?.length) {
-      toolCalls = choice.message.tool_calls.map((tc: any) => ({
-        id: tc.id,
-        name: tc.function.name,
-        args: tc.function.arguments
+      toolCalls = choice.message.tool_calls.map((tc: RawToolCall) => ({
+        id: tc.id || '',
+        name: tc.function?.name || '',
+        args: tc.function?.arguments || ''
       }));
     }
 
@@ -180,7 +211,7 @@ export class OpenAICompatibleProvider implements LLMAdapter {
         if (dataStr === '[DONE]') continue;
         if (!dataStr) continue;
 
-        let event: any;
+        let event: StreamEvent;
         try {
           event = JSON.parse(dataStr);
         } catch {

@@ -221,7 +221,7 @@ export async function runAgentLoop(
             resultStr = `[MCP Error] Tool "${originalName}" (${serverUrl || serverId}) reported an error: ${typeof result.content === 'string' ? result.content : JSON.stringify(result.content)}`;
           } else if (Array.isArray(result?.content)) {
             resultStr = result.content
-              .map((c: any) => c.text || JSON.stringify(c))
+              .map((c) => ('text' in c && typeof c.text === 'string' ? c.text : JSON.stringify(c)))
               .join('\n');
           } else {
             resultStr = typeof result?.content === 'string' ? result.content : JSON.stringify(result ?? {});
