@@ -185,23 +185,31 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   setActiveTab: (tab) => set({ activeTab: tab }),
   activeFileId: null,
   setActiveFileId: (id) => set({ activeFileId: id }),
-  activeProfileId: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_active_profile_id') : null,
+  activeProfileId: typeof localStorage !== 'undefined' 
+    ? (localStorage.getItem('laide_active_profile_id') || localStorage.getItem('xiom_active_profile_id')) 
+    : null,
   setActiveProfileId: (id) => {
     if (typeof localStorage !== 'undefined') {
       if (id) {
+        localStorage.setItem('laide_active_profile_id', id);
         localStorage.setItem('xiom_active_profile_id', id);
       } else {
+        localStorage.removeItem('laide_active_profile_id');
         localStorage.removeItem('xiom_active_profile_id');
       }
     }
     set({ activeProfileId: id });
   },
-  activeProjectId: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_active_project_id') : null,
+  activeProjectId: typeof localStorage !== 'undefined' 
+    ? (localStorage.getItem('laide_active_project_id') || localStorage.getItem('xiom_active_project_id')) 
+    : null,
   setActiveProjectId: (id) => {
     if (typeof localStorage !== 'undefined') {
       if (id) {
+        localStorage.setItem('laide_active_project_id', id);
         localStorage.setItem('xiom_active_project_id', id);
       } else {
+        localStorage.removeItem('laide_active_project_id');
         localStorage.removeItem('xiom_active_project_id');
       }
     }

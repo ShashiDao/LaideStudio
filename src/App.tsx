@@ -120,7 +120,14 @@ export default function App() {
     setShowProjectSearchModal(true);
   };
 
-  const activeProject = projects.find(p => p.id === activeProjectId) || projects[0] || null;
+  const activeProject = useMemo(() => {
+    if (projects.length === 0) return null;
+    if (activeProjectId) {
+      const found = projects.find(p => p.id === activeProjectId);
+      if (found) return found;
+    }
+    return projects[0] || null;
+  }, [projects, activeProjectId]);
 
   const handleOpenBisect = (testName?: string) => {
     setBisectInitialTestName(testName);
@@ -171,18 +178,20 @@ export default function App() {
   };
 
   const handleOpenGithubImport = () => {
-    const enc = localStorage.getItem('xiom_github_pat');
+    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
     if (!enc) {
       setActiveTab('settings');
+      useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to import repositories', 'info');
       return;
     }
     setShowGithubImport(true);
   };
 
   const handleOpenGithubPush = () => {
-    const enc = localStorage.getItem('xiom_github_pat');
+    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
     if (!enc) {
       setActiveTab('settings');
+      useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to push repositories', 'info');
       return;
     }
     setShowGithubPush(true);
@@ -325,13 +334,26 @@ export default function App() {
   };
 
   useEffect(() => {
-    testDatabaseReadback().then((res) => {
+    testDatabaseReadback().then(async (res) => {
       setDbTested(res.success);
-      setProjects(res.projects);
-      if (activeProjectId && !res.projects.some(p => p.id === activeProjectId) && res.projects.length > 0) {
-        setActiveProjectId(res.projects[0].id);
+      const loadedProjects = res.projects;
+      setProjects(loadedProjects);
+
+      if (loadedProjects.length > 0) {
+        // Existing user with project data: restore saved project or most recently updated
+        const savedId = useAppStore.getState().activeProjectId;
+        const matched = loadedProjects.find(p => p.id === savedId);
+        if (matched) {
+          setActiveProjectId(matched.id);
+        } else {
+          const sorted = [...loadedProjects].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+          setActiveProjectId(sorted[0].id);
+        }
+      } else {
+        // New user with no projects: default page is "No Project Open"
+        setActiveProjectId(null);
+        setFiles([]);
       }
-      // If we don't fetch activeProject's files here, we should do it when activeProject changes
     }).catch(err => {
       console.error('[DB Test Error]', err);
     });
@@ -346,7 +368,7 @@ export default function App() {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [setDeferredInstallPrompt]);
+  }, [setActiveProjectId, setDeferredInstallPrompt]);
 
   useGlobalKeyboardShortcuts({
     activeFileId,
@@ -612,7 +634,7 @@ export default function App() {
                   </div>
                 )}
 
-                {projects.length === 0 ? (
+                {projects.length === 0 || !activeProject ? (
                   <div className="flex-1 flex flex-col items-center justify-center p-6 text-center h-full canvas-grid-pattern">
                     <div className="border border-border bg-surface/80 rounded-xl p-6 max-w-xs w-full flex flex-col items-center corner-ticks shadow-sm">
                       <div className="w-12 h-12 rounded-lg bg-surface-elevated border border-accent/40 flex items-center justify-center text-accent mb-3 shadow-xs">
@@ -719,13 +741,19 @@ export default function App() {
         {activeProject && <PatchReviewSheet projectId={activeProject.id} />}
 
         {/* GitHub Import Modal */}
-        {showGithubImport && activeProject && (
+        {showGithubImport && (
           <GithubImportModal 
-            projectId={activeProject.id} 
+            projectId={activeProject?.id} 
             onClose={() => setShowGithubImport(false)}
-            onSuccess={() => {
+            onSuccess={async (newProjId?: string) => {
               setShowGithubImport(false);
-              refreshFiles();
+              const allProjects = await db.projects.toArray();
+              setProjects(allProjects);
+              const targetId = newProjId || activeProject?.id || (allProjects.length > 0 ? allProjects[allProjects.length - 1].id : null);
+              if (targetId) {
+                setActiveProjectId(targetId);
+                setFiles(await listFiles(targetId));
+              }
             }}
           />
         )}

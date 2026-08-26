@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { useAppStore } from '../store';
 import { createGithubClient } from '../services/github/githubClient';
+import { db, type Project } from '../db';
 import { createFile, writeFile, listFiles } from '../services/fs/vfs';
 
 function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
@@ -24,9 +25,9 @@ function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: num
 }
 
 interface GithubImportModalProps {
-  projectId: string;
+  projectId?: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newProjectId?: string) => void;
 }
 
 export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImportModalProps) {
@@ -53,7 +54,7 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         const parts = urlObj.pathname.split('/').filter(Boolean);
         if (parts.length < 2) throw new Error('Invalid repo URL');
         owner = parts[0];
-        repo = parts[1];
+        repo = parts[1].replace(/\.git$/i, '');
       } catch (err) {
         throw new Error('Please enter a valid GitHub repository URL (e.g. https://github.com/owner/repo)', { cause: err });
       }
@@ -70,13 +71,27 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         throw new Error('Failed to fetch repository tree');
       }
 
+      let targetProjectId = projectId;
+      if (!targetProjectId) {
+        targetProjectId = crypto.randomUUID();
+        const newProj: Project = {
+          id: targetProjectId,
+          name: repo || 'GitHub Workspace',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        await db.projects.put(newProj);
+      } else {
+        await db.projects.update(targetProjectId, { updatedAt: Date.now() });
+      }
+
       const filesToDownload = treeData.tree.filter((item) => item.type === 'blob');
       let completed = 0;
       
       setProgress(`Downloading 0 / ${filesToDownload.length} files...`);
       
       // Get existing files to handle overwrite
-      const existingFiles = await listFiles(projectId);
+      const existingFiles = await listFiles(targetProjectId);
       const existingMap = new Map(existingFiles.map(f => [f.path, f]));
       
       // Batch download and create (with concurrency limit)
@@ -91,7 +106,7 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
             if (existing) {
               await writeFile(existing.id, content);
             } else {
-              await createFile(projectId, targetPath, content);
+              await createFile(targetProjectId!, targetPath, content);
             }
           } catch (err) {
             console.warn(`Failed to import file ${file.path}:`, err);
@@ -106,11 +121,12 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         repo,
         branch
       });
-      localStorage.setItem(`xiom_github_sync_${projectId}`, syncPayload);
+      localStorage.setItem(`xiom_github_sync_${targetProjectId}`, syncPayload);
       localStorage.setItem('xiom_last_github_repo', syncPayload);
       sessionStorage.setItem('xiom_last_imported_repo', syncPayload);
 
-      onSuccess();
+      useAppStore.getState().addToast(`Imported ${completed} files from GitHub (${owner}/${repo})`, 'success');
+      onSuccess(targetProjectId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Import failed';
       if (msg.includes('404')) {
