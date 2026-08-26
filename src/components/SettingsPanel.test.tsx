@@ -141,4 +141,30 @@ describe('SettingsPanel', () => {
       expect(mockSetTheme).toHaveBeenCalledWith('paper');
     });
   });
+
+  describe('Keyboard Shortcuts Collapsible Dropdown', () => {
+    it('is collapsed by default and expands when clicked', () => {
+      render(React.createElement(SettingsPanel));
+
+      // Shortcuts list items should not be visible by default
+      expect(screen.queryByText('Toggle Files tab')).toBeNull();
+      expect(screen.queryByText('Toggle Terminal')).toBeNull();
+
+      // Click on the Keyboard Shortcuts accordion toggle
+      const shortcutsToggle = screen.getByRole('button', { name: /Keyboard Shortcuts/i });
+      fireEvent.click(shortcutsToggle);
+
+      // Now shortcuts should be visible in the dropdown
+      expect(screen.getByText('Toggle Files tab')).toBeTruthy();
+      expect(screen.getByText('Toggle Terminal')).toBeTruthy();
+      expect(screen.getByText('Quick Open & Search')).toBeTruthy();
+      expect(screen.getByText('Find in File')).toBeTruthy();
+      expect(screen.getByText('Open Preview')).toBeTruthy();
+      expect(screen.getByText('Lock Vault')).toBeTruthy();
+
+      // Clicking again collapses it
+      fireEvent.click(shortcutsToggle);
+      expect(screen.queryByText('Toggle Files tab')).toBeNull();
+    });
+  });
 });

@@ -4,7 +4,7 @@ import {
   ChevronDown, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
   Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
   Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight,
-  Rocket, Sliders, Coins
+  Rocket, Sliders, Coins, Key, Tag, Globe, Eye, EyeOff, Edit3, Bot
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../db';
 import { useAppStore } from '../store';
@@ -38,7 +38,6 @@ import {
   restoreBackup, 
   type BackupValidationResult 
 } from '../services/backup';
-import { EmptyState } from './EmptyState';
 
 function formatTokens(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -108,12 +107,24 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   const [provider, setProvider] = useState('anthropic');
   const [isProviderSheetOpen, setIsProviderSheetOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
+
+  const selectProvider = (newProvider: string) => {
+    setProvider(newProvider);
+    setModel(DEFAULT_MODELS[newProvider] || '');
+    if (newProvider === 'openrouter') {
+      setBaseUrl('https://openrouter.ai/api/v1');
+    } else if (newProvider !== 'openai-compatible') {
+      setBaseUrl('');
+    }
+  };
   
   const [discoveredModels, setDiscoveredModels] = useState<DiscoveredModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [isShortcutsDropdownOpen, setIsShortcutsDropdownOpen] = useState(false);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
 
   const [testStatus, setTestStatus] = useState<{ id: string, loading: boolean, success?: boolean, error?: string } | null>(null);
@@ -835,224 +846,372 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         </div>
       </div>
 
-      {/* Profiles List */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-sans text-muted ">Connection Profiles</h3>
+      {/* Connection Profiles Section (Unified Professional Layout) */}
+      <div className="rounded-xl border border-border bg-surface/30 p-4 sm:p-5 space-y-4">
+        {/* Section Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-border/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-surface-elevated border border-border flex items-center justify-center text-accent">
+              <Bot size={15} />
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-text tracking-tight">Connection Profiles</h3>
+              <p className="text-[11px] text-muted">AI provider credentials for chat, coding loops, and automated patch reviews</p>
+            </div>
+          </div>
+          <span className="font-mono text-[10px] px-2 py-0.5 rounded-md bg-surface-elevated border border-border text-muted font-medium">
+            {profiles.length === 0 ? '0 Configured' : `${profiles.length} ${profiles.length === 1 ? 'Profile' : 'Profiles'}`}
+          </span>
+        </div>
+
+        {/* Existing Profiles List or Compact Empty State */}
         {profiles.length === 0 ? (
-          <EmptyState
-            variant="subtle"
-            icon={<Sparkles size={18} />}
-            title="No Connection Profiles Configured"
-            description="Connect an AI model to power chat, code generation, and patch review. Choose a provider below, enter your API key, and tap Add Profile."
-          />
-        ) : (
-          profiles.map(p => (
-            <div key={p.id} className={`border p-4 rounded flex flex-col gap-3 transition-colors ${activeProfileId === p.id ? 'border-moss bg-moss/5' : 'border-surface bg-surface/30'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="font-sans text-text text-sm">{p.label}</span>
-                  {activeProfileId === p.id && (
-                    <span className="text-[10px] bg-moss/20 text-moss px-2 py-0.5 rounded font-sans ">Default</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {activeProfileId !== p.id && (
-                    <button onClick={() => handleSetDefault(p.id)} className="text-xs text-muted hover:text-text transition-colors">
-                      Set Default
-                    </button>
-                  )}
-                  <button onClick={() => handleEdit(p)} className="text-xs text-accent hover:text-accent/80 transition-colors">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(p.id)} className="text-xs text-oxide hover:text-oxide/80 transition-colors">
-                    Delete
-                  </button>
-                </div>
-              </div>
-              
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-sans text-muted">
-                <span>Provider: {p.provider}</span>
-                <span>Model: {p.model} ({formatContextWindow(getModelContextWindow(p.provider, p.model))} ctx)</span>
-                <span className="flex items-center gap-1"><ShieldCheck size={12} className="text-moss" /> Encrypted Key</span>
-              </div>
-              
-              <div className="flex items-center justify-between mt-2 pt-3 border-t border-border">
-                <button 
-                  onClick={() => handleTest(p)}
-                  disabled={testStatus?.id === p.id && testStatus.loading}
-                  title="Note: A successful test verifies basic connectivity but does not guarantee streaming or function-calling (tools) support required by the agent."
-                  className="text-xs flex items-center gap-1.5 bg-surface hover:bg-surface/80 text-text px-3 py-1.5 rounded transition-colors disabled:opacity-50"
+          <div className="rounded-lg border border-dashed border-border/80 bg-surface/40 p-4 sm:p-5 text-center flex flex-col items-center">
+            <div className="w-9 h-9 rounded-lg bg-accent/10 border border-accent/30 flex items-center justify-center text-accent mb-2.5">
+              <Sparkles size={16} />
+            </div>
+            <h4 className="text-xs font-semibold text-text mb-1">No Connection Profiles Configured</h4>
+            <p className="text-[11px] text-muted max-w-sm leading-relaxed mb-3.5">
+              Connect an AI model to power chat, code generation, and patch review. Choose a provider below, enter your API key, and tap Add Profile.
+            </p>
+            {/* Quick Provider Selection Chips */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2.5 border-t border-border/40 w-full max-w-md">
+              <span className="text-[10px] font-mono text-muted mr-1">Quick Select:</span>
+              {PROVIDERS.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => selectProvider(p.id)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer border ${
+                    provider === p.id 
+                      ? 'bg-accent/15 border-accent text-accent font-semibold' 
+                      : 'bg-surface-elevated/80 border-border text-muted hover:text-text hover:border-accent/40'
+                  }`}
                 >
-                  <Activity size={12} />
-                  {testStatus?.id === p.id && testStatus.loading ? 'Testing...' : 'Test Connection'}
+                  {p.label.split(' ')[0]}
                 </button>
-                
-                {testStatus?.id === p.id && !testStatus.loading && (
-                  <div className={`text-xs flex items-center gap-1 ${testStatus.success ? 'text-moss' : 'text-oxide'}`}>
-                    {testStatus.success ? (
-                      <><CheckCircle2 size={12} /> Connection OK</>
-                    ) : (
-                      <><ShieldAlert size={12} /> {testStatus.error}</>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {profiles.map(p => {
+              const isActive = activeProfileId === p.id;
+              const ctx = getModelContextWindow(p.provider, p.model);
+              return (
+                <div 
+                  key={p.id} 
+                  className={`border rounded-lg p-3.5 transition-all flex flex-col gap-2.5 ${
+                    isActive 
+                      ? 'border-accent bg-accent/5 ring-1 ring-accent/30 shadow-xs' 
+                      : 'border-border/80 bg-surface/40 hover:border-border'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-surface-elevated border border-border flex items-center justify-center text-accent text-xs font-bold font-mono">
+                        {p.provider.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-semibold text-xs text-text">{p.label}</span>
+                      {isActive && (
+                        <span className="text-[10px] font-mono bg-moss/15 text-moss border border-moss/30 px-1.5 py-0.5 rounded font-semibold">
+                          Default
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {!isActive && (
+                        <button 
+                          onClick={() => handleSetDefault(p.id)} 
+                          className="px-2 py-1 text-[11px] font-medium rounded text-muted hover:text-text hover:bg-surface-elevated transition-colors cursor-pointer"
+                        >
+                          Set Default
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleEdit(p)} 
+                        className="p-1 rounded text-muted hover:text-accent hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="Edit profile"
+                        aria-label={`Edit ${p.label}`}
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(p.id)} 
+                        className="p-1 rounded text-muted hover:text-oxide hover:bg-surface-elevated transition-colors cursor-pointer"
+                        title="Delete profile"
+                        aria-label={`Delete ${p.label}`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-muted">
+                    <span className="text-text/90 font-medium">{p.model}</span>
+                    <span>•</span>
+                    <span>{formatContextWindow(ctx)} ctx</span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1 text-moss">
+                      <ShieldCheck size={11} /> Encrypted Key
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
+                    <button 
+                      onClick={() => handleTest(p)}
+                      disabled={testStatus?.id === p.id && testStatus.loading}
+                      title="Test basic connectivity with provider"
+                      className="text-[11px] font-medium flex items-center gap-1.5 bg-surface-elevated hover:bg-surface border border-border text-text px-2.5 py-1 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {testStatus?.id === p.id && testStatus.loading ? (
+                        <RefreshCw size={11} className="animate-spin text-accent" />
+                      ) : (
+                        <Activity size={11} className="text-accent" />
+                      )}
+                      <span>{testStatus?.id === p.id && testStatus.loading ? 'Testing...' : 'Test Connection'}</span>
+                    </button>
+                    
+                    {testStatus?.id === p.id && !testStatus.loading && (
+                      <div className={`text-[11px] font-medium flex items-center gap-1 ${testStatus.success ? 'text-moss' : 'text-oxide'}`}>
+                        {testStatus.success ? (
+                          <><CheckCircle2 size={12} /> Connection OK</>
+                        ) : (
+                          <><ShieldAlert size={12} /> {testStatus.error}</>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            </div>
-          ))
+                </div>
+              );
+            })}
+          </div>
         )}
-      </div>
 
-      {/* Add / Edit Form */}
-      <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-sans text-accent ">{editingId ? 'Edit Profile' : 'Add New Profile'}</h3>
-          {editingId && (
-            <button onClick={resetForm} className="text-xs text-muted hover:text-text">Cancel Edit</button>
-          )}
-        </div>
-        
-        <form onSubmit={handleSave} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-sans text-muted  mb-1">Provider</label>
+        {/* Add / Edit Profile Form Card */}
+        <div className="rounded-lg border border-border/80 bg-surface/50 p-4 space-y-4">
+          <div className="flex items-center justify-between pb-2.5 border-b border-border/40">
+            <div className="flex items-center gap-2">
+              {editingId ? <Save size={13} className="text-accent" /> : <Plus size={13} className="text-accent" />}
+              <h4 className="text-xs font-semibold text-text tracking-tight">
+                {editingId ? 'Edit Profile' : 'Add New Profile'}
+              </h4>
+            </div>
+            {editingId && (
+              <button 
+                type="button"
+                onClick={resetForm} 
+                className="text-[11px] text-muted hover:text-text px-2 py-0.5 rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+              >
+                Cancel Edit
+              </button>
+            )}
+          </div>
+          
+          <form onSubmit={handleSave} className="space-y-3.5">
+            {/* Quick Provider Picker Chips */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-medium text-muted">Provider</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {PROVIDERS.map(opt => {
+                  const isSelected = provider === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => selectProvider(opt.id)}
+                      className={`px-2.5 py-2 rounded-lg border text-left flex flex-col gap-0.5 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-accent bg-accent/15 text-accent font-semibold shadow-xs ring-1 ring-accent/30'
+                          : 'border-border/70 bg-bg/50 text-muted hover:border-accent/40 hover:text-text'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-xs truncate">{opt.label.split(' ')[0]}</span>
+                        {isSelected && <Check size={11} className="text-accent stroke-[3] shrink-0" />}
+                      </div>
+                      <span className="text-[10px] text-muted font-normal truncate">
+                        {opt.id === 'anthropic' && 'Claude 3.7'}
+                        {opt.id === 'openai' && 'GPT-4o'}
+                        {opt.id === 'google' && 'Gemini 1.5/2.0'}
+                        {opt.id === 'openrouter' && '400+ Models'}
+                        {opt.id === 'openai-compatible' && 'Ollama / Local'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Provider Selection Button for Sheet/Dropdown */}
               <button
                 type="button"
                 onClick={() => setIsProviderSheetOpen(true)}
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none flex items-center justify-between text-left hover:border-border transition-colors cursor-pointer"
+                className="w-full mt-1 bg-bg/70 border border-border/80 rounded-lg px-3 py-1.5 text-text font-sans text-xs focus:border-accent focus:outline-none flex items-center justify-between text-left hover:border-accent/40 transition-colors cursor-pointer"
               >
-                <span className="truncate">
-                  {PROVIDERS.find(p => p.id === provider)?.label || provider}
-                </span>
-                <ChevronDown size={16} className="text-muted shrink-0 ml-2" />
+                <div className="flex items-center gap-2 truncate">
+                  <Bot size={13} className="text-accent shrink-0" />
+                  <span className="truncate">
+                    Selected: <strong className="text-text font-semibold">{PROVIDERS.find(p => p.id === provider)?.label || provider}</strong>
+                  </span>
+                </div>
+                <ChevronDown size={14} className="text-muted shrink-0 ml-2" />
               </button>
             </div>
-            
-            <div>
-              <label className="block text-xs font-sans text-muted  mb-1">Profile Label</label>
-              <input 
-                type="text"
-                value={label}
-                onChange={e => setLabel(e.target.value)}
-                placeholder="e.g. Work Claude"
-                required
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none"
-              />
-            </div>
-          </div>
-          
-          {(provider === 'openai-compatible' || provider === 'openrouter') && (
-            <div>
-              <label className="block text-xs font-sans text-muted  mb-1">Base URL</label>
-              <input 
-                type="url"
-                value={baseUrl}
-                onChange={e => setBaseUrl(e.target.value)}
-                placeholder="https://openrouter.ai/api/v1"
-                required
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none"
-              />
-            </div>
-          )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="relative" ref={modelDropdownRef}>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-sans text-muted ">Model Name</label>
-                {discoveredModels.length > 0 && (
-                  <span className="text-[10px] font-sans text-moss flex items-center gap-1">
-                    <Sparkles size={10} /> {discoveredModels.length} models found
-                  </span>
+            {/* Profile Label & Model Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-medium text-muted">Profile Label</label>
+                <div className="relative flex items-center">
+                  <Tag size={13} className="absolute left-2.5 text-muted pointer-events-none" />
+                  <input 
+                    type="text"
+                    value={label}
+                    onChange={e => setLabel(e.target.value)}
+                    placeholder="e.g. Work Claude"
+                    required
+                    className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-3 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1 relative" ref={modelDropdownRef}>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-medium text-muted">Model Name</label>
+                  {discoveredModels.length > 0 && (
+                    <span className="text-[10px] font-mono text-moss flex items-center gap-1">
+                      <Sparkles size={9} /> {discoveredModels.length} models found
+                    </span>
+                  )}
+                </div>
+                <div className="relative flex items-center">
+                  <Cpu size={13} className="absolute left-2.5 text-muted pointer-events-none" />
+                  <input 
+                    type="text"
+                    value={model}
+                    onChange={e => setModel(e.target.value)}
+                    placeholder={`e.g. ${DEFAULT_MODELS[provider] || 'gpt-4'}`}
+                    required
+                    className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-8 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                    disabled={loadingModels || (discoveredModels.length === 0 && !apiKey && provider !== 'openai-compatible' && provider !== 'openrouter')}
+                    title="Select from available models"
+                    aria-label="Toggle available models list"
+                    className="absolute right-2 text-muted hover:text-accent disabled:opacity-30 cursor-pointer p-1 transition-colors"
+                  >
+                    {loadingModels ? (
+                      <RefreshCw size={13} className="animate-spin text-accent" />
+                    ) : (
+                      <ChevronDown size={13} />
+                    )}
+                  </button>
+                </div>
+
+                {/* Dynamic Model Dropdown */}
+                {showModelDropdown && discoveredModels.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-surface-elevated border border-border rounded-lg shadow-xl max-h-56 overflow-y-auto p-1 font-sans text-xs animate-in fade-in">
+                    <div className="px-2 py-1 text-[10px] text-muted border-b border-border font-semibold flex items-center justify-between">
+                      <span>Live Provider Models</span>
+                      <span className="text-moss">✓ Connected</span>
+                    </div>
+                    {discoveredModels.map(m => {
+                      const isSelected = model === m.id;
+                      const ctx = m.contextWindow || getModelContextWindow(provider, m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            setModel(m.id);
+                            setShowModelDropdown(false);
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-md text-left flex items-center justify-between transition-colors cursor-pointer ${
+                            isSelected ? 'bg-accent/20 text-accent font-bold' : 'text-muted hover:bg-black/5 hover:text-text'
+                          }`}
+                        >
+                          <div className="truncate pr-2">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="truncate font-mono">{m.id}</span>
+                              <span className="text-[10px] text-muted shrink-0 font-normal">
+                                ({formatContextWindow(ctx)})
+                              </span>
+                            </div>
+                            {m.name && m.name !== m.id && (
+                              <div className="text-[10px] text-muted truncate">{m.name}</div>
+                            )}
+                          </div>
+                          {isSelected && <Check size={12} className="shrink-0 text-accent" />}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
+            </div>
+            
+            {/* Base URL for OpenRouter & OpenAI-compatible */}
+            {(provider === 'openai-compatible' || provider === 'openrouter') && (
+              <div className="space-y-1">
+                <label className="block text-[11px] font-medium text-muted">Base URL</label>
+                <div className="relative flex items-center">
+                  <Globe size={13} className="absolute left-2.5 text-muted pointer-events-none" />
+                  <input 
+                    type="url"
+                    value={baseUrl}
+                    onChange={e => setBaseUrl(e.target.value)}
+                    placeholder="https://openrouter.ai/api/v1"
+                    required
+                    className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-3 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* API Key */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-medium text-muted">
+                  API Key {editingId && '(Leave blank to keep existing)'}
+                </label>
+                <span className="text-[10px] text-muted flex items-center gap-1">
+                  <Lock size={10} className="text-moss" /> Encrypted locally
+                </span>
+              </div>
               <div className="relative flex items-center">
+                <Key size={13} className="absolute left-2.5 text-muted pointer-events-none" />
                 <input 
-                  type="text"
-                  value={model}
-                  onChange={e => setModel(e.target.value)}
-                  placeholder={`e.g. ${DEFAULT_MODELS[provider] || 'gpt-4'}`}
-                  required
-                  className="w-full bg-bg border border-border rounded px-3 py-2 pr-8 text-text font-sans text-sm focus:border-accent focus:outline-none"
+                  type={showApiKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  placeholder={API_KEY_HINTS[provider] || 'sk-...'}
+                  required={!editingId}
+                  className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-9 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowModelDropdown(!showModelDropdown)}
-                  disabled={loadingModels || (discoveredModels.length === 0 && !apiKey && provider !== 'openai-compatible' && provider !== 'openrouter')}
-                  title="Select from available models"
-                  aria-label="Toggle available models list"
-                  className="absolute right-2 text-muted hover:text-accent disabled:opacity-30 cursor-pointer p-1 transition-colors"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-2.5 text-muted hover:text-text cursor-pointer p-1 transition-colors"
+                  title={showApiKey ? "Hide API key" : "Show API key"}
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
                 >
-                  {loadingModels ? (
-                    <RefreshCw size={14} className="animate-spin text-accent" />
-                  ) : (
-                    <ChevronDown size={14} />
-                  )}
+                  {showApiKey ? <EyeOff size={13} /> : <Eye size={13} />}
                 </button>
               </div>
-
-              {/* Dynamic Model Dropdown */}
-              {showModelDropdown && discoveredModels.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-surface border border-white/15 rounded-md shadow-xl max-h-56 overflow-y-auto p-1 font-sans text-xs">
-                  <div className="px-2 py-1 text-[10px]   text-muted border-b border-border font-semibold flex items-center justify-between">
-                    <span>Live Provider Models</span>
-                    <span className="text-moss">✓ Connected</span>
-                  </div>
-                  {discoveredModels.map(m => {
-                    const isSelected = model === m.id;
-                    const ctx = m.contextWindow || getModelContextWindow(provider, m.id);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => {
-                          setModel(m.id);
-                          setShowModelDropdown(false);
-                        }}
-                        className={`w-full px-2.5 py-1.5 rounded text-left flex items-center justify-between transition-colors cursor-pointer ${
-                          isSelected ? 'bg-accent/20 text-accent font-bold' : 'text-muted hover:bg-black/5 hover:text-text'
-                        }`}
-                      >
-                        <div className="truncate pr-2">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span className="truncate">{m.id}</span>
-                            <span className="text-[10px] text-muted shrink-0 font-normal">
-                              ({formatContextWindow(ctx)})
-                            </span>
-                          </div>
-                          {m.name && m.name !== m.id && (
-                            <div className="text-[10px] text-muted truncate">{m.name}</div>
-                          )}
-                        </div>
-                        {isSelected && <Check size={12} className="shrink-0 text-accent" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
             
-            <div>
-              <label className="block text-xs font-sans text-muted  mb-1">
-                API Key {editingId && '(Leave blank to keep existing)'}
-              </label>
-              <input 
-                type="password"
-                value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
-                placeholder={API_KEY_HINTS[provider] || 'sk-...'}
-                required={!editingId}
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none"
-              />
-            </div>
-          </div>
-          
-          <button 
-            type="submit"
-            className="w-full mt-2 py-2.5 bg-accent text-surface font-sans font-bold rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors"
-          >
-            {editingId ? <Save size={16} /> : <Plus size={16} />}
-            {editingId ? 'Save Profile' : 'Add Profile'}
-          </button>
-        </form>
+            {/* Submit Button */}
+            <button 
+              type="submit"
+              className="w-full mt-2 py-2.5 bg-accent text-surface font-semibold text-xs rounded-lg flex items-center justify-center gap-2 hover:brightness-105 active:scale-[0.99] transition-all cursor-pointer shadow-xs"
+            >
+              {editingId ? <Save size={14} /> : <Plus size={14} />}
+              <span>{editingId ? 'Save Profile' : 'Add Profile'}</span>
+            </button>
+          </form>
+        </div>
       </div>
 
       {/* Dual-LLM Ensemble Mode Configuration Card */}
@@ -1652,57 +1811,109 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         </button>
       </div>
 
-      {/* Keyboard Shortcuts Reference */}
-      <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-accent">
-            <Keyboard size={18} />
-            <h3 className="text-sm font-sans font-bold">Keyboard Shortcuts</h3>
-          </div>
-          {onOpenShortcuts && (
-            <button
-              type="button"
-              onClick={onOpenShortcuts}
-              className="text-[11px] font-sans text-accent hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              <span>View All Shortcuts</span>
-              <ExternalLink size={11} />
-            </button>
-          )}
-        </div>
-
-        <p className="text-xs text-muted font-sans mb-4 leading-relaxed">
-          Speed up your development workflow with global accelerator hotkeys. On macOS, use ⌘ Command instead of Ctrl.
-        </p>
-
-        <div className="space-y-2 text-xs font-mono">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
-              <span className="text-muted text-[11px]">Toggle Files tab</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+B</kbd>
+      {/* Keyboard Shortcuts Reference (Collapsible Dropdown Accordion) */}
+      <div className="bg-surface/50 border border-border rounded-xl overflow-hidden transition-all">
+        <button
+          type="button"
+          onClick={() => setIsShortcutsDropdownOpen(!isShortcutsDropdownOpen)}
+          aria-expanded={isShortcutsDropdownOpen}
+          aria-controls="keyboard-shortcuts-dropdown"
+          className="w-full p-4 sm:p-5 flex items-center justify-between text-left hover:bg-surface-elevated/40 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-surface-elevated border border-border flex items-center justify-center text-accent shrink-0">
+              <Keyboard size={16} />
             </div>
-            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
-              <span className="text-muted text-[11px]">Toggle Terminal</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+`</kbd>
-            </div>
-            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
-              <span className="text-muted text-[11px]">Quick Open & Search</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+P</kbd>
-            </div>
-            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
-              <span className="text-muted text-[11px]">Find in File</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+F</kbd>
-            </div>
-            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
-              <span className="text-muted text-[11px]">Open Preview</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+Shift+P</kbd>
-            </div>
-            <div className="flex items-center justify-between bg-bg border border-border/80 px-2.5 py-1.5 rounded">
-              <span className="text-muted text-[11px]">Lock Vault</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+Shift+L</kbd>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-text tracking-tight">Keyboard Shortcuts</h3>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-elevated border border-border text-muted">
+                  6 hotkeys
+                </span>
+              </div>
+              <p className="text-[11px] text-muted truncate">
+                {isShortcutsDropdownOpen ? 'Global accelerator hotkeys & keybindings' : 'Click to view accelerator shortcuts'}
+              </p>
             </div>
           </div>
-        </div>
+          
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            {onOpenShortcuts && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenShortcuts();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation();
+                    onOpenShortcuts();
+                  }
+                }}
+                className="hidden xs:flex text-[11px] font-sans text-accent hover:underline items-center gap-1 cursor-pointer p-1"
+                title="Open full shortcuts cheat sheet modal"
+              >
+                <span>View All</span>
+                <ExternalLink size={11} />
+              </span>
+            )}
+            <div className={`p-1 rounded-md text-muted hover:text-text transition-transform duration-200 ${isShortcutsDropdownOpen ? 'rotate-180 text-accent' : ''}`}>
+              <ChevronDown size={16} />
+            </div>
+          </div>
+        </button>
+
+        {/* Dropdown Content */}
+        {isShortcutsDropdownOpen && (
+          <div id="keyboard-shortcuts-dropdown" className="px-4 pb-4 sm:px-5 sm:pb-5 pt-0 border-t border-border/40 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="flex items-center justify-between pt-3 mb-3 text-xs text-muted font-sans leading-relaxed">
+              <p className="text-[11px]">
+                Speed up your workflow with global accelerator hotkeys. On macOS, use <kbd className="px-1 py-0.2 rounded bg-surface border border-border text-[10px] font-mono text-text">⌘ Command</kbd> instead of <kbd className="px-1 py-0.2 rounded bg-surface border border-border text-[10px] font-mono text-text">Ctrl</kbd>.
+              </p>
+              {onOpenShortcuts && (
+                <button
+                  type="button"
+                  onClick={onOpenShortcuts}
+                  className="xs:hidden text-[11px] font-sans text-accent hover:underline flex items-center gap-1 cursor-pointer shrink-0 ml-2"
+                >
+                  <span>View All</span>
+                  <ExternalLink size={11} />
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2 text-xs font-mono">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="flex items-center justify-between bg-bg/80 border border-border/80 px-2.5 py-1.5 rounded-lg">
+                  <span className="text-muted text-[11px]">Toggle Files tab</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+B</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-bg/80 border border-border/80 px-2.5 py-1.5 rounded-lg">
+                  <span className="text-muted text-[11px]">Toggle Terminal</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+`</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-bg/80 border border-border/80 px-2.5 py-1.5 rounded-lg">
+                  <span className="text-muted text-[11px]">Quick Open & Search</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+P</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-bg/80 border border-border/80 px-2.5 py-1.5 rounded-lg">
+                  <span className="text-muted text-[11px]">Find in File</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+F</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-bg/80 border border-border/80 px-2.5 py-1.5 rounded-lg">
+                  <span className="text-muted text-[11px]">Open Preview</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+Shift+P</kbd>
+                </div>
+                <div className="flex items-center justify-between bg-bg/80 border border-border/80 px-2.5 py-1.5 rounded-lg">
+                  <span className="text-muted text-[11px]">Lock Vault</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-bold bg-surface border border-border text-accent rounded">Ctrl+Shift+L</kbd>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Backup Restore Confirmation Modal */}
