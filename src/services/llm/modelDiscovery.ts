@@ -5,6 +5,31 @@ export interface DiscoveredModel {
   contextWindow?: number;
 }
 
+interface RawOpenAiModel {
+  id: string;
+}
+
+interface RawAnthropicModel {
+  id: string;
+  display_name?: string;
+}
+
+interface RawGoogleModel {
+  name: string;
+  displayName?: string;
+  description?: string;
+  inputTokenLimit?: number;
+  supportedGenerationMethods?: string[];
+}
+
+interface RawOpenAiCompatibleModel {
+  id?: string;
+  name?: string;
+  description?: string;
+  context_length?: number;
+  context_window?: number;
+}
+
 export const FALLBACK_CONTEXT_WINDOW = 32000;
 
 export const KNOWN_MODEL_CONTEXT_WINDOWS: Record<string, number> = {
@@ -172,7 +197,7 @@ export async function fetchAvailableModels(
       });
       if (!res.ok) throw new Error(`OpenAI error: ${res.statusText}`);
       const data = await res.json();
-      const list: any[] = data.data || [];
+      const list: RawOpenAiModel[] = data.data || [];
       // Filter for GPT / chat / reasoning models and sort
       return list
         .filter(m => typeof m.id === 'string' && (m.id.startsWith('gpt-') || m.id.startsWith('o1') || m.id.startsWith('o3') || m.id.startsWith('chatgpt-')))
@@ -201,7 +226,7 @@ export async function fetchAvailableModels(
         });
         if (res.ok) {
           const data = await res.json();
-          const list: any[] = data.data || [];
+          const list: RawAnthropicModel[] = data.data || [];
           if (list.length > 0) {
             return list.map(m => ({
               id: m.id,
@@ -227,7 +252,7 @@ export async function fetchAvailableModels(
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (!res.ok) throw new Error(`Google API error: ${res.statusText}`);
       const data = await res.json();
-      const list: any[] = data.models || [];
+      const list: RawGoogleModel[] = data.models || [];
       return list
         .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
         .map(m => {
@@ -260,9 +285,11 @@ export async function fetchAvailableModels(
       const res = await fetch(`${url}/models`, { headers });
       if (!res.ok) throw new Error(`Endpoint error: ${res.statusText}`);
       const data = await res.json();
-      const list: any[] = data.data || data.models || [];
-      return list.map(m => {
-        const id = m.id || m.name;
+      const list: RawOpenAiCompatibleModel[] = data.data || data.models || [];
+      return list
+        .filter(m => Boolean(m.id || m.name))
+        .map(m => {
+        const id = (m.id || m.name) as string;
         const ctx = typeof m.context_length === 'number' 
           ? m.context_length 
           : typeof m.context_window === 'number'

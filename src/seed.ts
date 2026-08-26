@@ -4,7 +4,7 @@ import { getAllFileContent, writeOpfsFile, isOpfsSupported } from './services/fs
 export async function seedDemoData() {
   const existingProjectsCount = await db.projects.count();
   if (existingProjectsCount > 0) {
-    console.log('[Seed] Database already contains project data.');
+    if (import.meta.env.DEV) console.log('[Seed] Database already contains project data.');
     return;
   }
 
@@ -46,7 +46,7 @@ export async function seedDemoData() {
     await writeOpfsFile(demoProjectId, file2.path, file2.content);
   }
 
-  console.log('[Seed] Demo project and files created successfully.');
+  if (import.meta.env.DEV) console.log('[Seed] Demo project and files created successfully.');
 }
 
 export async function testDatabaseReadback() {

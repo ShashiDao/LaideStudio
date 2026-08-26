@@ -117,7 +117,7 @@ export function reconstructHistoricalFiles(
         try {
           const parsed = JSON.parse(candidateSnap.fileSnapshotJson);
           if (Array.isArray(parsed)) {
-            const snapFile = parsed.find((sf: any) => sf.path === entry.filePath);
+            const snapFile = (parsed as FileItem[]).find((sf) => sf.path === entry.filePath);
             if (snapFile) {
               const existing = files.find(f => f.path === entry.filePath);
               if (existing) {

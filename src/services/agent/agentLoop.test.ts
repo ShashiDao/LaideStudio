@@ -170,12 +170,12 @@ describe('agentLoop', () => {
   });
 
   it('threads temperature and maxTokens options into adapter.stream call', async () => {
-    let capturedReq: LLMRequest | null = null;
+    const captured: { req: LLMRequest | null } = { req: null };
     const mockAdapter: LLMAdapter = {
       countTokens: async () => 10,
       send: async () => ({ text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }),
       async *stream(req: LLMRequest): AsyncGenerator<LLMStreamYield, void, unknown> {
-        capturedReq = req;
+        captured.req = req;
         yield { type: 'text', text: 'Hello!' };
       }
     };
@@ -195,18 +195,18 @@ describe('agentLoop', () => {
       }
     );
 
-    expect(capturedReq).not.toBeNull();
-    expect(capturedReq?.temperature).toBe(0.7);
-    expect(capturedReq?.maxTokens).toBe(2048);
+    expect(captured.req).not.toBeNull();
+    expect(captured.req?.temperature).toBe(0.7);
+    expect(captured.req?.maxTokens).toBe(2048);
   });
 
   it('passes vision screenshot content block to adapter.stream alongside user message', async () => {
-    let capturedReq: LLMRequest | null = null;
+    const captured: { req: LLMRequest | null } = { req: null };
     const mockAdapter: LLMAdapter = {
       countTokens: async () => 10,
       send: async () => ({ text: 'ok', usage: { inputTokens: 10, outputTokens: 5 } }),
       async *stream(req: LLMRequest): AsyncGenerator<LLMStreamYield, void, unknown> {
-        capturedReq = req;
+        captured.req = req;
         yield { type: 'text', text: 'I reviewed your screenshot and preview.' };
       }
     };
@@ -228,8 +228,8 @@ describe('agentLoop', () => {
       }
     );
 
-    expect(capturedReq).not.toBeNull();
-    const userMsg = capturedReq?.messages[0];
+    expect(captured.req).not.toBeNull();
+    const userMsg = captured.req?.messages[0];
     expect(userMsg).toBeDefined();
     expect(userMsg?.role).toBe('user');
     expect(Array.isArray(userMsg?.content)).toBe(true);

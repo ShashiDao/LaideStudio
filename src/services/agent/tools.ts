@@ -156,7 +156,9 @@ export async function executeAgentTool(
         const type = (args.type as 'create' | 'replace' | 'delete') || 'replace';
         const oldContent = typeof args.oldContent === 'string' ? args.oldContent : undefined;
         const newContent = typeof args.newContent === 'string' ? args.newContent : '';
-        const rationale = typeof args.rationale === 'string' ? args.rationale : undefined;
+        const rationale = typeof args.rationale === 'string' && args.rationale.length > 0
+          ? args.rationale
+          : 'No rationale provided.';
         
         const pathValidation = validateProjectPath(path);
         if (!pathValidation.valid) {

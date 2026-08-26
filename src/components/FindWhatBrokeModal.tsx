@@ -118,11 +118,11 @@ export function FindWhatBrokeModal({
       });
 
       setResult(bisectRes);
-    } catch (err: any) {
-      if (err.name === 'AbortError' || abortController.signal.aborted) {
+    } catch (err) {
+      if ((err instanceof Error && err.name === 'AbortError') || abortController.signal.aborted) {
         setError('Bisection search was cancelled.');
       } else {
-        setError(err.message || 'An unexpected error occurred during bisection.');
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred during bisection.');
       }
     } finally {
       setIsRunningBisect(false);

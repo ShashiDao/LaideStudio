@@ -7,6 +7,42 @@ import type {
   LLMToolCall 
 } from '../llmAdapter';
 
+/**
+ * Anthropic Messages API shapes. This provider talks to the API directly
+ * via fetch rather than the official SDK, so these are hand-rolled to
+ * cover exactly the fields this file reads or writes.
+ */
+interface AnthropicContentBlock {
+  type: 'text' | 'image' | 'tool_use' | 'tool_result';
+  text?: string;
+  source?: { type: 'base64'; media_type: string; data: string };
+  id?: string;
+  name?: string;
+  input?: unknown;
+  tool_use_id?: string;
+  content?: unknown;
+  cache_control?: { type: 'ephemeral' };
+}
+
+interface AnthropicMessageParam {
+  role: string;
+  content: string | AnthropicContentBlock[];
+}
+
+interface AnthropicSystemBlock {
+  type: 'text';
+  text: string;
+  cache_control?: { type: 'ephemeral' };
+}
+
+interface AnthropicStreamEvent {
+  type: string;
+  message?: { usage?: { input_tokens?: number; cache_read_input_tokens?: number } };
+  content_block?: { type: string; id?: string; name?: string };
+  delta?: { type?: string; text?: string; partial_json?: string };
+  usage?: { output_tokens?: number };
+}
+
 export class AnthropicProvider implements LLMAdapter {
   constructor(
     private apiKey: string,
@@ -25,10 +61,10 @@ export class AnthropicProvider implements LLMAdapter {
   }
 
   private formatRequest(req: LLMRequest, stream: boolean = false) {
-    const messages = [];
+    const messages: AnthropicMessageParam[] = [];
     for (const m of req.messages) {
       if (m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0) {
-        const content: any[] = [];
+        const content: AnthropicContentBlock[] = [];
         if (typeof m.content === 'string') {
           if (m.content) content.push({ type: 'text', text: m.content });
         } else if (Array.isArray(m.content)) {
@@ -57,7 +93,7 @@ export class AnthropicProvider implements LLMAdapter {
         }
         messages.push({ role: 'assistant', content });
       } else if (m.role === 'tool') {
-        const toolResult = {
+        const toolResult: AnthropicContentBlock = {
           type: 'tool_result',
           tool_use_id: m.toolCallId,
           content: m.content
@@ -69,7 +105,7 @@ export class AnthropicProvider implements LLMAdapter {
           messages.push({ role: 'user', content: [toolResult] });
         }
       } else {
-        let content: any;
+        let content: string | AnthropicContentBlock[];
         if (typeof m.content === 'string') {
           if (m.cacheable) {
             content = [{ type: 'text', text: m.content, cache_control: { type: 'ephemeral' } }];
@@ -78,7 +114,7 @@ export class AnthropicProvider implements LLMAdapter {
           }
         } else if (Array.isArray(m.content)) {
           content = m.content.map((block, idx) => {
-            const isLast = idx === (m.content as any[]).length - 1;
+            const isLast = idx === m.content.length - 1;
             const shouldCache = block.cacheable || (m.cacheable && isLast);
             if (block.type === 'image') {
               return {
@@ -104,7 +140,7 @@ export class AnthropicProvider implements LLMAdapter {
       }
     }
 
-    let system: any = req.systemPrompt;
+    let system: string | AnthropicSystemBlock[] | undefined = req.systemPrompt;
     if (req.systemPrompt && req.systemPromptCacheable) {
       system = [{
         type: 'text',
@@ -227,7 +263,7 @@ export class AnthropicProvider implements LLMAdapter {
         if (dataStr === '[DONE]') continue;
         if (!dataStr) continue;
 
-        let event: any;
+        let event: AnthropicStreamEvent;
         try {
           event = JSON.parse(dataStr);
         } catch {
@@ -243,8 +279,8 @@ export class AnthropicProvider implements LLMAdapter {
           case 'content_block_start':
             if (event.content_block?.type === 'tool_use') {
               activeToolCall = {
-                id: event.content_block.id,
-                name: event.content_block.name,
+                id: event.content_block.id || '',
+                name: event.content_block.name || '',
                 args: ''
               };
             }

@@ -1,6 +1,43 @@
 import { binaryExtensions } from '../fs/zipExport';
 import type { KeyMaterial } from '../crypto';
 
+export interface GitTreeEntry {
+  path: string;
+  mode: '100644' | '100755' | '040000' | '160000' | '120000';
+  type: 'blob' | 'tree' | 'commit';
+  sha?: string | null;
+  content?: string;
+}
+
+interface GithubRepo {
+  default_branch: string;
+  [key: string]: unknown;
+}
+
+interface GithubRef {
+  object: { sha: string };
+}
+
+interface GithubCommit {
+  tree: { sha: string };
+  sha: string;
+}
+
+interface GithubTreeResponse {
+  sha: string;
+  tree: GitTreeEntry[];
+}
+
+interface GithubBlob {
+  sha: string;
+}
+
+interface GithubFileContent {
+  type: string;
+  encoding: string;
+  content: string;
+}
+
 export class GithubClient {
   private token: string;
 
@@ -8,7 +45,7 @@ export class GithubClient {
     this.token = token;
   }
 
-  private async request(endpoint: string, options: RequestInit = {}) {
+  private async request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers);
     headers.set('Accept', 'application/vnd.github.v3+json');
     headers.set('Authorization', `Bearer ${this.token}`);
@@ -28,23 +65,23 @@ export class GithubClient {
       }
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   async getRepo(owner: string, repo: string) {
-    return this.request(`/repos/${owner}/${repo}`);
+    return this.request<GithubRepo>(`/repos/${owner}/${repo}`);
   }
 
   async listRepos() {
-    return this.request('/user/repos?sort=updated&per_page=100');
+    return this.request<GithubRepo[]>('/user/repos?sort=updated&per_page=100');
   }
 
   async getRepoTree(owner: string, repo: string, branch: string = 'main') {
-    return this.request(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
+    return this.request<GithubTreeResponse>(`/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`);
   }
 
   async getFileContent(owner: string, repo: string, path: string, branch: string = 'main') {
-    const data = await this.request(`/repos/${owner}/${repo}/contents/${path}?ref=${branch}`);
+    const data = await this.request<GithubFileContent>(`/repos/${owner}/${repo}/contents/${path}?ref=${branch}`);
     if (data.type !== 'file' || data.encoding !== 'base64') {
       throw new Error('Not a valid base64 file');
     }
@@ -67,22 +104,22 @@ export class GithubClient {
   }
 
   async getBranch(owner: string, repo: string, branch: string) {
-    return this.request(`/repos/${owner}/${repo}/git/ref/heads/${branch}`);
+    return this.request<GithubRef>(`/repos/${owner}/${repo}/git/ref/heads/${branch}`);
   }
 
   async getCommit(owner: string, repo: string, commitSha: string) {
-    return this.request(`/repos/${owner}/${repo}/git/commits/${commitSha}`);
+    return this.request<GithubCommit>(`/repos/${owner}/${repo}/git/commits/${commitSha}`);
   }
 
   async createBlob(owner: string, repo: string, content: string, encoding: 'utf-8' | 'base64' = 'utf-8') {
-    return this.request(`/repos/${owner}/${repo}/git/blobs`, {
+    return this.request<GithubBlob>(`/repos/${owner}/${repo}/git/blobs`, {
       method: 'POST',
       body: JSON.stringify({ content, encoding })
     });
   }
 
-  async createTree(owner: string, repo: string, baseTreeSha: string | null, tree: any[]) {
-    return this.request(`/repos/${owner}/${repo}/git/trees`, {
+  async createTree(owner: string, repo: string, baseTreeSha: string | null, tree: GitTreeEntry[]) {
+    return this.request<GithubTreeResponse>(`/repos/${owner}/${repo}/git/trees`, {
       method: 'POST',
       body: JSON.stringify({
         ...(baseTreeSha ? { base_tree: baseTreeSha } : {}),
@@ -92,7 +129,7 @@ export class GithubClient {
   }
 
   async createCommit(owner: string, repo: string, message: string, treeSha: string, parentSha: string) {
-    return this.request(`/repos/${owner}/${repo}/git/commits`, {
+    return this.request<GithubCommit>(`/repos/${owner}/${repo}/git/commits`, {
       method: 'POST',
       body: JSON.stringify({
         message,

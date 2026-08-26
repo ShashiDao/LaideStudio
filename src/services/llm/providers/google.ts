@@ -7,6 +7,24 @@ import type {
   LLMToolCall 
 } from '../llmAdapter';
 
+/**
+ * Gemini generateContent API shapes. This provider talks to the API
+ * directly via fetch rather than an SDK, so these are hand-rolled to
+ * cover exactly the fields this file reads or writes.
+ */
+interface GeminiContentPart {
+  text?: string;
+  inlineData?: { mimeType: string; data: string };
+  functionCall?: { name: string; args: unknown };
+}
+
+interface GeminiStreamEvent {
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+  candidates?: Array<{
+    content?: { parts?: GeminiContentPart[] };
+  }>;
+}
+
 export class GoogleProvider implements LLMAdapter {
   constructor(
     private apiKey: string,
@@ -15,7 +33,7 @@ export class GoogleProvider implements LLMAdapter {
 
   private formatRequest(req: LLMRequest) {
     const contents = req.messages.map(m => {
-      const contentParts: any[] = [];
+      const contentParts: GeminiContentPart[] = [];
       if (typeof m.content === 'string') {
         if (m.content) contentParts.push({ text: m.content });
       } else if (Array.isArray(m.content)) {
@@ -72,7 +90,7 @@ export class GoogleProvider implements LLMAdapter {
         })) }] 
       : undefined;
 
-    const generationConfig: Record<string, any> = { /* empty */ };
+    const generationConfig: { temperature?: number; maxOutputTokens?: number } = { /* empty */ };
     if (req.temperature !== undefined) generationConfig.temperature = req.temperature;
     if (req.maxTokens !== undefined) generationConfig.maxOutputTokens = req.maxTokens;
 
@@ -203,7 +221,7 @@ export class GoogleProvider implements LLMAdapter {
         if (dataStr === '[DONE]') continue;
         if (!dataStr) continue;
 
-        let event: any;
+        let event: GeminiStreamEvent;
         try {
           event = JSON.parse(dataStr);
         } catch {

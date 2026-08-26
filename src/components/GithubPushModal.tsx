@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, X, GitPullRequest, GitBranch, ShieldCheck, Cpu } from 'lucide-react';
 import { useAppStore } from '../store';
 import { db } from '../db';
-import { createGithubClient } from '../services/github/githubClient';
+import { createGithubClient, type GitTreeEntry } from '../services/github/githubClient';
 import { listFiles } from '../services/fs/vfs';
 import { binaryExtensions } from '../services/fs/zipExport';
 import { 
@@ -182,12 +182,12 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       
       setProgress('Fetching base tree...');
       const treeData = await client.getRepoTree(owner, repo, finalBaseBranch);
-      const remoteFiles = new Map(treeData.tree.filter((t: any) => t.type === 'blob').map((t: any) => [t.path, t.sha]));
+      const remoteFiles = new Map(treeData.tree.filter((t) => t.type === 'blob').map((t) => [t.path, t.sha]));
       
       setProgress('Analyzing local changes...');
       const localFiles = await listFiles(projectId);
       
-      const createdEntries: any[] = [];
+      const createdEntries: GitTreeEntry[] = [];
       let uploadCount = 0;
       
       const CONCURRENCY = 5;
@@ -206,8 +206,8 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
             return {
               entry: {
                 path: relativePath,
-                mode: '100644',
-                type: 'blob',
+                mode: '100644' as const,
+                type: 'blob' as const,
                 sha: blobData.sha
               },
               relativePath,
@@ -229,10 +229,10 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       }
       
       // Any remaining files in remoteFiles were deleted locally
-      const deletedEntries: any[] = Array.from(remoteFiles.keys()).map(deletedPath => ({
+      const deletedEntries: GitTreeEntry[] = Array.from(remoteFiles.keys()).map(deletedPath => ({
         path: deletedPath,
-        mode: '100644',
-        type: 'blob',
+        mode: '100644' as const,
+        type: 'blob' as const,
         sha: null
       }));
       
@@ -255,8 +255,9 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       setProgress(`Creating branch '${targetBranch}'...`);
       try {
         await client.createBranch(owner, repo, targetBranch, newCommitData.sha);
-      } catch (branchErr: any) {
-        if (branchErr.message && branchErr.message.includes('422')) {
+      } catch (branchErr) {
+        const msg = branchErr instanceof Error ? branchErr.message : String(branchErr);
+        if (msg.includes('422')) {
           const match = targetBranch.match(/-(\d+)$/);
           let nextBranch = '';
           if (match) {
@@ -282,8 +283,8 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       setPrUrl(compareUrl);
       setCreatedBranch(targetBranch);
       
-    } catch (err: any) {
-      setError(err.message || 'Push failed');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Push failed');
     } finally {
       setLoading(false);
     }

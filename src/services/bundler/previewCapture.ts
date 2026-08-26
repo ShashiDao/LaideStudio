@@ -222,6 +222,7 @@ export async function captureIframeScreenshot(
   timeoutMs: number = 3000
 ): Promise<PreviewScreenshot | null> {
   if (!iframe || !iframe.contentWindow) return null;
+  const contentWindow = iframe.contentWindow;
 
   const reqId = 'req_' + Math.random().toString(36).slice(2) + Date.now();
   return new Promise((resolve) => {
@@ -258,7 +259,7 @@ export async function captureIframeScreenshot(
 
     window.addEventListener('message', handleMsg);
     try {
-      iframe.contentWindow.postMessage({ type: 'XIOM_CAPTURE_SCREENSHOT_REQUEST', id: reqId }, '*');
+      contentWindow.postMessage({ type: 'XIOM_CAPTURE_SCREENSHOT_REQUEST', id: reqId }, '*');
     } catch {
       if (!resolved) {
         resolved = true;

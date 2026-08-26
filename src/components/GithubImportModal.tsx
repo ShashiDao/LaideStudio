@@ -70,7 +70,7 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         throw new Error('Failed to fetch repository tree');
       }
 
-      const filesToDownload = treeData.tree.filter((item: any) => item.type === 'blob');
+      const filesToDownload = treeData.tree.filter((item) => item.type === 'blob');
       let completed = 0;
       
       setProgress(`Downloading 0 / ${filesToDownload.length} files...`);
@@ -83,7 +83,7 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
       const CONCURRENCY = 5;
       for (let i = 0; i < filesToDownload.length; i += CONCURRENCY) {
         const batch = filesToDownload.slice(i, i + CONCURRENCY);
-        await Promise.all(batch.map(async (file: any) => {
+        await Promise.all(batch.map(async (file) => {
           try {
             const content = await client.getFileContent(owner, repo, file.path, branch);
             const targetPath = `/${file.path}`;
@@ -111,8 +111,8 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
       sessionStorage.setItem('xiom_last_imported_repo', syncPayload);
 
       onSuccess();
-    } catch (err: any) {
-      const msg = err.message || 'Import failed';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Import failed';
       if (msg.includes('404')) {
         setError('Repository not found or no access');
       } else {
