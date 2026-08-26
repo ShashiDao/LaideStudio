@@ -627,33 +627,40 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         </div>
       )}
       
-      {/* Workspace Theme & Appearance Selector */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Palette size={16} className="text-accent" />
-            <h3 className="text-sm font-mono font-bold text-text">Workspace Theme</h3>
+      {/* Workspace Appearance & Theme Settings (Single Unified Panel) */}
+      <div className="rounded-xl border border-border bg-surface/30 p-4 space-y-4">
+        {/* Panel Header */}
+        <div className="flex items-center justify-between pb-3 border-b border-border/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-surface-elevated border border-border flex items-center justify-center text-accent">
+              <Palette size={15} />
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-text tracking-tight">Workspace Appearance</h3>
+              <p className="text-[11px] text-muted">Theme styling and display contrast calibration</p>
+            </div>
           </div>
-          <span className="font-mono text-[10px] text-muted tracking-tight uppercase">
-            ACTIVE: <span className="text-accent font-bold">{theme === 'oled' ? 'OLED (Vault)' : 'Paper (Blueprint)'}</span>
+          <span className="font-mono text-[10px] px-2 py-0.5 rounded-md bg-surface-elevated border border-border text-muted font-medium">
+            Active: <span className="text-accent font-bold">{theme === 'oled' ? 'OLED' : 'Paper'}</span>
           </span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* OLED / Vault Theme Card */}
+        {/* Theme Cards Selection */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* OLED Theme Option */}
           <button
             type="button"
             onClick={() => setTheme('oled')}
             aria-pressed={theme === 'oled'}
             className={`flex flex-col p-3 rounded-lg border text-left transition-all cursor-pointer relative overflow-hidden ${
               theme === 'oled'
-                ? 'border-accent bg-[#0D0D10] text-[#F2F0EA] shadow-sm'
-                : 'border-border bg-surface/50 text-muted hover:border-accent/40'
+                ? 'border-accent bg-[#0D0D10] text-[#F2F0EA] shadow-xs ring-1 ring-accent/30'
+                : 'border-border/80 bg-bg/50 text-muted hover:border-accent/40'
             }`}
           >
-            <div className="flex items-center justify-between w-full mb-2">
+            <div className="flex items-center justify-between w-full mb-1.5">
               <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#F2F0EA]">
-                <Moon size={14} className="text-accent" />
+                <Moon size={13} className="text-accent" />
                 <span>OLED / Vault</span>
               </div>
               {theme === 'oled' && (
@@ -662,35 +669,32 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                 </div>
               )}
             </div>
-
-            <p className="text-[11px] leading-relaxed mb-3 text-[#8A8A8F] font-sans">
-              True black instrument panel styling. High contrast amber accents, zero glare, optimized for battery life.
+            <p className="text-[11px] leading-relaxed mb-2.5 text-[#8A8A8F] font-sans">
+              True black instrument panel styling with high-contrast amber accents.
             </p>
-
-            {/* Visual Mini Swatch */}
-            <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-[#232326]">
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#000000] border border-[#232326]" title="Base #000000" />
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#0D0D10] border border-[#232326]" title="Surface #0D0D10" />
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#E8A33D]" title="Accent #E8A33D" />
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#F2F0EA]" title="Ink #F2F0EA" />
+            <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-[#232326]/60">
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#000000] border border-[#232326]" />
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#0D0D10] border border-[#232326]" />
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#E8A33D]" />
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#F2F0EA]" />
               <span className="font-mono text-[9px] text-[#8A8A8F] ml-auto">TRUE BLACK</span>
             </div>
           </button>
 
-          {/* Paper / Blueprint Theme Card */}
+          {/* Paper Theme Option */}
           <button
             type="button"
             onClick={() => setTheme('paper')}
             aria-pressed={theme === 'paper'}
-            className={`flex flex-col p-3 rounded-lg border text-left transition-all cursor-pointer relative overflow-hidden corner-ticks ${
+            className={`flex flex-col p-3 rounded-lg border text-left transition-all cursor-pointer relative overflow-hidden ${
               theme === 'paper'
-                ? 'border-accent bg-[#F7F9FB] text-[#1F2E3D] shadow-sm'
-                : 'border-border bg-surface/50 text-muted hover:border-accent/40'
+                ? 'border-accent bg-[#F7F9FB] text-[#1F2E3D] shadow-xs ring-1 ring-accent/30'
+                : 'border-border/80 bg-bg/50 text-muted hover:border-accent/40'
             }`}
           >
-            <div className="flex items-center justify-between w-full mb-2">
+            <div className="flex items-center justify-between w-full mb-1.5">
               <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#1F2E3D]">
-                <Sun size={14} className="text-accent" />
+                <Sun size={13} className="text-accent" />
                 <span>Paper / Blueprint</span>
               </div>
               {theme === 'paper' && (
@@ -699,63 +703,50 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                 </div>
               )}
             </div>
-
-            <p className="text-[11px] leading-relaxed mb-3 text-[#5C6B78] font-sans">
-              Drafting-table pale blueprint styling with paper grain texture, ink lines, and corner registration marks.
+            <p className="text-[11px] leading-relaxed mb-2.5 text-[#5C6B78] font-sans">
+              Drafting-table blueprint styling with pale texture and clean ink lines.
             </p>
-
-            {/* Visual Mini Swatch */}
-            <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-[#B7C4CE]">
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#EDF1F5] border border-[#B7C4CE]" title="Base #EDF1F5" />
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#F7F9FB] border border-[#B7C4CE]" title="Surface #F7F9FB" />
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#E8A33D]" title="Accent #E8A33D" />
-              <div className="w-3.5 h-3.5 rounded-sm bg-[#1F2E3D]" title="Ink #1F2E3D" />
+            <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-[#B7C4CE]/60">
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#EDF1F5] border border-[#B7C4CE]" />
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#F7F9FB] border border-[#B7C4CE]" />
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#E8A33D]" />
+              <div className="w-2.5 h-2.5 rounded-xs bg-[#1F2E3D]" />
               <span className="font-mono text-[9px] text-[#5C6B78] ml-auto">BLUEPRINT</span>
             </div>
           </button>
         </div>
-        <div className="flex items-center justify-between text-[10px] text-muted font-sans px-1">
-          <span>Theme and contrast settings persist in local browser storage.</span>
-          <div className="flex items-center gap-1.5 font-mono text-[9px]">
-            <code className="bg-surface px-1 py-0.5 rounded border border-border">laide_theme_preference</code>
-            <code className="bg-surface px-1 py-0.5 rounded border border-border">laide_theme_contrast</code>
-          </div>
-        </div>
 
-        {/* Theme Contrast Fine-Tuning Slider */}
-        <div className="p-3.5 rounded-lg border border-border bg-surface/40 space-y-3">
+        {/* Contrast Fine-Tuning Section */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sliders size={14} className="text-accent shrink-0" />
-              <h4 className="text-xs font-mono font-bold text-text">Theme Contrast</h4>
-              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-elevated border border-border text-accent font-bold">
-                {themeContrast ?? DEFAULT_CONTRAST}%
-              </span>
-              <span className="text-[10px] font-sans text-muted">
+              <Sliders size={13} className="text-accent" />
+              <span className="text-xs font-medium text-text">Display Contrast</span>
+              <span className="text-[11px] text-muted">
                 ({getContrastLabel(themeContrast ?? DEFAULT_CONTRAST).label})
               </span>
             </div>
 
-            {(themeContrast ?? DEFAULT_CONTRAST) !== DEFAULT_CONTRAST && (
-              <button
-                type="button"
-                onClick={() => setThemeContrast(DEFAULT_CONTRAST)}
-                className="flex items-center gap-1 text-[10px] font-mono text-muted hover:text-accent transition-colors cursor-pointer px-1.5 py-0.5 rounded hover:bg-accent/10 border border-transparent hover:border-accent/30"
-                title="Reset contrast to 100% standard"
-                aria-label="Reset theme contrast"
-              >
-                <RotateCcw size={10} />
-                <span>Reset</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-medium px-2 py-0.5 rounded-md bg-surface-elevated border border-border text-text">
+                {themeContrast ?? DEFAULT_CONTRAST}%
+              </span>
+              {(themeContrast ?? DEFAULT_CONTRAST) !== DEFAULT_CONTRAST && (
+                <button
+                  type="button"
+                  onClick={() => setThemeContrast(DEFAULT_CONTRAST)}
+                  className="p-1 rounded-md text-muted hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer"
+                  title="Reset to 100% standard contrast"
+                  aria-label="Reset theme contrast"
+                >
+                  <RotateCcw size={12} />
+                </button>
+              )}
+            </div>
           </div>
 
-          <p className="text-[11px] text-muted font-sans leading-relaxed">
-            {getContrastLabel(themeContrast ?? DEFAULT_CONTRAST).description} Updates CSS variables (<code className="font-mono text-[10px] text-text/80">--bg</code>, <code className="font-mono text-[10px] text-text/80">--surface</code>, <code className="font-mono text-[10px] text-text/80">--border</code>, <code className="font-mono text-[10px] text-text/80">--text-primary</code>) in real time.
-          </p>
-
           {/* Range Slider Track */}
-          <div className="space-y-1.5 pt-1">
+          <div className="space-y-1.5">
             <div className="relative flex items-center">
               <input
                 type="range"
@@ -765,91 +756,81 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                 value={themeContrast ?? DEFAULT_CONTRAST}
                 onChange={(e) => setThemeContrast(Number(e.target.value))}
                 aria-label="Theme contrast level"
-                className="w-full h-1.5 bg-surface-elevated rounded-lg appearance-none cursor-pointer accent-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                className="w-full h-1.5 bg-border/60 rounded-full appearance-none cursor-pointer accent-accent focus:outline-none"
               />
             </div>
 
-            <div className="flex items-center justify-between text-[9px] font-mono text-muted select-none">
-              <span>{MIN_CONTRAST}% (Soft)</span>
-              <span className="font-bold text-text/70">100% (Standard)</span>
-              <span>{MAX_CONTRAST}% (Ultra High)</span>
+            <div className="flex items-center justify-between text-[10px] font-mono text-muted/70 px-0.5">
+              <span>{MIN_CONTRAST}% Soft</span>
+              <span className="text-muted font-medium">100% Standard</span>
+              <span>{MAX_CONTRAST}% High</span>
             </div>
           </div>
 
-          {/* Preset Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] font-mono text-muted shrink-0 mr-1">Presets:</span>
-            {[
-              { label: 'Soft', value: 75 },
-              { label: 'Standard', value: 100 },
-              { label: 'High', value: 125 },
-              { label: 'Ultra High', value: 140 },
-            ].map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => setThemeContrast(preset.value)}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all cursor-pointer border ${
-                  (themeContrast ?? DEFAULT_CONTRAST) === preset.value
-                    ? 'bg-accent/15 border-accent text-accent font-bold shadow-xs'
-                    : 'bg-surface border-border text-muted hover:text-text hover:border-accent/40'
-                }`}
-              >
-                {preset.label} ({preset.value}%)
-              </button>
-            ))}
-          </div>
+          {/* Segmented Preset Selector & Live Palette Preview */}
+          <div className="pt-2 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Segmented Control */}
+            <div className="inline-flex p-0.5 bg-bg/80 border border-border/70 rounded-lg">
+              {[
+                { label: 'Soft', value: 75 },
+                { label: 'Standard', value: 100 },
+                { label: 'High', value: 125 },
+                { label: 'Ultra', value: 140 },
+              ].map((preset) => {
+                const isActive = (themeContrast ?? DEFAULT_CONTRAST) === preset.value;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => setThemeContrast(preset.value)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-sans transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-surface-elevated text-text font-medium shadow-xs border border-border/80'
+                        : 'text-muted hover:text-text'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
 
-          {/* Live Dynamic Swatch Readout */}
-          <div className="pt-2 border-t border-border/70 flex flex-wrap items-center justify-between gap-2">
+            {/* Live Dynamic Swatch */}
             <div className="flex items-center gap-2">
-              <span className="text-[9px] font-mono text-muted uppercase">Live Dynamic Swatch:</span>
+              <span className="text-[10px] font-mono text-muted">Palette</span>
               {(() => {
                 const liveVars = computeThemeVariables(theme, themeContrast ?? DEFAULT_CONTRAST);
                 return (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 bg-bg/60 p-1 rounded-md border border-border/60">
                     <div 
-                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
-                      style={{ backgroundColor: liveVars['--bg'], borderColor: liveVars['--border'] }}
+                      className="w-3 h-3 rounded-xs border border-black/10 transition-colors"
+                      style={{ backgroundColor: liveVars['--bg'] }}
                       title={`Background: ${liveVars['--bg']}`}
                     />
                     <div 
-                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
-                      style={{ backgroundColor: liveVars['--surface'], borderColor: liveVars['--border'] }}
+                      className="w-3 h-3 rounded-xs border border-black/10 transition-colors"
+                      style={{ backgroundColor: liveVars['--surface'] }}
                       title={`Surface: ${liveVars['--surface']}`}
                     />
                     <div 
-                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
-                      style={{ backgroundColor: liveVars['--surface-elevated'], borderColor: liveVars['--border'] }}
-                      title={`Surface Elevated: ${liveVars['--surface-elevated']}`}
-                    />
-                    <div 
-                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
-                      style={{ backgroundColor: liveVars['--border'], borderColor: liveVars['--border'] }}
+                      className="w-3 h-3 rounded-xs border border-black/10 transition-colors"
+                      style={{ backgroundColor: liveVars['--border'] }}
                       title={`Border: ${liveVars['--border']}`}
                     />
                     <div 
-                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
-                      style={{ backgroundColor: liveVars['--text-primary'], borderColor: liveVars['--border'] }}
-                      title={`Text Primary: ${liveVars['--text-primary']}`}
+                      className="w-3 h-3 rounded-xs border border-black/10 transition-colors"
+                      style={{ backgroundColor: liveVars['--text-primary'] }}
+                      title={`Ink: ${liveVars['--text-primary']}`}
                     />
                     <div 
-                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
-                      style={{ backgroundColor: liveVars['--text-secondary'], borderColor: liveVars['--border'] }}
-                      title={`Text Secondary: ${liveVars['--text-secondary']}`}
-                    />
-                    <div 
-                      className="w-3.5 h-3.5 rounded-sm border shadow-xs transition-colors"
-                      style={{ backgroundColor: liveVars['--code-bg'], borderColor: liveVars['--border'] }}
-                      title={`Code Background: ${liveVars['--code-bg']}`}
+                      className="w-3 h-3 rounded-xs border border-black/10 transition-colors"
+                      style={{ backgroundColor: liveVars['--accent'] }}
+                      title={`Accent: ${liveVars['--accent']}`}
                     />
                   </div>
                 );
               })()}
             </div>
-            <span className="font-mono text-[9px] text-muted uppercase">
-              {theme.toUpperCase()} PALETTE
-            </span>
           </div>
         </div>
       </div>

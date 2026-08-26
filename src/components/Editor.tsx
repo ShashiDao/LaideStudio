@@ -147,9 +147,13 @@ export function Editor({
   const { setActiveFileId, theme, addToast, editorNavigationTarget, setEditorNavigationTarget } = useAppStore();
   const [content, setContent] = useState(file.content);
   const [isUnsaved, setIsUnsaved] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [copiedPath, setCopiedPath] = useState(false);
   const [languageExt, setLanguageExt] = useState<Extension[]>([]);
   const saveTimeoutRef = useRef<any>(null);
+  const savedFlashTimeoutRef = useRef<any>(null);
+  const contentRef = useRef(content);
+  contentRef.current = content;
   const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   // Find & Replace States
@@ -219,12 +223,21 @@ export function Editor({
       if (active) {
         setContent(file.content);
         setIsUnsaved(false);
+        setJustSaved(false);
       }
     });
     return () => {
       active = false;
     };
   }, [file.id, file.content]);
+
+  // Clean up timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (savedFlashTimeoutRef.current) clearTimeout(savedFlashTimeoutRef.current);
+    };
+  }, []);
 
   // Jump to specific line/column if editorNavigationTarget is provided
   useEffect(() => {
@@ -277,20 +290,26 @@ export function Editor({
     };
   }, [file.path]);
 
-  const doSave = async (newContent: string) => {
-    if (newContent !== file.content) {
+  const doSave = useCallback(async (newContent: string) => {
+    if (newContent !== file.content || isUnsaved) {
       try {
         await writeFile(file.id, newContent);
         onContentChanged(newContent);
         setIsUnsaved(false);
+        setJustSaved(true);
+        if (savedFlashTimeoutRef.current) clearTimeout(savedFlashTimeoutRef.current);
+        savedFlashTimeoutRef.current = setTimeout(() => {
+          setJustSaved(false);
+        }, 2000);
       } catch (err) {
         console.error('Failed to save file', err);
       }
     }
-  };
+  }, [file.id, file.content, isUnsaved, onContentChanged]);
 
   const handleChange = (val: string) => {
     setContent(val);
+    setJustSaved(false);
     setIsUnsaved(val !== file.content);
     
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -501,11 +520,15 @@ export function Editor({
     }
   };
 
-  // Keyboard shortcut listener for Mod+F and Mod+H
+  // Keyboard shortcut listener for Mod+S, Mod+F and Mod+H
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMod = e.ctrlKey || e.metaKey;
-      if (isMod && (e.key === 'f' || e.key === 'F')) {
+      if (isMod && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        doSave(contentRef.current);
+      } else if (isMod && (e.key === 'f' || e.key === 'F')) {
         e.preventDefault();
         setIsFindOpen(true);
         setFocusTarget('find');
@@ -522,12 +545,20 @@ export function Editor({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFindOpen]);
+  }, [isFindOpen, doSave]);
 
   // CodeMirror search and keymap extensions
   const searchExt = useMemo(() => [
     search({ top: false }),
     keymap.of([
+      {
+        key: 'Mod-s',
+        run: () => {
+          if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+          doSave(contentRef.current);
+          return true;
+        }
+      },
       {
         key: 'Mod-f',
         run: () => {
@@ -557,7 +588,7 @@ export function Editor({
         }
       }
     ])
-  ], [isFindOpen]);
+  ], [isFindOpen, doSave]);
 
   const activeCmTheme = theme === 'paper' ? paperEditorTheme : oledEditorTheme;
 
@@ -585,9 +616,33 @@ export function Editor({
     <div className="absolute inset-0 bg-code-bg canvas-grid-pattern flex flex-col z-10 overflow-hidden">
       {/* Editor Header Bar */}
       <div className="h-[40px] shrink-0 bg-surface flex items-center justify-between px-3 border-b border-border gap-2 min-w-0">
-        <div className="font-mono text-xs text-accent truncate min-w-0 flex-1 font-semibold" title={file.path}>
-          {file.path}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          <div className="font-mono text-xs text-accent truncate font-semibold" title={file.path}>
+            {file.path}
+          </div>
+
+          {/* Subtle Saved / Sync Status Indicator */}
+          {justSaved ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 transition-all duration-300 animate-in fade-in shrink-0"
+              title="Changes saved and synced to local database"
+            >
+              <Check size={11} className="stroke-[2.5]" />
+              <span>Saved</span>
+            </div>
+          ) : isUnsaved ? (
+            <div
+              className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono text-muted/70 bg-surface-elevated border border-border/70 shrink-0 transition-all"
+              title="Unsaved changes pending database sync"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <span className="hidden xs:inline">Editing</span>
+            </div>
+          ) : null}
         </div>
+
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* File Trust Score Badge */}
           <button
@@ -646,9 +701,6 @@ export function Editor({
             {copiedPath ? <Check size={13} className="text-accent" /> : <Copy size={13} />}
             <span className="hidden sm:inline text-[10px]">Copy Path</span>
           </button>
-          {isUnsaved && (
-            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" title="Unsaved changes" />
-          )}
           <button 
             onClick={handleClose}
             aria-label="Close file"
