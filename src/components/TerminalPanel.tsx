@@ -1299,7 +1299,21 @@ Access: 0644/-rw-r--r--`;
     } finally {
       setIsRunning(false);
     }
-  }, [addOutput, cwd, dirExists, env, files, getDirEntries, isRunning, projectId]);
+  }, [
+    addOutput,
+    cmdHistory,
+    cwd,
+    dirExists,
+    env,
+    files,
+    getDirEntries,
+    onFilesChanged,
+    onOpenBisect,
+    projectId,
+    setActiveFileId,
+    theme,
+    toggleTheme
+  ]);
 
   const handleCopyLogs = () => {
     const raw = history.map(h => {

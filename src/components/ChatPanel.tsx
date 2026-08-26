@@ -25,6 +25,7 @@ import { createLLMAdapter } from '../services/llm/factory';
 import { db, type FileItem } from '../db';
 import { listFiles } from '../services/fs/vfs';
 
+import { EmptyState } from './EmptyState';
 import type { LLMToolCall } from '../services/llm/llmAdapter';
 import { 
   SUGGESTION_PROMPTS, 
@@ -651,24 +652,17 @@ export function ChatPanel({ projectId }: { projectId: string }) {
           );
         })}
         {chatHistory.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center p-4">
-            <div className="border border-border bg-surface/70 rounded-xl p-5 max-w-sm w-full flex flex-col items-center corner-ticks shadow-sm">
-              <div className="w-10 h-10 rounded-lg bg-surface-elevated border border-accent/40 flex items-center justify-center text-accent mb-3 shadow-xs">
-                <Sparkles size={20} />
-              </div>
-              <div className="font-mono text-[10px] text-accent tracking-wider uppercase mb-1">
-                AGENTIC SUBSYSTEM : STANDBY
-              </div>
-              <h3 className="text-text font-mono text-xs font-bold mb-1">LAIDE Agent Session</h3>
-              <p className="text-muted font-sans text-xs max-w-[260px] mb-4 leading-relaxed">
-                Describe a feature to build, request refactoring, or choose a prompt chip below to execute.
-              </p>
-              <div className="w-full pt-2.5 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted">
-                <span>VFS : ATTACHED</span>
-                <span>PATCH REVIEW : STRICT</span>
-              </div>
+          <EmptyState
+            icon={<Sparkles size={20} />}
+            badge="Agentic Subsystem : Standby"
+            title="LAIDE Agent Session"
+            description="Describe a feature to build, request refactoring, or choose a prompt chip below to execute."
+          >
+            <div className="w-full pt-2.5 border-t border-border flex items-center justify-between text-[10px] font-mono text-muted">
+              <span>VFS : ATTACHED</span>
+              <span>PATCH REVIEW : STRICT</span>
             </div>
-          </div>
+          </EmptyState>
         )}
       </div>
 

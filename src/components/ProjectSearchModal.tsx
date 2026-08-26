@@ -18,6 +18,7 @@ import {
   type SearchMatch 
 } from '../services/search/projectSearch';
 import { getFileIcon } from './FileTree';
+import { EmptyState } from './EmptyState';
 
 export interface ProjectSearchModalProps {
   isOpen: boolean;
@@ -397,21 +398,19 @@ export function ProjectSearchModal({
           tabIndex={0}
         >
           {!query ? (
-            <div className="p-8 text-center text-muted flex flex-col items-center justify-center">
-              <Search size={24} className="text-muted/40 mb-2" />
-              <p className="font-mono text-xs font-semibold text-text">Global Project Search</p>
-              <p className="font-sans text-[11px] text-muted max-w-sm mt-1">
-                Search within file contents across your entire project. Use <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[10px]">↑</kbd> <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[10px]">↓</kbd> to navigate results and <kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[10px]">Enter</kbd> to jump straight to the code.
-              </p>
-            </div>
+            <EmptyState
+              variant="subtle"
+              icon={<Search size={22} />}
+              title="Global Project Search"
+              description="Search within file contents across your entire project. Use ↑ ↓ to navigate results and Enter to jump straight to the code."
+            />
           ) : searchSummary.results.length === 0 ? (
-            <div className="p-8 text-center text-muted flex flex-col items-center justify-center">
-              <AlertCircle size={24} className="text-muted/40 mb-2" />
-              <p className="font-mono text-xs font-semibold text-text">No matches found</p>
-              <p className="font-sans text-[11px] text-muted max-w-sm mt-1">
-                No files contained &ldquo;<span className="text-accent font-mono">{query}</span>&rdquo;
-              </p>
-            </div>
+            <EmptyState
+              variant="subtle"
+              icon={<AlertCircle size={22} />}
+              title="No matches found"
+              description={<span>No files contained &ldquo;<span className="text-accent font-mono">{query}</span>&rdquo;</span>}
+            />
           ) : (
             searchSummary.results.map((res) => {
               const isCollapsed = Boolean(collapsedFiles[res.filePath]);

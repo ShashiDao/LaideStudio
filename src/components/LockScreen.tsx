@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Lock, Key, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, Copy, Check, LifeBuoy, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { getLockConfig, saveLockConfig, type LockConfig } from '../services/lockConfig';
 import type { KeyMaterial } from '../services/crypto';
@@ -47,7 +47,7 @@ export function LockScreen() {
   
   const strength = getStrength(passphrase);
   
-  const handlePasskeyUnlock = async (c: LockConfig) => {
+  const handlePasskeyUnlock = useCallback(async (c: LockConfig) => {
     const { importMasterKey } = await import('../services/crypto');
     if (!c.passkeyData) return;
     setBusy(true);
@@ -68,7 +68,7 @@ export function LockScreen() {
       setBusy(false);
       setLoading(false);
     }
-  };
+  }, [setKeys]);
 
   useEffect(() => {
     let active = true;
@@ -104,7 +104,7 @@ export function LockScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [handlePasskeyUnlock, setKeys]);
 
   const handleStartSetup = async (e: React.FormEvent) => {
     e.preventDefault();

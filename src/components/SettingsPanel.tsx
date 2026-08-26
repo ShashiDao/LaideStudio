@@ -38,6 +38,7 @@ import {
   restoreBackup, 
   type BackupValidationResult 
 } from '../services/backup';
+import { EmptyState } from './EmptyState';
 
 function formatTokens(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -857,19 +858,12 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       <div className="space-y-3">
         <h3 className="text-sm font-sans text-muted ">Connection Profiles</h3>
         {profiles.length === 0 ? (
-          <div className="border border-dashed border-accent/30 bg-surface/30 rounded-lg p-5 text-center flex flex-col items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-bg border border-accent/30 flex items-center justify-center text-accent">
-              <Sparkles size={18} />
-            </div>
-            <div>
-              <h4 className="text-xs font-sans font-bold  text-text ">
-                No Connection Profiles Configured
-              </h4>
-              <p className="text-xs font-sans text-muted mt-1 max-w-sm leading-relaxed">
-                Connect an AI model to power chat, code generation, and patch review. Choose a provider below, enter your API key, and tap Add Profile.
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            variant="subtle"
+            icon={<Sparkles size={18} />}
+            title="No Connection Profiles Configured"
+            description="Connect an AI model to power chat, code generation, and patch review. Choose a provider below, enter your API key, and tap Add Profile."
+          />
         ) : (
           profiles.map(p => (
             <div key={p.id} className={`border p-4 rounded flex flex-col gap-3 transition-colors ${activeProfileId === p.id ? 'border-moss bg-moss/5' : 'border-surface bg-surface/30'}`}>

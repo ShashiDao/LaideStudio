@@ -26,6 +26,7 @@ import {
   type DeployResult 
 } from '../services/deploy/deployClient';
 import { listFiles } from '../services/fs/vfs';
+import { EmptyState } from './EmptyState';
 
 function NetlifyIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
   return (
@@ -330,13 +331,12 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
               </div>
 
               {historyItems.length === 0 ? (
-                <div className="p-8 text-center border border-dashed border-border rounded-xl text-muted space-y-2">
-                  <Globe size={24} className="mx-auto text-muted/60" />
-                  <p className="text-xs">No deploys yet for &quot;{project.name}&quot;.</p>
-                  <p className="text-[10px] text-muted/80">
-                    Switch to Netlify or Vercel tab to publish your live app URL in 1 click!
-                  </p>
-                </div>
+                <EmptyState
+                  variant="subtle"
+                  icon={<Globe size={22} />}
+                  title={`No deploys yet for "${project.name}"`}
+                  description="Switch to Netlify or Vercel tab to publish your live app URL in 1 click!"
+                />
               ) : (
                 <div className="space-y-2">
                   {historyItems.map((item) => (

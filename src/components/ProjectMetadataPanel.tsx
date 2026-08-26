@@ -33,6 +33,7 @@ import {
   formatUsdCost, 
   formatTokenCount
 } from '../services/usage/tokenSpend';
+import { EmptyState } from './EmptyState';
 
 export interface ProjectMetadataPanelProps {
   project: Project;
@@ -723,15 +724,12 @@ export function ProjectMetadataPanel({
               </div>
             </>
           ) : (
-            <div className="bg-surface-elevated/30 border border-border rounded-lg p-6 text-center space-y-2">
-              <div className="w-10 h-10 rounded-full bg-accent/15 border border-accent/30 text-accent flex items-center justify-center mx-auto">
-                <Coins size={20} />
-              </div>
-              <h4 className="text-xs font-bold text-text">No API Usage Recorded This Session</h4>
-              <p className="text-[11px] text-muted max-w-sm mx-auto leading-relaxed">
-                As you chat with coding models or run dual-model ensemble evaluations, token counts and estimated costs will automatically track and chart here.
-              </p>
-            </div>
+            <EmptyState
+              variant="card"
+              icon={<Coins size={20} />}
+              title="No API Usage Recorded This Session"
+              description="As you chat with coding models or run dual-model ensemble evaluations, token counts and estimated costs will automatically track and chart here."
+            />
           )}
         </div>
       )}
