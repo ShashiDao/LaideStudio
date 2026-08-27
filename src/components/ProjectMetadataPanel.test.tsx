@@ -93,6 +93,12 @@ describe('ProjectMetadataPanel Component', () => {
     expect(screen.getAllByText('TypeScript (React)').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('TypeScript (Vanilla)').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('CSS').length).toBeGreaterThanOrEqual(1);
+
+    // Language list LOC and percentage badges
+    expect(screen.getByText('5 LOC')).toBeDefined();
+    expect(screen.getByText('2 LOC')).toBeDefined();
+    expect(screen.getByText('1 LOC')).toBeDefined();
+    expect(screen.getByText('62.5%')).toBeDefined();
   });
 
   it('allows toggling between Donut and Bar charts, and LOC vs Files metrics', () => {

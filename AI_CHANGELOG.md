@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-58
-- Last verified working: Full test suite passes cleanly with Vitest (68 test files, 480 tests passing). Refactored Workspace Actions & Tools menu padding and drag handle layout (added `pt-4 sm:pt-0` to prevent overlap with header/close button, centered drag handle at `absolute top-2 left-1/2`, improved Ledger badge contrast with rich dark amber tokens `bg-amber-500/20 text-amber-800 dark:text-amber-300`, and added container-respecting corner radius on grouped action items). Refactored ProjectSearchModal to streamline input placeholder to "Search workspace...", header subtitle to "Search across all files", and enforced `pr-32` right-padding to prevent query text overlap with search filter toggle buttons. `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-59
+- Last verified working: Full test suite passes cleanly with Vitest (68 test files, 480 tests passing). Refactored Language Distribution breakdown row layout in ProjectMetadataPanel to use an explicit 3-column CSS Grid (`grid-cols-[1fr_auto_auto] items-center gap-2.5 sm:gap-4`) with isolated left container for color dot/language name/file counts, right-aligned LOC readout, and locked percentage column with min-width to prevent text collisions on narrow viewports. `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,23 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-59] Fix Language Distribution Row Text Overlap with Explicit 3-Column Grid Layout — 2026-08-27
+Prompt: Fix the text overlap alignment bugs inside the Language Distribution list view where numeric lines-of-code (LOC) values were crashing into file counts on mobile viewports.
+Files touched:
+- `src/components/ProjectMetadataPanel.tsx` (modified)
+- `src/components/ProjectMetadataPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Refactored each language list item row into a 3-column CSS Grid template (`grid-cols-[1fr_auto_auto] items-center gap-2.5 sm:gap-4`).
+- Isolated the language name and file count badge in the left-aligned `1fr` column with `min-w-0` and truncation handling.
+- Positioned the lines-of-code (LOC) count in a middle-right slot with bold font-mono styling and `whitespace-nowrap`.
+- Locked the percentage readout in the absolute right margin with `min-w-[36px]` and right alignment.
+- Added test coverage in `ProjectMetadataPanel.test.tsx` asserting language LOC readouts and percentage badges.
+Decisions: Used `gap-2.5 sm:gap-4` and `min-w-[36px]` on the percentage column to guarantee horizontal breathing space across all mobile and desktop screen sizes.
+Deviations: none
+Verified: Vitest unit tests (5/5 in ProjectMetadataPanel.test.tsx, 480/480 across 68 test files), `compile_applet` and `lint_applet` with 0 errors.
+Open questions: none
 
 ### [HOTFIX-58] Refactor Workspace Actions Drawer Layout, Ledger Contrast, and Project Search Modal Spacing — 2026-08-27
 Prompt: Refactor the padding and spacing configurations of the Workspace Actions & Tools bottom sheet component and Project Search Modal: push header safely below mobile drag handle, increase contrast on Ledger badge, prevent text clipping in project search input, and streamline placeholder/subtitles.

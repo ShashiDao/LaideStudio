@@ -438,15 +438,31 @@ export function ProjectMetadataPanel({
               {/* Detailed Language List / Breakdown */}
               <div className="max-h-36 overflow-y-auto divide-y divide-border/40 border border-border/60 rounded bg-surface-elevated/20 scrollbar-thin">
                 {metadata.languages.map(lang => (
-                  <div key={lang.language} className="px-2.5 py-1.5 flex items-center justify-between text-[11px] hover:bg-surface-elevated/40 transition-colors">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div 
+                    key={lang.language} 
+                    className="px-2.5 py-1.5 grid grid-cols-[1fr_auto_auto] items-center gap-2.5 sm:gap-4 text-[11px] hover:bg-surface-elevated/40 transition-colors"
+                  >
+                    {/* Left: Color indicator, language name, and file count */}
+                    <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: lang.color }} />
-                      <span className="font-medium text-text whitespace-nowrap">{lang.language}</span>
-                      <span className="text-[9px] text-muted shrink-0">({lang.filesCount} {lang.filesCount === 1 ? 'file' : 'files'})</span>
+                      <span className="font-medium text-text truncate">{lang.language}</span>
+                      <span className="text-[9px] text-muted shrink-0 whitespace-nowrap">
+                        ({lang.filesCount} {lang.filesCount === 1 ? 'file' : 'files'})
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-accent font-bold">{lang.linesOfCode.toLocaleString()} LOC</span>
-                      <span className="text-muted text-[10px] w-10 text-right">{lang.percentage}%</span>
+
+                    {/* Middle-Right: Lines of code readout with breathing room */}
+                    <div className="text-right shrink-0">
+                      <span className="text-accent font-bold font-mono whitespace-nowrap">
+                        {lang.linesOfCode.toLocaleString()} LOC
+                      </span>
+                    </div>
+
+                    {/* Locked Absolute Right: Percentage with fixed min-width */}
+                    <div className="text-right shrink-0 min-w-[36px]">
+                      <span className="text-muted text-[10px] font-mono whitespace-nowrap">
+                        {lang.percentage}%
+                      </span>
                     </div>
                   </div>
                 ))}
