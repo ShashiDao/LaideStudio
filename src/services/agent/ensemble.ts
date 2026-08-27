@@ -35,13 +35,6 @@ export interface CandidateExecutionResult {
   status: 'passed' | 'failed' | 'error' | 'no_patches';
 }
 
-export interface ArbiterResult {
-  winner: 'A' | 'B';
-  reasoning: string;
-  verdictScoreA?: number;
-  verdictScoreB?: number;
-}
-
 export interface EnsembleEvaluationResult {
   candidateA: CandidateExecutionResult;
   candidateB: CandidateExecutionResult;
@@ -49,7 +42,6 @@ export interface EnsembleEvaluationResult {
   chosenCandidate: CandidateExecutionResult | null;
   requiresUserSelection: boolean;
   summary: string;
-  arbiter?: ArbiterResult;
 }
 
 /**
@@ -653,8 +645,6 @@ export async function runEnsembleDualEvaluation(
   let requiresUserSelection = false;
   let summaryStr: string;
 
-  let arbiterResult: ArbiterResult | undefined = undefined;
-
   if (candA.patches.length > 0 && candB.patches.length > 0) {
     onProgress?.('Running Arbiter (Judge Pass) to select the best candidate...');
     try {
@@ -710,10 +700,6 @@ You MUST return your decision as a valid JSON object strictly matching this sche
         throw new Error('Arbiter returned invalid JSON or winner');
       }
 
-      arbiterResult = {
-        winner: parsed.winner,
-        reasoning: parsed.reasoning
-      };
       chosenCandidate = parsed.winner === 'B' ? candB : candA;
       summaryStr = `Ensemble Arbiter evaluated both and selected candidate ${chosenCandidate.profile.label}. Reasoning: ${parsed.reasoning}`;
       requiresUserSelection = false;
@@ -771,7 +757,6 @@ You MUST return your decision as a valid JSON object strictly matching this sche
     passedCandidates,
     chosenCandidate,
     requiresUserSelection,
-    summary: summaryStr,
-    arbiter: arbiterResult
+    summary: summaryStr
   };
 }
