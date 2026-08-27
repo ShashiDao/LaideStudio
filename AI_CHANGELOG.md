@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-63
-- Last verified working: Refactored expanded Manifest Tokens dropdown overlay in ChatPanel. Applied 100% solid opaque background (`bg-surface`), strong depth drop-shadow (`shadow-2xl`), crisp bounding borders (`border-t border-b border-border`), max height constraint (`max-h-48 overflow-y-auto`), and middle-ellipsis path formatting (`formatPathMiddleEllipsis`) ensuring file extensions are never clipped. Vitest unit tests in `ChatPanel.test.tsx` (9/9 passing), `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-64
+- Last verified working: Polished the text spacing and alignment within the chat view's configuration warning bar. Updated warning string to concise high-density phrasing ("Configure an AI profile to start chatting"), applied flexbox spacing (`flex justify-between items-center px-3 py-2.5`), and wrapped the right-hand action link into a distinct, high-contrast red pill badge labeled "Configure". Vitest unit tests in `ChatPanel.test.tsx` (9/9 passing), `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,22 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-64] Polish Chat View Configuration Warning Bar Text & Action Badge — 2026-08-27
+Prompt: Polish the text spacing and alignment within the chat view's configuration warning bar: update warning string to "Configure an AI profile to start chatting", refactor layout to flex justify-between items-center px-3, and wrap the action link into a standalone red outline badge labeled "Configure".
+Files touched:
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/ChatPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated the warning string in the locked input container to the compact phrasing: `"Configure an AI profile to start chatting"`.
+- Refactored the container layout to `flex justify-between items-center px-3 py-2.5 min-h-[48px]`.
+- Encapsulated the action link into a distinct badge element (`text-[11px] font-semibold px-2.5 py-1 rounded-md bg-rose-500/15 border border-rose-500/35 text-rose-400`) labeled `"Configure"` to ensure a clear, unclipped touch target.
+- Updated `ChatPanel.test.tsx` test assertions to verify the new label and badge.
+Decisions: Retained soft crimson borders and interactive route to the Settings tab when the container is tapped.
+Deviations: none
+Verified: Vitest unit tests in `ChatPanel.test.tsx` (9/9 passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-63] Refactor Manifest Token Dropdown Depth Layering, Solid Theme Background, and Middle-Ellipsis Path Truncation — 2026-08-27
 Prompt: Refactor the styling and depth-layering properties of the expanded Manifest Token file dropdown menu wrapper: apply solid 100% opaque background fill to eliminate visual blending with background cards, add shadow-2xl drop shadow and border dividers, constrain height to max-h-48 with overflow scrolling, and implement middle-ellipsis path truncation to preserve file extensions.

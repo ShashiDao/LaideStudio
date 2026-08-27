@@ -933,15 +933,15 @@ export function ChatPanel({
               <button
                 type="button"
                 onClick={() => setActiveTab('settings')}
-                aria-label="Tap here to configure a provider profile in Settings..."
-                className="flex-1 bg-surface border border-rose-500/30 hover:border-rose-500/50 rounded-lg px-3.5 py-3 min-h-[48px] text-left text-xs sm:text-sm text-rose-400/80 hover:text-rose-300 transition-colors flex items-center justify-between gap-2 cursor-pointer group shadow-xs active:scale-[0.99]"
-                title="Tap here to configure a provider profile in Settings"
+                aria-label="Configure an AI profile to start chatting"
+                className="flex-1 bg-surface border border-rose-500/30 hover:border-rose-500/50 rounded-lg flex justify-between items-center px-3 py-2.5 min-h-[48px] text-left text-xs sm:text-sm text-rose-400/90 hover:text-rose-300 transition-colors cursor-pointer group shadow-xs active:scale-[0.99]"
+                title="Configure an AI profile to start chatting"
               >
-                <span className="font-sans truncate">
-                  Tap here to configure a provider profile in Settings...
+                <span className="font-sans truncate mr-2">
+                  Configure an AI profile to start chatting
                 </span>
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400 shrink-0 group-hover:bg-rose-500/20 transition-colors">
-                  Settings
+                <span className="text-[11px] font-sans font-semibold px-2.5 py-1 rounded-md bg-rose-500/15 border border-rose-500/35 text-rose-400 shrink-0 group-hover:bg-rose-500/25 group-hover:border-rose-500/50 transition-colors shadow-2xs">
+                  Configure
                 </span>
               </button>
             ) : (

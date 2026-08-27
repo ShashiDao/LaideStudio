@@ -92,9 +92,10 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
 
     render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
 
-    const settingsBtn = screen.getByRole('button', { name: /Tap here to configure a provider profile in Settings.../i });
+    const settingsBtn = screen.getByRole('button', { name: /Configure an AI profile to start chatting/i });
     expect(settingsBtn).toBeDefined();
-    expect(settingsBtn.textContent).toContain('Tap here to configure a provider profile in Settings...');
+    expect(settingsBtn.textContent).toContain('Configure an AI profile to start chatting');
+    expect(settingsBtn.textContent).toContain('Configure');
 
     fireEvent.click(settingsBtn);
     expect(mockSetActiveTab).toHaveBeenCalledWith('settings');
