@@ -91,7 +91,7 @@ describe('ProjectMetadataPanel Component', () => {
     expect(screen.getByText('3')).toBeDefined();
     // Dominant language & language list items
     expect(screen.getAllByText('TypeScript (React)').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('TypeScript').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('TypeScript (Vanilla)').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('CSS').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -115,7 +115,7 @@ describe('ProjectMetadataPanel Component', () => {
     fireEvent.click(filesMetricBtn);
   });
 
-  it('allows toggling to API Cost & Spend tab and displays usage stats & charts', () => {
+  it('allows toggling to Token Analytics tab and displays usage stats & charts', () => {
     // Populate store with usage records
     useAppStore.setState({
       sessionUsageRecords: [
@@ -155,8 +155,8 @@ describe('ProjectMetadataPanel Component', () => {
       />
     );
 
-    // Click API Cost & Spend tab
-    const spendTabBtn = screen.getByRole('button', { name: /API Cost & Spend/i });
+    // Click Token Analytics tab
+    const spendTabBtn = screen.getByRole('button', { name: /Token Analytics/i });
     fireEvent.click(spendTabBtn);
 
     // Verify Cost KPI cards render

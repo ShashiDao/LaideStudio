@@ -115,4 +115,70 @@ describe('EditorTabs Component', () => {
     expect(mockClose).toHaveBeenCalledWith('file-1', expect.anything());
     expect(mockSelect).not.toHaveBeenCalled();
   });
+
+  it('handles drag-and-drop tab reordering and calls onReorderTabs', () => {
+    const mockReorder = vi.fn();
+    const mockDataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: 'none',
+      dropEffect: 'none'
+    };
+
+    render(
+      <EditorTabs
+        files={mockFiles}
+        openFileIds={['file-1', 'file-2', 'file-3']}
+        activeFileId="file-1"
+        onSelectFile={vi.fn()}
+        onCloseFile={vi.fn()}
+        onReorderTabs={mockReorder}
+      />
+    );
+
+    const tab1 = screen.getByRole('tab', { name: /App\.tsx/i });
+    const tab3 = screen.getByRole('tab', { name: /package\.json/i });
+
+    expect(tab1.getAttribute('draggable')).toBe('true');
+
+    // 1. Drag start on Tab 1
+    fireEvent.dragStart(tab1, { dataTransfer: mockDataTransfer });
+    expect(mockDataTransfer.setData).toHaveBeenCalledWith('text/plain', 'file-1');
+
+    // 2. Drag over Tab 3
+    fireEvent.dragOver(tab3, { dataTransfer: mockDataTransfer });
+    fireEvent.dragEnter(tab3, { dataTransfer: mockDataTransfer });
+
+    // 3. Drop on Tab 3
+    fireEvent.drop(tab3, { dataTransfer: mockDataTransfer });
+
+    // Tab 1 moved to position of Tab 3: ['file-2', 'file-3', 'file-1']
+    expect(mockReorder).toHaveBeenCalledWith(['file-2', 'file-3', 'file-1']);
+  });
+
+  it('does not trigger onReorderTabs when dropped on the same tab', () => {
+    const mockReorder = vi.fn();
+    const mockDataTransfer = {
+      setData: vi.fn(),
+      effectAllowed: 'none',
+      dropEffect: 'none'
+    };
+
+    render(
+      <EditorTabs
+        files={mockFiles}
+        openFileIds={['file-1', 'file-2']}
+        activeFileId="file-1"
+        onSelectFile={vi.fn()}
+        onCloseFile={vi.fn()}
+        onReorderTabs={mockReorder}
+      />
+    );
+
+    const tab1 = screen.getByRole('tab', { name: /App\.tsx/i });
+
+    fireEvent.dragStart(tab1, { dataTransfer: mockDataTransfer });
+    fireEvent.drop(tab1, { dataTransfer: mockDataTransfer });
+
+    expect(mockReorder).not.toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { FileText, Plus, ChevronDown, BarChart3, Upload, FolderPlus } from 'lucide-react';
+import { Plus, BarChart3, Upload, FolderPlus } from 'lucide-react';
 import type { Project, FileItem } from '../db';
+import { ProjectSelector } from './ProjectSelector';
 import { ProjectActionsMenu } from './ProjectActionsMenu';
 import { FileTree } from './FileTree';
 import { exportZip } from '../services/fs/zipExport';
@@ -86,28 +87,13 @@ export function ProjectFilesPane({
       <div className="flex items-center justify-between text-accent font-mono text-xs px-2.5 py-1.5 shrink-0 border-b border-border/60 bg-surface/30 gap-2">
         {/* Left: Project Selector & Quick Create */}
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <div className="relative flex items-center bg-surface border border-border hover:border-accent/50 focus-within:border-accent rounded px-2 py-1 transition-all shadow-xs group min-w-0 flex-1 max-w-[170px]">
-            <FileText size={13} className="shrink-0 text-accent/70 mr-1.5" />
-            <select
-              value={activeProject?.id || ''}
-              onChange={(e) => onSelectProjectId(e.target.value)}
-              aria-label="Select active workspace project"
-              className="appearance-none bg-transparent font-mono font-medium outline-none cursor-pointer pr-4 text-accent truncate text-[11px] w-full"
-            >
-              {projects.length === 0 ? (
-                <option value="" disabled className="bg-surface text-text">
-                  No Projects
-                </option>
-              ) : (
-                projects.map(p => (
-                  <option key={p.id} value={p.id} className="bg-surface text-text">
-                    {p.name}
-                  </option>
-                ))
-              )}
-            </select>
-            <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-accent/70 group-hover:text-accent transition-colors shrink-0" />
-          </div>
+          <ProjectSelector
+            projects={projects}
+            activeProject={activeProject}
+            onSelectProjectId={onSelectProjectId}
+            onCreateBlankProject={onCreateBlankProject}
+            activeFilesCount={files.length}
+          />
 
           <button
             onClick={onCreateBlankProject}

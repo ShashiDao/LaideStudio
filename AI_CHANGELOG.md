@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-53
-- Last verified working: Full Vitest test suite passes cleanly (66 test files, 467 tests passing). Implemented Steps 3-5 of the responsive workspace layout: added multi-file EditorTabs bar (`openFileIds`, active file switching, tab closing), right-hand dock area (side-by-side Chat and Preview on desktop, active Chat/Preview dock on tablet), collapsible bottom TerminalDrawer with expand/collapse/maximize controls and Ctrl+` shortcut handling, and unit test suites for `EditorTabs.test.tsx` (4/4) and `TerminalDrawer.test.tsx` (4/4). `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-57
+- Last verified working: Full test suite passes cleanly with Vitest (68 test files, 479 tests passing). Refactored Project Selector dropdown from native HTML `<select>` tag into a custom React dropdown component (`ProjectSelector`) with amber trigger styling matching the existing layout, dynamic chevron rotation, high z-index responsive dropdown list (mobile bottom sheet & desktop floating popover), project name with file count subtext, automatic project-switching handler and clean dismissals. `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,77 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-57] Refactor Project Selector from Native Select to Custom React Popover Dropdown — 2026-08-27
+Prompt: Refactor the Project Selector dropdown component (<select> element) located in the workspace header into a custom controlled React dropdown component with amber styling, chevron toggle, floating/sheet popover, z-index isolation, file counts subtext, and seamless project switching.
+Files touched:
+- `src/components/ProjectSelector.tsx` (new)
+- `src/components/ProjectSelector.test.tsx` (new)
+- `src/components/ProjectFilesPane.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Replaced the native `<select>` and `<option>` tags in `ProjectFilesPane.tsx` with a custom controlled `ProjectSelector` component.
+- Implemented an amber trigger button matching the layout with `FileText` icon, truncated project title, and animated `ChevronDown` rotation.
+- Built a custom responsive popover menu (mobile bottom sheet overlay with backdrop and grab handle, desktop floating panel) with explicit high z-index (`z-50` / `z-[60]`) to sit safely above file tree layers without clipping.
+- Added prominent project name display alongside file count subtext (`X files`), active project checkmark indicator, and quick "+ Create New Project" action.
+- Added click-outside, Escape key, and keyboard arrow/enter navigation with automatic closing on project selection.
+- Added comprehensive unit tests in `src/components/ProjectSelector.test.tsx` (7/7 passing).
+Decisions: Asynchronously queried `db.files` to compute live file counts for all projects while immediately using `activeFilesCount` for the active project.
+Deviations: none
+Verified: Vitest full suite (479/479 tests across 68 files passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
+
+### [HOTFIX-56] Clarify Language Labels, Fix Navigation Overlay Z-Index, and Polish Token Analytics Tab Header — 2026-08-27
+Prompt: Visual UI Polish & Layout Fixes: distinguish TypeScript vs TSX with explicit non-truncated labels, apply higher explicit z-index and backdrop to side/modal panels over bottom navigation, and rename API spend tab header to Token Analytics to prevent text wrapping/clipping.
+Files touched:
+- `src/utils/projectStats.ts` (modified)
+- `src/components/ProjectMetadataPanel.tsx` (modified)
+- `src/components/ProjectMetadataPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated language color map in `src/utils/projectStats.ts` to explicitly distinguish `TypeScript (Vanilla)` (`ts`) and `TypeScript (React)` (`tsx`), as well as `JavaScript (Vanilla)` (`js`) and `JavaScript (React)` (`jsx`).
+- Upgraded `ProjectMetadataPanel` into a clean, modal-backdrop overlay (`fixed inset-0 z-50 bg-black/80 backdrop-blur-xs`) that cleanly covers the bottom navigation bar and underlying UI without visual bleed-through or button bunching.
+- Widened the horizontal BarChart YAxis category width to 130px and applied `whitespace-nowrap` to prevent truncation of full language names.
+- Renamed the API spend tab header to `Token Analytics` and added `whitespace-nowrap` on tab buttons to sit in a single clean row alongside `Codebase (LOC)`.
+- Updated unit test assertions in `ProjectMetadataPanel.test.tsx` to verify `TypeScript (Vanilla)` and `Token Analytics` tabs.
+Decisions: Kept the modal layout responsive with `max-h-[90vh]` scrolling and click-outside dismissal for desktop, tablet, and mobile views.
+Deviations: none
+Verified: Vitest suite (472/472 passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
+
+### [HOTFIX-55] Polish Toast Notification Overlay with Opaque Surface and Fixed Bottom Positioning — 2026-08-27
+Prompt: Visual UI Polish to Fix Toast Notification Overlay: make success/info/error notifications fully opaque with crisp drop shadows and position as fixed bottom toast to keep upper workspace and editor tabs clean.
+Files touched:
+- `src/components/Toaster.tsx` (modified)
+- `src/components/Toaster.test.tsx` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Changed `Toaster` container from top overlay to `fixed bottom-6 right-4 sm:right-6 left-4 sm:left-auto` with safe area bottom offset, leaving the upper tabs and editor lines completely unobstructed.
+- Upgraded toast card styling to 100% opaque `bg-surface-elevated`, high-contrast borders with color-matched rings (`border-moss/60 ring-1 ring-moss/20` for success), and deep crisp `shadow-2xl` drop shadows.
+- Enhanced status icons, typography contrast, and accessible dismissal action.
+- Added comprehensive unit tests in `src/components/Toaster.test.tsx` verifying empty state, opaque styling, and user dismissal.
+Decisions: Positioned toasts at fixed bottom right with safe-area spacing to avoid blocking bottom mobile nav while ensuring maximum desktop and tablet clarity.
+Deviations: none
+Verified: `Toaster.test.tsx` (3/3 passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
+
+### [HOTFIX-54] Drag-and-Drop File Tab Reordering in EditorTabs — 2026-08-27
+Prompt: Implement drag-and-drop reordering for files within the EditorTabs component so users can customize their workspace organization.
+Files touched:
+- `src/components/EditorTabs.tsx` (modified)
+- `src/components/EditorTabs.test.tsx` (modified)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added HTML5 drag-and-drop handlers (`handleDragStart`, `handleDragOver`, `handleDragEnter`, `handleDrop`, `handleDragEnd`) to `EditorTabs.tsx`.
+- Added visual feedback for dragged tab (dashed accent border, opacity/scale shift, `aria-grabbed`) and target hover (accent ring and elevation).
+- Included subtle `GripVertical` icon on tab hover and disabled drag behavior on close buttons to prevent accidental reorders.
+- Connected `onReorderTabs` callback in `App.tsx` directly to the Zustand `setOpenFileIds` action for immediate state synchronization.
+- Added comprehensive unit tests in `EditorTabs.test.tsx` verifying tab reordering, array index movement, and edge-case handling (dropping onto same tab).
+Decisions: Used native HTML5 drag-and-drop API with clean CSS transitions and zero external drag library dependencies.
+Deviations: none
+Verified: `EditorTabs.test.tsx` (6/6 passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-53] Implement Responsive Workspace Docks, Multi-File Editor Tabs, and Terminal Drawer (Steps 3-5) — 2026-08-27
 Prompt: Implement Steps 3-5 of the responsive workspace layout: add right-hand dock area for tablet/desktop, collapsible bottom terminal drawer in workspace column, and multi-file EditorTabs tab bar with openFileIds state management.

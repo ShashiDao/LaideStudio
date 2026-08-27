@@ -585,6 +585,7 @@ export default function App() {
                     activeFileId={activeFileId}
                     onSelectFile={(id) => setActiveFileId(id)}
                     onCloseFile={(id) => closeFile(id)}
+                    onReorderTabs={(ids) => setOpenFileIds(ids)}
                   />
 
                   {/* Horizontal Split: Editor Center + Right Dock */}

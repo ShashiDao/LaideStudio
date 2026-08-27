@@ -19,9 +19,9 @@ export interface ProjectMetadata {
 }
 
 const LANGUAGE_COLOR_MAP: Record<string, { name: string; color: string }> = {
-  ts: { name: 'TypeScript', color: '#3178c6' },
+  ts: { name: 'TypeScript (Vanilla)', color: '#3178c6' },
   tsx: { name: 'TypeScript (React)', color: '#2b7489' },
-  js: { name: 'JavaScript', color: '#f7df1e' },
+  js: { name: 'JavaScript (Vanilla)', color: '#f7df1e' },
   jsx: { name: 'JavaScript (React)', color: '#e34c26' },
   json: { name: 'JSON', color: '#cbcb41' },
   css: { name: 'CSS', color: '#563d7c' },

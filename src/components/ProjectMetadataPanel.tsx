@@ -220,63 +220,69 @@ export function ProjectMetadataPanel({
 
   return (
     <div 
-      className="border-b border-border/80 bg-surface/95 backdrop-blur-md px-3 py-3 font-mono text-xs animate-in slide-in-from-top-2 duration-200 shadow-md relative z-20"
-      role="region"
-      aria-label="Active project detailed metadata and analytics"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150 overflow-y-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="project-metadata-title"
+      onClick={onClose}
     >
-      {/* Header with Navigation Tabs */}
-      <div className="flex items-center justify-between pb-2 mb-3 border-b border-border/60">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center bg-surface-elevated border border-border rounded p-0.5 text-[11px]">
-            <button
-              type="button"
-              onClick={() => setActiveTab('codebase')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition-colors ${
-                activeTab === 'codebase'
-                  ? 'bg-accent text-accent-text-on font-bold shadow-xs'
-                  : 'text-muted hover:text-text'
-              }`}
-            >
-              <Code2 size={13} />
-              <span>Codebase (LOC)</span>
-            </button>
+      <div 
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl bg-surface border border-border/90 rounded-xl shadow-2xl p-4 font-mono text-xs animate-in slide-in-from-bottom-3 sm:slide-in-from-bottom-1 duration-200 corner-ticks flex flex-col my-auto max-h-[90vh] overflow-y-auto relative z-10"
+      >
+        {/* Header with Navigation Tabs */}
+        <div className="flex items-center justify-between pb-2 mb-3 border-b border-border/60">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center bg-surface-elevated border border-border rounded p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setActiveTab('codebase')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition-colors whitespace-nowrap ${
+                  activeTab === 'codebase'
+                    ? 'bg-accent text-accent-text-on font-bold shadow-xs'
+                    : 'text-muted hover:text-text'
+                }`}
+              >
+                <Code2 size={13} className="shrink-0" />
+                <span>Codebase (LOC)</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('spend')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition-colors ${
-                activeTab === 'spend'
-                  ? 'bg-accent text-accent-text-on font-bold shadow-xs'
-                  : 'text-muted hover:text-text'
-              }`}
-            >
-              <Coins size={13} />
-              <span>API Cost & Spend</span>
-              {usageSummary.totalCostUsd > 0 && (
-                <span className={`text-[9px] px-1 py-0.2 rounded font-bold ${
-                  activeTab === 'spend' ? 'bg-black/20 text-accent-text-on' : 'bg-accent/15 text-accent'
-                }`}>
-                  {formatUsdCost(usageSummary.totalCostUsd)}
-                </span>
-              )}
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('spend')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer transition-colors whitespace-nowrap ${
+                  activeTab === 'spend'
+                    ? 'bg-accent text-accent-text-on font-bold shadow-xs'
+                    : 'text-muted hover:text-text'
+                }`}
+              >
+                <Coins size={13} className="shrink-0" />
+                <span>Token Analytics</span>
+                {usageSummary.totalCostUsd > 0 && (
+                  <span className={`text-[9px] px-1 py-0.2 rounded font-bold shrink-0 ${
+                    activeTab === 'spend' ? 'bg-black/20 text-accent-text-on' : 'bg-accent/15 text-accent'
+                  }`}>
+                    {formatUsdCost(usageSummary.totalCostUsd)}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            <span className="text-[10px] text-muted hidden md:inline truncate">
+              {activeTab === 'codebase' ? `${project.name} statistics` : 'Session LLM token analytics'}
+            </span>
           </div>
 
-          <span className="text-[10px] text-muted hidden md:inline truncate">
-            {activeTab === 'codebase' ? `${project.name} statistics` : 'Session LLM token analytics'}
-          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 text-muted hover:text-accent rounded hover:bg-surface-elevated transition-colors cursor-pointer"
+            title="Close Analytics"
+            aria-label="Close analytics"
+          >
+            <X size={14} />
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1 text-muted hover:text-accent rounded hover:bg-surface-elevated transition-colors cursor-pointer"
-          title="Close Analytics"
-          aria-label="Close analytics"
-        >
-          <X size={14} />
-        </button>
-      </div>
 
       {/* VIEW 1: CODEBASE (LOC & ASSETS) */}
       {activeTab === 'codebase' && (
@@ -413,7 +419,7 @@ export function ProjectMetadataPanel({
                       <YAxis 
                         dataKey="name" 
                         type="category" 
-                        width={80} 
+                        width={130} 
                         tick={{ fill: 'currentColor', fontSize: 10 }} 
                         axisLine={false}
                         tickLine={false}
@@ -432,10 +438,10 @@ export function ProjectMetadataPanel({
               {/* Detailed Language List / Breakdown */}
               <div className="max-h-36 overflow-y-auto divide-y divide-border/40 border border-border/60 rounded bg-surface-elevated/20 scrollbar-thin">
                 {metadata.languages.map(lang => (
-                  <div key={lang.language} className="px-2 py-1.5 flex items-center justify-between text-[11px] hover:bg-surface-elevated/40 transition-colors">
+                  <div key={lang.language} className="px-2.5 py-1.5 flex items-center justify-between text-[11px] hover:bg-surface-elevated/40 transition-colors">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: lang.color }} />
-                      <span className="font-medium text-text truncate">{lang.language}</span>
+                      <span className="font-medium text-text whitespace-nowrap">{lang.language}</span>
                       <span className="text-[9px] text-muted shrink-0">({lang.filesCount} {lang.filesCount === 1 ? 'file' : 'files'})</span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
@@ -733,6 +739,7 @@ export function ProjectMetadataPanel({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
