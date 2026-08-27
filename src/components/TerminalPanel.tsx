@@ -9,7 +9,9 @@ import {
   Folder, 
   HelpCircle, 
   Sparkles,
-  Loader2
+  Loader2,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import type { FileItem } from '../db';
 import { useAppStore } from '../store';
@@ -339,37 +341,31 @@ Type "help" for a list of available commands or click quick actions below.`,
     return files.some(f => f.path === normalized || f.path.startsWith(prefix));
   }, [files]);
 
-  // Autocomplete support
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (cmdHistory.length === 0) return;
-      const nextIndex = historyPointer === -1 
-        ? cmdHistory.length - 1 
-        : Math.max(0, historyPointer - 1);
+  // Navigation and Autocomplete handlers
+  const handleHistoryUp = useCallback(() => {
+    if (cmdHistory.length === 0) return;
+    const nextIndex = historyPointer === -1 
+      ? cmdHistory.length - 1 
+      : Math.max(0, historyPointer - 1);
+    setHistoryPointer(nextIndex);
+    setInput(cmdHistory[nextIndex] || '');
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [cmdHistory, historyPointer]);
+
+  const handleHistoryDown = useCallback(() => {
+    if (historyPointer === -1) return;
+    const nextIndex = historyPointer + 1;
+    if (nextIndex >= cmdHistory.length) {
+      setHistoryPointer(-1);
+      setInput('');
+    } else {
       setHistoryPointer(nextIndex);
       setInput(cmdHistory[nextIndex] || '');
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyPointer === -1) return;
-      const nextIndex = historyPointer + 1;
-      if (nextIndex >= cmdHistory.length) {
-        setHistoryPointer(-1);
-        setInput('');
-      } else {
-        setHistoryPointer(nextIndex);
-        setInput(cmdHistory[nextIndex]);
-      }
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      handleAutocomplete();
-    } else if (e.key === 'l' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      setHistory([]);
     }
-  };
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [cmdHistory, historyPointer]);
 
-  const handleAutocomplete = () => {
+  const handleAutocomplete = useCallback(() => {
     const trimmed = input.trimStart();
     if (!trimmed) return;
 
@@ -402,6 +398,64 @@ Type "help" for a list of available commands or click quick actions below.`,
       } else if (candidates.length > 1) {
         addOutput('info', candidates.join('   '));
       }
+    }
+  }, [input, cwd, getDirEntries, addOutput]);
+
+  const handleTab = useCallback(() => {
+    handleAutocomplete();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [handleAutocomplete]);
+
+  const insertCharacter = useCallback((char: string) => {
+    if (!inputRef.current) {
+      setInput(prev => prev + char);
+      return;
+    }
+    const el = inputRef.current;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const text = el.value;
+    const next = text.substring(0, start) + char + text.substring(end);
+    setInput(next);
+    
+    requestAnimationFrame(() => {
+      el.focus();
+      const newPos = start + char.length;
+      el.setSelectionRange(newPos, newPos);
+    });
+  }, []);
+
+  const handleSigInt = useCallback(() => {
+    if (isRunning) {
+      setIsRunning(false);
+      addOutput('stderr', '^C (SIGINT: Command execution aborted)');
+    } else if (input) {
+      addOutput('cmd', input + ' ^C', { cwd: cwd === '/' ? '~' : cwd });
+      setInput('');
+      setHistoryPointer(-1);
+    } else {
+      addOutput('system', '^C');
+    }
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [isRunning, input, addOutput, cwd]);
+
+  // Autocomplete & key bindings support
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      handleHistoryUp();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      handleHistoryDown();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      handleTab();
+    } else if (e.key === 'c' && (e.ctrlKey || (e.metaKey && window.getSelection()?.toString() === ''))) {
+      e.preventDefault();
+      handleSigInt();
+    } else if (e.key === 'l' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      setHistory([]);
     }
   };
 
@@ -1452,52 +1506,6 @@ Access: 0644/-rw-r--r--`;
         </div>
       </div>
 
-      {/* Quick Action Chips Bar */}
-      <div 
-        className="px-3 py-1.5 bg-surface-elevated/40 border-b border-border/60 flex items-center gap-1.5 overflow-x-auto scrollbar-none shrink-0"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="text-[10px] text-muted/70 uppercase tracking-wider shrink-0 mr-1">Quick:</span>
-        <button
-          onClick={() => executeCommand('npm test')}
-          disabled={isRunning}
-          className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          <Play size={9} className="text-moss" />
-          <span>npm test</span>
-        </button>
-        <button
-          onClick={() => executeCommand('npm run build')}
-          disabled={isRunning}
-          className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          <Sparkles size={9} className="text-accent" />
-          <span>npm run build</span>
-        </button>
-        <button
-          onClick={() => executeCommand('tree')}
-          disabled={isRunning}
-          className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          <span>tree</span>
-        </button>
-        <button
-          onClick={() => executeCommand('ls -la')}
-          disabled={isRunning}
-          className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          <span>ls -la</span>
-        </button>
-        <button
-          onClick={() => executeCommand('help')}
-          disabled={isRunning}
-          className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-        >
-          <HelpCircle size={9} className="text-muted" />
-          <span>help</span>
-        </button>
-      </div>
-
       {/* Main Terminal Output Area */}
       <div 
         className="flex-1 p-3 overflow-y-auto overflow-x-hidden space-y-1.5 scrollbar-thin text-xs"
@@ -1557,48 +1565,193 @@ Access: 0644/-rw-r--r--`;
         <div ref={terminalEndRef} />
       </div>
 
-      {/* Interactive Command Input Prompt */}
+      {/* Sticky Bottom Control Area: Fixed Shell Modifiers Accessory Bar + Input Prompt */}
       <div 
-        className="p-2.5 pb-3.5 sm:pb-2.5 mb-2 sm:mb-0 pb-safe bg-surface border-t border-border flex items-center gap-2 shrink-0"
+        className="sticky bottom-0 z-20 bg-surface border-t border-border flex flex-col shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-1 shrink-0 select-none text-xs">
-          <span className="text-moss font-bold hidden xs:inline">dev@laide:</span>
-          <span className="text-accent font-bold">{cwd === '/' ? '~' : cwd}$</span>
+        {/* Sticky Keyboard Accessory Bar with Fixed Shell Modifiers & Quick Actions */}
+        <div 
+          className="px-2 py-1.5 bg-surface-elevated/70 border-b border-border/50 flex items-center justify-between gap-1.5 overflow-x-auto scrollbar-none select-none"
+          role="toolbar"
+          aria-label="Terminal keyboard accessory bar"
+        >
+          {/* Shell Modifiers */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Tab key */}
+            <button
+              type="button"
+              onClick={handleTab}
+              className="px-2 py-1 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
+              title="Tab (Autocomplete command or path)"
+              aria-label="Tab Autocomplete"
+            >
+              <span>Tab</span>
+              <span className="text-[9px] text-muted font-normal">⇥</span>
+            </button>
+
+            {/* History Up */}
+            <button
+              type="button"
+              onClick={handleHistoryUp}
+              disabled={cmdHistory.length === 0}
+              className="p-1 px-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-[11px] text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0"
+              title="History Previous (Up Arrow)"
+              aria-label="History Previous"
+            >
+              <ArrowUp size={13} />
+            </button>
+
+            {/* History Down */}
+            <button
+              type="button"
+              onClick={handleHistoryDown}
+              disabled={historyPointer === -1}
+              className="p-1 px-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-[11px] text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0"
+              title="History Next (Down Arrow)"
+              aria-label="History Next"
+            >
+              <ArrowDown size={13} />
+            </button>
+
+            {/* Insert '-' */}
+            <button
+              type="button"
+              onClick={() => insertCharacter('-')}
+              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
+              title="Insert hyphen/flag (-)"
+              aria-label="Insert hyphen"
+            >
+              -
+            </button>
+
+            {/* Insert '/' */}
+            <button
+              type="button"
+              onClick={() => insertCharacter('/')}
+              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
+              title="Insert path slash (/)"
+              aria-label="Insert slash"
+            >
+              /
+            </button>
+
+            {/* Insert '|' */}
+            <button
+              type="button"
+              onClick={() => insertCharacter(' | ')}
+              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
+              title="Insert pipe ( | )"
+              aria-label="Insert pipe"
+            >
+              |
+            </button>
+
+            {/* Ctrl+C SIGINT */}
+            <button
+              type="button"
+              onClick={handleSigInt}
+              className="px-1.5 py-1 bg-surface border border-border hover:border-oxide/60 hover:bg-oxide/10 active:bg-oxide/20 rounded font-mono font-bold text-[11px] text-oxide/90 hover:text-oxide flex items-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
+              title="Ctrl+C (SIGINT: Abort running command or clear input)"
+              aria-label="SIGINT Abort (Ctrl+C)"
+            >
+              <span>^C</span>
+              <span className="text-[9px] text-oxide/70 font-normal">Abort</span>
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="w-[1px] h-4 bg-border/80 shrink-0 mx-0.5" />
+
+          {/* Quick Action Chips in Sticky Accessory Bar */}
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[9px] text-muted/70 uppercase tracking-wider shrink-0 mr-0.5 hidden sm:inline">Quick:</span>
+            <button
+              type="button"
+              onClick={() => executeCommand('npm test')}
+              disabled={isRunning}
+              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <Play size={9} className="text-moss" />
+              <span>npm test</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => executeCommand('npm run build')}
+              disabled={isRunning}
+              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <Sparkles size={9} className="text-accent" />
+              <span>npm run build</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => executeCommand('tree')}
+              disabled={isRunning}
+              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <span>tree</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => executeCommand('ls -la')}
+              disabled={isRunning}
+              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <span>ls -la</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => executeCommand('help')}
+              disabled={isRunning}
+              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <HelpCircle size={9} className="text-muted" />
+              <span>help</span>
+            </button>
+          </div>
         </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            executeCommand(input);
-          }}
-          className="flex-1 flex items-center gap-1.5"
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isRunning}
-            placeholder={isRunning ? 'Executing command...' : 'Type a command (e.g. "help", "npm test", "ls -la")...'}
-            aria-label="Terminal command input"
-            className="flex-1 bg-transparent text-text font-mono text-xs focus:outline-none placeholder:text-muted/50"
-            autoFocus
-            autoComplete="off"
-            spellCheck={false}
-          />
+        {/* Interactive Command Input Prompt */}
+        <div className="p-2 sm:p-2.5 pb-3 sm:pb-2.5 pb-safe flex items-center gap-2">
+          <div className="flex items-center gap-1 shrink-0 select-none text-xs">
+            <span className="text-moss font-bold hidden xs:inline">dev@laide:</span>
+            <span className="text-accent font-bold">{cwd === '/' ? '~' : cwd}$</span>
+          </div>
 
-          <button
-            type="submit"
-            disabled={!input.trim() || isRunning}
-            className="p-1.5 rounded bg-accent/15 text-accent hover:bg-accent hover:text-accent-text-on disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
-            aria-label="Run command"
-            title="Run command (Enter)"
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              executeCommand(input);
+            }}
+            className="flex-1 flex items-center gap-1.5"
           >
-            <CornerDownLeft size={13} />
-          </button>
-        </form>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isRunning}
+              placeholder={isRunning ? 'Executing command...' : 'Type a command (e.g. "help", "npm test", "ls -la")...'}
+              aria-label="Terminal command input"
+              className="flex-1 bg-transparent text-text font-mono text-xs focus:outline-none placeholder:text-muted/50"
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+            />
+
+            <button
+              type="submit"
+              disabled={!input.trim() || isRunning}
+              className="p-1.5 rounded bg-accent/15 text-accent hover:bg-accent hover:text-accent-text-on disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+              aria-label="Run command"
+              title="Run command (Enter)"
+            >
+              <CornerDownLeft size={13} />
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

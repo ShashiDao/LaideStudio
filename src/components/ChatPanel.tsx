@@ -21,6 +21,7 @@ import { useAppStore } from '../store';
 import { runAgentLoop } from '../services/agent/agentLoop';
 import { runEnsembleDualEvaluation, type EnsembleEvaluationResult } from '../services/agent/ensemble';
 import { EnsembleCandidatePickerModal } from './EnsembleCandidatePickerModal';
+import { QuickConnectSheet } from './QuickConnectSheet';
 import { createLLMAdapter } from '../services/llm/factory';
 import { db, type FileItem } from '../db';
 import { listFiles } from '../services/fs/vfs';
@@ -136,7 +137,9 @@ export function ChatPanel({
   const [contextExpanded, setContextExpanded] = useState(false);
   const [expandedToolResults, setExpandedToolResults] = useState<Record<string, boolean>>({});
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isQuickConnectOpen, setIsQuickConnectOpen] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -562,36 +565,34 @@ export function ChatPanel({
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-      {/* Collapsible Context Files Row */}
-      <div className="shrink-0 relative z-20 border-b border-border bg-surface shadow-xs">
-        <button
-          type="button"
-          onClick={() => setContextExpanded(!contextExpanded)}
-          aria-expanded={contextExpanded}
-          aria-label={`${contextFiles.length} files in manifest, ${tokenUsage.codebase.toLocaleString()} manifest tokens`}
-          className="w-full flex items-center justify-between px-3.5 py-2 hover:bg-surface-elevated active:bg-surface-elevated/80 transition-colors text-left font-sans text-xs cursor-pointer"
-        >
-          <div className="flex items-center gap-2 min-w-0">
-            <Files size={13} className="text-accent shrink-0" />
-            <span className="text-text font-medium truncate">
-              {contextFiles.length} {contextFiles.length === 1 ? 'file' : 'files'} in manifest
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 text-[10px] sm:text-xs text-muted font-mono">
-            <span className="font-semibold text-text/80">{tokenUsage.codebase.toLocaleString()}{tokenUsage.isEstimate ? '*' : ''} manifest tokens</span>
-            {contextExpanded ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />}
-          </div>
-        </button>
-        {contextExpanded && (
-          <div 
-            role="region"
-            aria-label="Manifest files list"
-            className="max-h-48 overflow-y-auto border-t border-b border-border bg-surface shadow-2xl p-2 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150"
+      {/* Collapsible Context Files Row - Only displayed when workspace has files */}
+      {contextFiles.length > 0 && (
+        <div className="shrink-0 relative z-20 border-b border-border bg-surface shadow-xs">
+          <button
+            type="button"
+            onClick={() => setContextExpanded(!contextExpanded)}
+            aria-expanded={contextExpanded}
+            aria-label={`${contextFiles.length} files in manifest, ${tokenUsage.codebase.toLocaleString()} manifest tokens`}
+            className="w-full flex items-center justify-between px-3.5 py-2 hover:bg-surface-elevated active:bg-surface-elevated/80 transition-colors text-left font-sans text-xs cursor-pointer"
           >
-            {contextFiles.length === 0 ? (
-              <div className="text-xs font-mono text-muted px-2 py-1.5">No files in project yet</div>
-            ) : (
-              contextFiles.map(f => (
+            <div className="flex items-center gap-2 min-w-0">
+              <Files size={13} className="text-accent shrink-0" />
+              <span className="text-text font-medium truncate">
+                {contextFiles.length} {contextFiles.length === 1 ? 'file' : 'files'} in manifest
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 text-[10px] sm:text-xs text-muted font-mono">
+              <span className="font-semibold text-text/80">{tokenUsage.codebase.toLocaleString()}{tokenUsage.isEstimate ? '*' : ''} manifest tokens</span>
+              {contextExpanded ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />}
+            </div>
+          </button>
+          {contextExpanded && (
+            <div 
+              role="region"
+              aria-label="Manifest files list"
+              className="max-h-48 overflow-y-auto border-t border-b border-border bg-surface shadow-2xl p-2 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150"
+            >
+              {contextFiles.map(f => (
                 <div 
                   key={f.path} 
                   title={f.path}
@@ -604,11 +605,11 @@ export function ChatPanel({
                     {new TextEncoder().encode(f.content).length.toLocaleString()} B
                   </span>
                 </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Persistent Pending Patches Banner */}
       {pendingPatches.length > 0 && !isPatchReviewOpen && (
@@ -932,21 +933,22 @@ export function ChatPanel({
             {!activeProfileId ? (
               <button
                 type="button"
-                onClick={() => setActiveTab('settings')}
+                onClick={() => setIsQuickConnectOpen(true)}
                 aria-label="Configure an AI profile to start chatting"
                 className="w-full bg-surface border border-rose-500/30 hover:border-rose-500/50 rounded-lg flex justify-between items-center px-3.5 py-2.5 min-h-[48px] text-left text-xs sm:text-sm text-rose-400/90 hover:text-rose-300 transition-colors cursor-pointer group shadow-xs active:scale-[0.99]"
-                title="Configure an AI profile to start chatting"
+                title="Quick connect an AI profile to start chatting"
               >
                 <span className="font-sans truncate mr-2">
                   Configure an AI profile to start chatting
                 </span>
                 <span className="text-[11px] font-sans font-semibold px-2.5 py-1 rounded-md bg-rose-500/15 border border-rose-500/35 text-rose-400 shrink-0 group-hover:bg-rose-500/25 group-hover:border-rose-500/50 transition-colors shadow-2xs">
-                  Configure
+                  Connect AI →
                 </span>
               </button>
             ) : (
               <>
                 <textarea
+                  ref={inputRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -987,6 +989,15 @@ export function ChatPanel({
           </div>
         </div>
       </div>
+
+      {/* Inline Quick-Connect Sheet */}
+      <QuickConnectSheet
+        isOpen={isQuickConnectOpen}
+        onClose={() => setIsQuickConnectOpen(false)}
+        onProfileConnected={() => {
+          setTimeout(() => inputRef.current?.focus(), 100);
+        }}
+      />
 
       {/* Candidate Picker Modal for Ensemble Dual Pass */}
       {ensembleEvaluation && (

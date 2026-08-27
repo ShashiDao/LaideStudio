@@ -532,6 +532,7 @@ export default function App() {
               <ErrorBoundary resetKey={activeProject?.id}>
                 <PreviewPanel 
                   files={files} 
+                  breakpoint={breakpoint}
                   onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
                 />
               </ErrorBoundary>
@@ -703,6 +704,7 @@ export default function App() {
                           <ErrorBoundary resetKey={activeProject?.id}>
                             <PreviewPanel 
                               files={files} 
+                              breakpoint={breakpoint}
                               onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
                             />
                           </ErrorBoundary>
@@ -718,6 +720,7 @@ export default function App() {
                             <ErrorBoundary resetKey={activeProject?.id}>
                               <PreviewPanel 
                                 files={files} 
+                                breakpoint={breakpoint}
                                 onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
                               />
                             </ErrorBoundary>
