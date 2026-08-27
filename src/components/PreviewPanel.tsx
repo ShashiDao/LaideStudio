@@ -147,9 +147,12 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
 
   // Clear logs or notify iframe when refresh happens
   useEffect(() => {
-    setConsoleLogs([]);
-    setInspectedElement(null);
-    setIsInspectMode(false);
+    const timer = setTimeout(() => {
+      setConsoleLogs([]);
+      setInspectedElement(null);
+      setIsInspectMode(false);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [refreshKey, files]);
 
   useEffect(() => {

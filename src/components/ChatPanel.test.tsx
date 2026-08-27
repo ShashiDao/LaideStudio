@@ -87,24 +87,48 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
     cleanup();
   });
 
-  it('renders locked input container that routes to settings when no profile is selected', () => {
+  it('renders locked input container that opens Quick-Connect sheet directly without leaving Chat', async () => {
     mockStoreState.activeProfileId = null;
 
     render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
 
-    const settingsBtn = screen.getByRole('button', { name: /Configure an AI profile to start chatting/i });
-    expect(settingsBtn).toBeDefined();
-    expect(settingsBtn.textContent).toContain('Configure an AI profile to start chatting');
-    expect(settingsBtn.textContent).toContain('Configure');
+    const configBtn = screen.getByRole('button', { name: /Configure an AI profile to start chatting/i });
+    expect(configBtn).toBeDefined();
+    expect(configBtn.textContent).toContain('Configure an AI profile to start chatting');
+    expect(configBtn.textContent).toContain('Connect AI →');
 
-    fireEvent.click(settingsBtn);
-    expect(mockSetActiveTab).toHaveBeenCalledWith('settings');
+    // Quick Connect sheet should not be visible before click
+    expect(screen.queryByRole('dialog', { name: /Quick-Connect AI Profile/i })).toBeNull();
+
+    // Tap button to open Quick Connect bottom sheet
+    fireEvent.click(configBtn);
+
+    // Bottom sheet dialog is open
+    expect(screen.getByRole('dialog')).toBeDefined();
+    expect(screen.getByText('Quick-Connect AI Profile')).toBeDefined();
+    expect(screen.getByText('Google Gemini')).toBeDefined();
+    expect(screen.getByText('Ollama')).toBeDefined();
+
+    // No tab navigation triggered
+    expect(mockSetActiveTab).not.toHaveBeenCalled();
 
     // Send button should not be rendered when no profile is configured
     expect(screen.queryByRole('button', { name: /Send message/i })).toBeNull();
 
     // Detail popup should not be present
     expect(screen.queryByRole('region', { name: 'Session control details' })).toBeNull();
+  });
+
+  it('hides the manifest bar completely when 0 workspace files exist', async () => {
+    vi.mocked(listFiles).mockResolvedValueOnce([]);
+
+    render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
+
+    // Wait for file listing to settle
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /manifest tokens/i })).toBeNull();
+      expect(screen.queryByText(/0 files in manifest/i)).toBeNull();
+    });
   });
 
   it('renders collapsed summary chip when profile is selected with model, vision, and cost', async () => {
@@ -250,5 +274,26 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
     // File items rendered
     expect(screen.getByText('src/App.tsx')).toBeDefined();
     expect(screen.getByTitle('src/components/FindWhatBrokeModal.test.tsx')).toBeDefined();
+  });
+
+  it('allows activating existing profile from QuickConnectSheet', async () => {
+    const mockSetActiveProfileId = vi.fn();
+    mockStoreState.activeProfileId = null;
+    mockStoreState.setActiveProfileId = mockSetActiveProfileId;
+
+    render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
+
+    const configBtn = screen.getByRole('button', { name: /Configure an AI profile to start chatting/i });
+    fireEvent.click(configBtn);
+
+    // Wait for existing profiles to load
+    const existingProfileBtn = await screen.findByRole('button', { name: /Claude 3.5 Sonnet/i });
+    expect(existingProfileBtn).toBeDefined();
+
+    fireEvent.click(existingProfileBtn);
+
+    expect(mockSetActiveProfileId).toHaveBeenCalledWith('prof-1');
+    // Dialog should close
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

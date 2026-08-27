@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-76
-- Last verified working: Implemented sticky keyboard accessory bar with fixed shell modifiers (`Tab` autocomplete, `↑`/`↓` command history cycling, `-` hyphen, `/` path slash, `|` pipe, and `Ctrl+C` SIGINT abort) pinned directly above the bottom terminal command input, alongside sticky quick command chips (`npm test`, `npm run build`, `tree`, `ls -la`, `help`). All 27 unit tests in `TerminalPanel.test.tsx` and `TerminalDrawer.test.tsx` pass, and `compile_applet` builds cleanly.
+- Phase: HOTFIX-77
+- Last verified working: Implemented frictionless In-Chat Onboarding with swipe-up Quick-Connect Bottom Sheet (`QuickConnectSheet.tsx`) allowing instantaneous API key entry and zero-config Ollama selection right from the Chat tab without tab switching. Implemented dynamic manifest bar hiding in `ChatPanel.tsx` that collapses and hides the manifest strip when no workspace files exist (`contextFiles.length === 0`). All 11 unit tests in `ChatPanel.test.tsx` passed, `lint_applet` passed with 0 errors, and `compile_applet` compiled cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,25 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-77] Frictionless In-Chat Onboarding & Dynamic Manifest Bar Hiding — 2026-08-27
+Prompt: Frictionless In-Chat Onboarding (swipe-up Quick-Connect Bottom Sheet right inside Chat tab instead of forcing full tab-switch to Settings) and Dynamic Manifest Bar Hiding (collapse/hide manifest strip until at least one workspace file is loaded).
+Files touched:
+- `src/components/QuickConnectSheet.tsx` (new)
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/ChatPanel.test.tsx` (modified)
+- `src/components/PreviewPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Built `QuickConnectSheet.tsx` providing a swipe-up mobile bottom sheet / desktop dialog to connect providers (Google Gemini, Anthropic Claude, OpenAI, OpenRouter, Ollama, OpenAI-compatible) and activate existing profiles with a single tap.
+- Added zero-config local Ollama support with pre-filled local endpoint (`http://localhost:11434/v1`) without requiring an API key.
+- Replaced the redirection to Settings tab on the unconfigured profile banner with opening the inline Quick-Connect sheet directly in Chat.
+- Conditionally hid the manifest files header bar in `ChatPanel.tsx` when 0 workspace files exist (`contextFiles.length === 0`), eliminating dead information clutter on clean projects.
+- Added autofocus restoration to chat textarea after profile connection to ensure immediate message entry.
+Decisions: Kept the link to "Full Settings" in the bottom sheet footer for advanced multi-key vault management or MCP tools, while streamlining the 95% common path into an in-chat sheet.
+Deviations: none
+Verified: All 11 tests in `ChatPanel.test.tsx` passed, `lint_applet` passed with 0 errors, and `compile_applet` succeeded.
+Open questions: none
 
 ### [HOTFIX-76] Terminal Virtual Keyboard Ergonomics & Fixed Shell Modifiers — 2026-08-27
 Prompt: Terminal Virtual Keyboard Ergonomics: Float a compact accessory strip directly above the active mobile keyboard with Tab (autocomplete), ↑/↓ (command history cycling), -, /, |, and Ctrl+C (SIGINT abort), preventing chips and actions from scrolling out of view when the virtual keyboard pops up.
