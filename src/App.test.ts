@@ -108,4 +108,39 @@ describe('App Files-tab Header Layout on narrow widths', () => {
       expect(allProjects.some(p => p.name.includes('Tailwind'))).toBe(true);
     });
   });
+
+  it('hides the bottom tab bar when virtual keyboard opens / input is focused', async () => {
+    window.innerWidth = 390;
+    window.dispatchEvent(new Event('resize'));
+
+    render(React.createElement(App));
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Project Mobile')).toBeDefined();
+    });
+
+    const nav = screen.getByRole('tablist', { name: 'Workspace view tabs' });
+    expect(nav.className).toContain('flex');
+    expect(nav.className).not.toContain('hidden');
+
+    // Simulate focusing an input element
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    fireEvent.focusIn(input);
+
+    await waitFor(() => {
+      expect(nav.className).toContain('hidden');
+    });
+
+    // Simulate blurring
+    input.blur();
+    fireEvent.focusOut(input);
+
+    await waitFor(() => {
+      expect(nav.className).toContain('flex');
+    });
+
+    document.body.removeChild(input);
+  });
 });

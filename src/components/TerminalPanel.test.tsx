@@ -379,6 +379,55 @@ describe('TerminalPanel Component', () => {
       expect(input.value).toBe('tree ');
     });
 
+    it('autocompletes npm subcommands like "npm run build" and "npm test"', () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const input = screen.getByPlaceholderText<HTMLInputElement>(/Type a command/);
+      const tabBtn = screen.getByRole('button', { name: 'Tab Autocomplete' });
+
+      // npm t -> npm test
+      fireEvent.change(input, { target: { value: 'npm t' } });
+      fireEvent.click(tabBtn);
+      expect(input.value).toBe('npm test ');
+
+      // npm run b -> npm run build
+      fireEvent.change(input, { target: { value: 'npm run b' } });
+      fireEvent.click(tabBtn);
+      expect(input.value).toBe('npm run build ');
+
+      // git s -> git status
+      fireEvent.change(input, { target: { value: 'git s' } });
+      fireEvent.click(tabBtn);
+      expect(input.value).toBe('git status ');
+    });
+
+    it('autocompletes file and folder paths with Tab', () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const input = screen.getByPlaceholderText<HTMLInputElement>(/Type a command/);
+      const tabBtn = screen.getByRole('button', { name: 'Tab Autocomplete' });
+
+      // cd sr -> cd src/
+      fireEvent.change(input, { target: { value: 'cd sr' } });
+      fireEvent.click(tabBtn);
+      expect(input.value).toBe('cd src/');
+
+      // cat src/m -> cat src/main.tsx
+      fireEvent.change(input, { target: { value: 'cat src/m' } });
+      fireEvent.click(tabBtn);
+      expect(input.value).toBe('cat src/main.tsx ');
+    });
+
+    it('prevents default on mousedown to preserve keyboard focus', () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const tabBtn = screen.getByRole('button', { name: 'Tab Autocomplete' });
+      const hyphenBtn = screen.getByRole('button', { name: 'Insert hyphen' });
+
+      const tabPrevented = !fireEvent.mouseDown(tabBtn);
+      expect(tabPrevented).toBe(true);
+
+      const hyphenPrevented = !fireEvent.mouseDown(hyphenBtn);
+      expect(hyphenPrevented).toBe(true);
+    });
+
     it('cycles command history with Up and Down modifier buttons', async () => {
       render(<TerminalPanel projectId={projectId} files={mockFiles} />);
       const input = screen.getByPlaceholderText<HTMLInputElement>(/Type a command/);

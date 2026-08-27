@@ -366,38 +366,149 @@ Type "help" for a list of available commands or click quick actions below.`,
   }, [cmdHistory, historyPointer]);
 
   const handleAutocomplete = useCallback(() => {
-    const trimmed = input.trimStart();
-    if (!trimmed) return;
+    const trimmedLeft = input.trimStart();
+    if (!trimmedLeft) return;
 
-    const parts = trimmed.split(' ');
+    const parts = trimmedLeft.split(' ');
+    const firstWord = parts[0]?.toLowerCase() || '';
+
+    // 1. Completing the main command (first token)
     if (parts.length <= 1) {
-      // Autocomplete command
-      const prefix = parts[0].toLowerCase();
+      const prefix = firstWord;
       const matches = COMMAND_LIST.filter(c => c.startsWith(prefix));
       if (matches.length === 1) {
         setInput(matches[0] + ' ');
       } else if (matches.length > 1) {
+        // Find longest common prefix among matches
+        let lcp = matches[0];
+        for (let i = 1; i < matches.length; i++) {
+          while (!matches[i].startsWith(lcp)) {
+            lcp = lcp.slice(0, -1);
+            if (!lcp) break;
+          }
+        }
+        if (lcp.length > prefix.length) {
+          setInput(lcp);
+        }
         addOutput('info', matches.join('   '));
       }
-    } else {
-      // Autocomplete file or folder in current cwd
-      const lastToken = parts[parts.length - 1];
-      const resolved = resolvePath(cwd, lastToken);
-      const parentDir = resolved.includes('/') ? resolved.substring(0, resolved.lastIndexOf('/')) || '/' : cwd;
-      const filePrefix = resolved.substring(resolved.lastIndexOf('/') + 1);
+      return;
+    }
 
-      const entries = getDirEntries(parentDir);
-      const candidates = [
-        ...entries.folders.map(f => f + '/'),
-        ...entries.files.map(f => f.path.split('/').pop() || '')
-      ].filter(item => item.toLowerCase().startsWith(filePrefix.toLowerCase()));
-
-      if (candidates.length === 1) {
-        parts[parts.length - 1] = (lastToken.includes('/') ? lastToken.substring(0, lastToken.lastIndexOf('/') + 1) : '') + candidates[0];
-        setInput(parts.join(' '));
-      } else if (candidates.length > 1) {
-        addOutput('info', candidates.join('   '));
+    // 2. Completing subcommands for multi-token commands (npm, git, theme)
+    if (firstWord === 'npm') {
+      const npmSubcommands = ['test', 'run build', 'run', 'ls', 'list', 'pkg', 'bisect'];
+      if (parts.length === 2) {
+        const subPrefix = parts[1].toLowerCase();
+        const matches = npmSubcommands.filter(s => s.startsWith(subPrefix));
+        if (matches.length === 1) {
+          setInput(`npm ${matches[0]} `);
+          return;
+        } else if (matches.length > 1) {
+          let lcp = matches[0];
+          for (let i = 1; i < matches.length; i++) {
+            while (!matches[i].startsWith(lcp)) {
+              lcp = lcp.slice(0, -1);
+              if (!lcp) break;
+            }
+          }
+          if (lcp.length > subPrefix.length) {
+            setInput(`npm ${lcp} `);
+          }
+          addOutput('info', matches.join('   '));
+          return;
+        }
+      } else if (parts.length === 3 && parts[1].toLowerCase() === 'run') {
+        const runTargets = ['build', 'dev', 'test'];
+        const runPrefix = parts[2].toLowerCase();
+        const matches = runTargets.filter(t => t.startsWith(runPrefix));
+        if (matches.length === 1) {
+          setInput(`npm run ${matches[0]} `);
+          return;
+        } else if (matches.length > 1) {
+          addOutput('info', matches.join('   '));
+          return;
+        }
       }
+    }
+
+    if (firstWord === 'git' && parts.length === 2) {
+      const gitSubcommands = ['status', 'diff', 'log', 'branch', 'checkout', 'commit', 'add'];
+      const subPrefix = parts[1].toLowerCase();
+      const matches = gitSubcommands.filter(s => s.startsWith(subPrefix));
+      if (matches.length === 1) {
+        setInput(`git ${matches[0]} `);
+        return;
+      } else if (matches.length > 1) {
+        let lcp = matches[0];
+        for (let i = 1; i < matches.length; i++) {
+          while (!matches[i].startsWith(lcp)) {
+            lcp = lcp.slice(0, -1);
+            if (!lcp) break;
+          }
+        }
+        if (lcp.length > subPrefix.length) {
+          setInput(`git ${lcp} `);
+        }
+        addOutput('info', matches.join('   '));
+        return;
+      }
+    }
+
+    if (firstWord === 'theme' && parts.length === 2) {
+      const themeSubcommands = ['oled', 'paper'];
+      const subPrefix = parts[1].toLowerCase();
+      const matches = themeSubcommands.filter(s => s.startsWith(subPrefix));
+      if (matches.length === 1) {
+        setInput(`theme ${matches[0]} `);
+        return;
+      } else if (matches.length > 1) {
+        addOutput('info', matches.join('   '));
+        return;
+      }
+    }
+
+    // 3. Completing file or folder paths in the VFS
+    const lastToken = parts[parts.length - 1];
+    let parentDir: string;
+    let filePrefix: string;
+    const lastSlash = lastToken.lastIndexOf('/');
+
+    if (lastSlash !== -1) {
+      const dirPart = lastToken.substring(0, lastSlash);
+      parentDir = resolvePath(cwd, dirPart || '/');
+      filePrefix = lastToken.substring(lastSlash + 1);
+    } else {
+      parentDir = cwd;
+      filePrefix = lastToken;
+    }
+
+    const entries = getDirEntries(parentDir);
+    const folderCandidates = entries.folders.map(f => ({ name: f + '/', isDir: true }));
+    const fileCandidates = entries.files.map(f => ({ name: f.path.split('/').pop() || '', isDir: false }));
+    const allCandidates = [...folderCandidates, ...fileCandidates];
+
+    const matched = allCandidates.filter(c => c.name.toLowerCase().startsWith(filePrefix.toLowerCase()));
+
+    if (matched.length === 1) {
+      const match = matched[0];
+      const pathPrefix = lastSlash !== -1 ? lastToken.substring(0, lastSlash + 1) : '';
+      parts[parts.length - 1] = pathPrefix + match.name + (match.isDir ? '' : ' ');
+      setInput(parts.join(' '));
+    } else if (matched.length > 1) {
+      const pathPrefix = lastSlash !== -1 ? lastToken.substring(0, lastSlash + 1) : '';
+      let lcp = matched[0].name;
+      for (let i = 1; i < matched.length; i++) {
+        while (!matched[i].name.toLowerCase().startsWith(lcp.toLowerCase())) {
+          lcp = lcp.slice(0, -1);
+          if (!lcp) break;
+        }
+      }
+      if (lcp.length > filePrefix.length) {
+        parts[parts.length - 1] = pathPrefix + lcp;
+        setInput(parts.join(' '));
+      }
+      addOutput('info', matched.map(m => m.name).join('   '));
     }
   }, [input, cwd, getDirEntries, addOutput]);
 
@@ -1565,155 +1676,13 @@ Access: 0644/-rw-r--r--`;
         <div ref={terminalEndRef} />
       </div>
 
-      {/* Sticky Bottom Control Area: Fixed Shell Modifiers Accessory Bar + Input Prompt */}
+      {/* Sticky Bottom Control Area: Command Input Prompt + Floating Accessory Bar */}
       <div 
         className="sticky bottom-0 z-20 bg-surface border-t border-border flex flex-col shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Sticky Keyboard Accessory Bar with Fixed Shell Modifiers & Quick Actions */}
-        <div 
-          className="px-2 py-1.5 bg-surface-elevated/70 border-b border-border/50 flex items-center justify-between gap-1.5 overflow-x-auto scrollbar-none select-none"
-          role="toolbar"
-          aria-label="Terminal keyboard accessory bar"
-        >
-          {/* Shell Modifiers */}
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Tab key */}
-            <button
-              type="button"
-              onClick={handleTab}
-              className="px-2 py-1 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
-              title="Tab (Autocomplete command or path)"
-              aria-label="Tab Autocomplete"
-            >
-              <span>Tab</span>
-              <span className="text-[9px] text-muted font-normal">⇥</span>
-            </button>
-
-            {/* History Up */}
-            <button
-              type="button"
-              onClick={handleHistoryUp}
-              disabled={cmdHistory.length === 0}
-              className="p-1 px-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-[11px] text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0"
-              title="History Previous (Up Arrow)"
-              aria-label="History Previous"
-            >
-              <ArrowUp size={13} />
-            </button>
-
-            {/* History Down */}
-            <button
-              type="button"
-              onClick={handleHistoryDown}
-              disabled={historyPointer === -1}
-              className="p-1 px-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-[11px] text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0"
-              title="History Next (Down Arrow)"
-              aria-label="History Next"
-            >
-              <ArrowDown size={13} />
-            </button>
-
-            {/* Insert '-' */}
-            <button
-              type="button"
-              onClick={() => insertCharacter('-')}
-              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
-              title="Insert hyphen/flag (-)"
-              aria-label="Insert hyphen"
-            >
-              -
-            </button>
-
-            {/* Insert '/' */}
-            <button
-              type="button"
-              onClick={() => insertCharacter('/')}
-              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
-              title="Insert path slash (/)"
-              aria-label="Insert slash"
-            >
-              /
-            </button>
-
-            {/* Insert '|' */}
-            <button
-              type="button"
-              onClick={() => insertCharacter(' | ')}
-              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
-              title="Insert pipe ( | )"
-              aria-label="Insert pipe"
-            >
-              |
-            </button>
-
-            {/* Ctrl+C SIGINT */}
-            <button
-              type="button"
-              onClick={handleSigInt}
-              className="px-1.5 py-1 bg-surface border border-border hover:border-oxide/60 hover:bg-oxide/10 active:bg-oxide/20 rounded font-mono font-bold text-[11px] text-oxide/90 hover:text-oxide flex items-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
-              title="Ctrl+C (SIGINT: Abort running command or clear input)"
-              aria-label="SIGINT Abort (Ctrl+C)"
-            >
-              <span>^C</span>
-              <span className="text-[9px] text-oxide/70 font-normal">Abort</span>
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="w-[1px] h-4 bg-border/80 shrink-0 mx-0.5" />
-
-          {/* Quick Action Chips in Sticky Accessory Bar */}
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[9px] text-muted/70 uppercase tracking-wider shrink-0 mr-0.5 hidden sm:inline">Quick:</span>
-            <button
-              type="button"
-              onClick={() => executeCommand('npm test')}
-              disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              <Play size={9} className="text-moss" />
-              <span>npm test</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => executeCommand('npm run build')}
-              disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              <Sparkles size={9} className="text-accent" />
-              <span>npm run build</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => executeCommand('tree')}
-              disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              <span>tree</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => executeCommand('ls -la')}
-              disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              <span>ls -la</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => executeCommand('help')}
-              disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-            >
-              <HelpCircle size={9} className="text-muted" />
-              <span>help</span>
-            </button>
-          </div>
-        </div>
-
         {/* Interactive Command Input Prompt */}
-        <div className="p-2 sm:p-2.5 pb-3 sm:pb-2.5 pb-safe flex items-center gap-2">
+        <div className="p-2 sm:p-2.5 pb-2.5 flex items-center gap-2 border-b border-border/40 bg-surface">
           <div className="flex items-center gap-1 shrink-0 select-none text-xs">
             <span className="text-moss font-bold hidden xs:inline">dev@laide:</span>
             <span className="text-accent font-bold">{cwd === '/' ? '~' : cwd}$</span>
@@ -1744,13 +1713,167 @@ Access: 0644/-rw-r--r--`;
             <button
               type="submit"
               disabled={!input.trim() || isRunning}
-              className="p-1.5 rounded bg-accent/15 text-accent hover:bg-accent hover:text-accent-text-on disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+              className="min-h-[36px] min-w-[36px] h-9 w-9 rounded-md bg-accent/15 text-accent hover:bg-accent hover:text-accent-text-on active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center justify-center cursor-pointer shrink-0"
               aria-label="Run command"
               title="Run command (Enter)"
             >
-              <CornerDownLeft size={13} />
+              <CornerDownLeft size={14} />
             </button>
           </form>
+        </div>
+
+        {/* Sticky Keyboard Accessory Bar with 36x36px+ Touch Targets & Prevent-Blur Modifiers */}
+        <div 
+          className="px-2 py-1.5 pb-safe bg-surface-elevated/80 flex items-center justify-between gap-1.5 overflow-x-auto scrollbar-none select-none"
+          role="toolbar"
+          aria-label="Terminal keyboard accessory bar"
+        >
+          {/* Shell Modifiers with >= 36x36px Active Touch Targets */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Tab key */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleTab}
+              className="h-9 px-3 min-w-[54px] bg-surface border border-border hover:border-accent/50 active:bg-accent/20 active:scale-95 rounded-md font-mono font-bold text-xs text-text hover:text-accent flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs shrink-0"
+              title="Tab (Autocomplete command or path)"
+              aria-label="Tab Autocomplete"
+            >
+              <span>Tab</span>
+              <span className="text-[10px] text-muted font-normal">⇥</span>
+            </button>
+
+            {/* History Up */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleHistoryUp}
+              disabled={cmdHistory.length === 0}
+              className="h-9 w-9 min-w-[36px] min-h-[36px] bg-surface border border-border hover:border-accent/50 active:bg-accent/20 active:scale-95 rounded-md text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0"
+              title="History Previous (Up Arrow)"
+              aria-label="History Previous"
+            >
+              <ArrowUp size={15} />
+            </button>
+
+            {/* History Down */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleHistoryDown}
+              disabled={historyPointer === -1}
+              className="h-9 w-9 min-w-[36px] min-h-[36px] bg-surface border border-border hover:border-accent/50 active:bg-accent/20 active:scale-95 rounded-md text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0"
+              title="History Next (Down Arrow)"
+              aria-label="History Next"
+            >
+              <ArrowDown size={15} />
+            </button>
+
+            {/* Insert '-' */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => insertCharacter('-')}
+              className="h-9 w-9 min-w-[36px] min-h-[36px] bg-surface border border-border hover:border-accent/50 active:bg-accent/20 active:scale-95 rounded-md font-mono font-bold text-sm text-text hover:text-accent flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0"
+              title="Insert hyphen/flag (-)"
+              aria-label="Insert hyphen"
+            >
+              -
+            </button>
+
+            {/* Insert '/' */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => insertCharacter('/')}
+              className="h-9 w-9 min-w-[36px] min-h-[36px] bg-surface border border-border hover:border-accent/50 active:bg-accent/20 active:scale-95 rounded-md font-mono font-bold text-sm text-text hover:text-accent flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0"
+              title="Insert path slash (/)"
+              aria-label="Insert slash"
+            >
+              /
+            </button>
+
+            {/* Insert '|' */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => insertCharacter(' | ')}
+              className="h-9 w-9 min-w-[36px] min-h-[36px] bg-surface border border-border hover:border-accent/50 active:bg-accent/20 active:scale-95 rounded-md font-mono font-bold text-sm text-text hover:text-accent flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0"
+              title="Insert pipe ( | )"
+              aria-label="Insert pipe"
+            >
+              |
+            </button>
+
+            {/* Ctrl+C SIGINT */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleSigInt}
+              className="h-9 px-2.5 min-w-[50px] bg-surface border border-border hover:border-oxide/60 hover:bg-oxide/10 active:bg-oxide/20 active:scale-95 rounded-md font-mono font-bold text-xs text-oxide/90 hover:text-oxide flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs shrink-0"
+              title="Ctrl+C (SIGINT: Abort running command or clear input)"
+              aria-label="SIGINT Abort (Ctrl+C)"
+            >
+              <span>^C</span>
+              <span className="text-[10px] text-oxide/70 font-normal">Abort</span>
+            </button>
+          </div>
+
+          {/* Divider */}
+          <div className="w-[1px] h-5 bg-border/80 shrink-0 mx-0.5" />
+
+          {/* Quick Action Chips in Sticky Accessory Bar with >= 36px touch height */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] text-muted/70 uppercase tracking-wider shrink-0 mr-0.5 hidden sm:inline">Quick:</span>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => executeCommand('npm test')}
+              disabled={isRunning}
+              className="h-9 px-3 min-h-[36px] bg-surface border border-border hover:border-accent/40 active:scale-95 rounded-md text-xs text-text hover:text-accent flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <Play size={11} className="text-moss" />
+              <span>npm test</span>
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => executeCommand('npm run build')}
+              disabled={isRunning}
+              className="h-9 px-3 min-h-[36px] bg-surface border border-border hover:border-accent/40 active:scale-95 rounded-md text-xs text-text hover:text-accent flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <Sparkles size={11} className="text-accent" />
+              <span>npm run build</span>
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => executeCommand('tree')}
+              disabled={isRunning}
+              className="h-9 px-3 min-h-[36px] bg-surface border border-border hover:border-accent/40 active:scale-95 rounded-md text-xs text-text hover:text-accent flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <span>tree</span>
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => executeCommand('ls -la')}
+              disabled={isRunning}
+              className="h-9 px-3 min-h-[36px] bg-surface border border-border hover:border-accent/40 active:scale-95 rounded-md text-xs text-text hover:text-accent flex items-center gap-1 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <span>ls -la</span>
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => executeCommand('help')}
+              disabled={isRunning}
+              className="h-9 px-3 min-h-[36px] bg-surface border border-border hover:border-accent/40 active:scale-95 rounded-md text-xs text-text hover:text-accent flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <HelpCircle size={11} className="text-muted" />
+              <span>help</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -128,9 +128,61 @@ export default function App() {
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const breakpoint = useShellBreakpoint(shellRef);
+
+  useEffect(() => {
+    const isInputElement = (el: Element | null): boolean => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+      if ((el as HTMLElement).isContentEditable) return true;
+      if (el.getAttribute('role') === 'textbox') return true;
+      return false;
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      if (isInputElement(e.target as Element)) {
+        setIsKeyboardOpen(true);
+      }
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        if (!isInputElement(document.activeElement)) {
+          setIsKeyboardOpen(false);
+        }
+      }, 50);
+    };
+
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', handleFocusOut);
+
+    const vv = window.visualViewport;
+    const handleViewportResize = () => {
+      if (!vv) return;
+      const heightDrop = window.innerHeight - vv.height;
+      if (heightDrop > 120) {
+        setIsKeyboardOpen(true);
+      } else if (!isInputElement(document.activeElement)) {
+        setIsKeyboardOpen(false);
+      }
+    };
+
+    if (vv) {
+      vv.addEventListener('resize', handleViewportResize);
+    }
+
+    return () => {
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
+      if (vv) {
+        vv.removeEventListener('resize', handleViewportResize);
+      }
+    };
+  }, []);
 
   const handleOpenProjectSearch = (initialQuery?: string) => {
     setProjectSearchInitialQuery(initialQuery || '');
@@ -565,11 +617,13 @@ export default function App() {
             )}
           </main>
 
-          {/* Fixed Bottom Tab Bar with safe-area padding for home indicator */}
+          {/* Fixed Bottom Tab Bar with safe-area padding for home indicator - Hides when keyboard is open */}
           <nav 
             role="tablist" 
             aria-label="Workspace view tabs"
-            className="pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border flex relative"
+            className={`pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border relative ${
+              isKeyboardOpen ? 'hidden' : 'flex'
+            }`}
           >
             <div className="h-[60px] w-full flex">
               <TabButton id="files" current={activeTab} onClick={setActiveTab} icon={<FileText size={19} />} label="Files" />
