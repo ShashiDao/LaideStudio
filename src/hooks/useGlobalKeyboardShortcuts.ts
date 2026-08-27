@@ -102,11 +102,14 @@ export function useGlobalKeyboardShortcuts({
         return;
       }
 
-      // 5. Ctrl+` (Backquote) / Ctrl+~: Toggle / Switch to Terminal tab
+      // 5. Ctrl+` (Backquote) / Ctrl+~: Toggle Terminal Drawer or Switch to Terminal tab
       if (isMod && (e.key === '`' || e.key === '~')) {
         e.preventDefault();
-        const curr = useAppStore.getState().activeTab;
-        setActiveTab(curr === 'terminal' ? 'files' : 'terminal');
+        const store = useAppStore.getState();
+        store.toggleTerminalDrawer();
+        if (store.activeTab === 'terminal') {
+          setActiveTab('files');
+        }
         return;
       }
 

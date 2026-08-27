@@ -458,7 +458,15 @@ export function FileTree({
   autoFocusSearch?: boolean,
   onOpenProjectSearch?: (query?: string) => void
 }) {
-  const { activeFileId, setActiveFileId, flashingPaths, setActiveTab, addToast } = useAppStore();
+  const { 
+    activeFileId, 
+    setActiveFileId, 
+    flashingPaths, 
+    setActiveTab, 
+    addToast,
+    expandedFolderPaths,
+    setExpandedFolderPaths
+  } = useAppStore();
 
   const copyFilePath = (path: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -472,10 +480,19 @@ export function FileTree({
   const tree = useMemo(() => buildFileTree(files), [files]);
   const allFolderPaths = useMemo(() => getAllFolderPaths(tree), [tree]);
 
-  // State to hold set of expanded folder paths
+  // State to hold set of expanded folder paths, rehydrated from store or allFolderPaths
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    if (expandedFolderPaths && expandedFolderPaths.length > 0) {
+      return new Set<string>(expandedFolderPaths);
+    }
     return new Set<string>(allFolderPaths);
   });
+
+  // Debounce-persist expandedFolders to store so unmounting/remounting across breakpoints preserves state
+  useEffect(() => {
+    const arr = Array.from(expandedFolders);
+    setExpandedFolderPaths(arr);
+  }, [expandedFolders, setExpandedFolderPaths]);
 
   // Keep expanded folders updated when new folders appear
   useEffect(() => {

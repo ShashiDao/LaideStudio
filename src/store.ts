@@ -36,6 +36,15 @@ export interface WorkspaceSlice {
   setActiveTab: (tab: TabId) => void;
   activeFileId: string | null;
   setActiveFileId: (id: string | null) => void;
+  openFileIds: string[];
+  setOpenFileIds: (ids: string[]) => void;
+  openFile: (id: string) => void;
+  closeFile: (id: string) => void;
+  isTerminalDrawerOpen: boolean;
+  setIsTerminalDrawerOpen: (open: boolean) => void;
+  toggleTerminalDrawer: () => void;
+  expandedFolderPaths: string[];
+  setExpandedFolderPaths: (paths: string[]) => void;
   activeProfileId: string | null;
   setActiveProfileId: (id: string | null) => void;
   activeProjectId: string | null;
@@ -67,6 +76,8 @@ export interface PatchSlice {
 export interface ChatSlice {
   chatHistory: LLMMessage[];
   setChatHistory: (history: LLMMessage[]) => void;
+  chatDraft: string;
+  setChatDraft: (draft: string) => void;
   tokenUsage: TokenUsage;
   setTokenUsage: (usage: TokenUsage) => void;
   queuedPrompt: string | null;
@@ -184,7 +195,40 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   activeTab: 'files',
   setActiveTab: (tab) => set({ activeTab: tab }),
   activeFileId: null,
-  setActiveFileId: (id) => set({ activeFileId: id }),
+  setActiveFileId: (id) => set((state) => {
+    if (!id) return { activeFileId: null };
+    const nextOpen = state.openFileIds.includes(id) 
+      ? state.openFileIds 
+      : [...state.openFileIds, id];
+    return { activeFileId: id, openFileIds: nextOpen };
+  }),
+  openFileIds: [],
+  setOpenFileIds: (openFileIds) => set({ openFileIds }),
+  openFile: (id) => set((state) => {
+    const nextOpen = state.openFileIds.includes(id) 
+      ? state.openFileIds 
+      : [...state.openFileIds, id];
+    return { activeFileId: id, openFileIds: nextOpen };
+  }),
+  closeFile: (id) => set((state) => {
+    const nextOpen = state.openFileIds.filter(fid => fid !== id);
+    let nextActive = state.activeFileId;
+    if (state.activeFileId === id) {
+      if (nextOpen.length > 0) {
+        const closedIdx = state.openFileIds.indexOf(id);
+        const newIdx = Math.min(closedIdx, nextOpen.length - 1);
+        nextActive = nextOpen[newIdx] || null;
+      } else {
+        nextActive = null;
+      }
+    }
+    return { openFileIds: nextOpen, activeFileId: nextActive };
+  }),
+  isTerminalDrawerOpen: false,
+  setIsTerminalDrawerOpen: (isTerminalDrawerOpen) => set({ isTerminalDrawerOpen }),
+  toggleTerminalDrawer: () => set((state) => ({ isTerminalDrawerOpen: !state.isTerminalDrawerOpen })),
+  expandedFolderPaths: [],
+  setExpandedFolderPaths: (paths) => set({ expandedFolderPaths: paths }),
   activeProfileId: typeof localStorage !== 'undefined' 
     ? (localStorage.getItem('laide_active_profile_id') || localStorage.getItem('xiom_active_profile_id')) 
     : null,
@@ -299,6 +343,8 @@ const getInitialManifestExcludePatterns = (): string[] => {
 const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set) => ({
   chatHistory: [],
   setChatHistory: (chatHistory) => set({ chatHistory }),
+  chatDraft: '',
+  setChatDraft: (chatDraft) => set({ chatDraft }),
   tokenUsage: { system: 0, codebase: 0, chat: 0, max: 32000, isEstimate: true },
   setTokenUsage: (tokenUsage) => set({ tokenUsage }),
   queuedPrompt: null,

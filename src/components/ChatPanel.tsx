@@ -41,8 +41,16 @@ import {
   formatTokenCount 
 } from '../services/usage/tokenSpend';
 import ReactMarkdown from 'react-markdown';
+import type { ShellBreakpoint } from '../hooks/useShellBreakpoint';
 
-export function ChatPanel({ projectId }: { projectId: string }) {
+export function ChatPanel({ 
+  projectId,
+  breakpoint = 'phone'
+}: { 
+  projectId: string;
+  breakpoint?: ShellBreakpoint;
+}) {
+  const isWide = breakpoint !== 'phone';
   const { 
     chatHistory, 
     setChatHistory, 
@@ -68,11 +76,18 @@ export function ChatPanel({ projectId }: { projectId: string }) {
     setAttachPreviewVision,
     ensembleModeEnabled,
     ensembleCandidateBProfileId,
-    setPendingPatches
+    setPendingPatches,
+    chatDraft,
+    setChatDraft
   } = useAppStore();
 
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(() => chatDraft || '');
   const [loading, setLoading] = useState(false);
+
+  // Sync draft to store so resizing across breakpoints retains in-progress prompt
+  useEffect(() => {
+    setChatDraft(input);
+  }, [input, setChatDraft]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [ensembleEvaluation, setEnsembleEvaluation] = useState<EnsembleEvaluationResult | null>(null);
   const [profileName, setProfileName] = useState('No Profile Selected');
@@ -739,7 +754,7 @@ export function ChatPanel({ projectId }: { projectId: string }) {
                       <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" title="Ensemble mode active" />
                     )}
                     <Cpu size={11} className="text-accent shrink-0" />
-                    <span className="truncate max-w-[280px] sm:max-w-md font-mono text-[10.5px]">
+                    <span className={`truncate font-mono text-[10.5px] ${isWide ? 'max-w-md' : 'max-w-[280px]'}`}>
                       {summaryText}
                     </span>
                     {isDetailsOpen ? <ChevronDown size={11} className="shrink-0 text-muted" /> : <ChevronUp size={11} className="shrink-0 text-muted" />}
@@ -748,7 +763,9 @@ export function ChatPanel({ projectId }: { projectId: string }) {
                   {/* Expanded Detail Panel */}
                   {isDetailsOpen && (
                     <div 
-                      className="absolute bottom-full mb-1.5 left-0 z-30 p-2 rounded-lg bg-surface border border-border shadow-xl flex items-center flex-wrap gap-2 min-w-[280px] sm:min-w-[340px] animate-in fade-in zoom-in-95 duration-100 font-sans"
+                      className={`absolute bottom-full mb-1.5 left-0 z-30 p-2 rounded-lg bg-surface border border-border shadow-xl flex items-center flex-wrap gap-2 animate-in fade-in zoom-in-95 duration-100 font-sans ${
+                        isWide ? 'min-w-[340px]' : 'min-w-[280px]'
+                      }`}
                       role="region"
                       aria-label="Session control details"
                     >

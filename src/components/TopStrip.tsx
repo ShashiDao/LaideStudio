@@ -1,10 +1,21 @@
 import React, { useState } from 'react';
 import { Lock, X, Moon, Sun, Terminal, CircleHelp } from 'lucide-react';
 import { useAppStore } from '../store';
+import type { ShellBreakpoint } from '../hooks/useShellBreakpoint';
 
-export function TopStrip({ dbTested: _dbTested, onOpenShortcuts }: { dbTested?: boolean; onOpenShortcuts?: () => void } = {}) {
+export function TopStrip({ 
+  dbTested: _dbTested, 
+  onOpenShortcuts,
+  breakpoint = 'phone'
+}: { 
+  dbTested?: boolean; 
+  onOpenShortcuts?: () => void;
+  breakpoint?: ShellBreakpoint;
+} = {}) {
   const { pendingPatches, setKeys, setChatHistory, lockVault, theme, toggleTheme } = useAppStore();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const isWide = breakpoint !== 'phone';
 
   const performLock = () => {
     if (lockVault) {
@@ -36,10 +47,10 @@ export function TopStrip({ dbTested: _dbTested, onOpenShortcuts }: { dbTested?: 
           </div>
           
           <div className="flex items-center gap-1.5 truncate">
-            <span className="font-mono font-bold text-xs sm:text-sm tracking-tight text-text">
+            <span className={`font-mono font-bold tracking-tight text-text ${isWide ? 'text-sm' : 'text-xs'}`}>
               LAIDE
             </span>
-            <span className="font-mono text-[10px] sm:text-xs text-muted tracking-wider uppercase">
+            <span className={`font-mono text-muted tracking-wider uppercase ${isWide ? 'text-xs' : 'text-[10px]'}`}>
               Studio
             </span>
           </div>
@@ -82,7 +93,9 @@ export function TopStrip({ dbTested: _dbTested, onOpenShortcuts }: { dbTested?: 
             aria-label="Lock Vault"
           >
             <Lock size={12} className="shrink-0" />
-            <span className="text-[11px] font-medium hidden xs:inline">Lock</span>
+            {isWide && (
+              <span className="text-[11px] font-medium inline">Lock</span>
+            )}
           </button>
         </div>
       </div>

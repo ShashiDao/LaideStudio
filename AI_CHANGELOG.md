@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-51
-- Last verified working: Full test suite passes cleanly with Vitest (63 test files, 456 tests passing). Refactored `SettingsPanel.tsx` into 5 organized categories (Appearance, AI & Providers, Integrations, Security & Vault, Advanced) with responsive single-column drill-down (<700px) and persistent two-column navigation rail (>=700px). Unit test coverage in `SettingsPanel.test.tsx` (10/10 passing). `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-53
+- Last verified working: Full Vitest test suite passes cleanly (66 test files, 467 tests passing). Implemented Steps 3-5 of the responsive workspace layout: added multi-file EditorTabs bar (`openFileIds`, active file switching, tab closing), right-hand dock area (side-by-side Chat and Preview on desktop, active Chat/Preview dock on tablet), collapsible bottom TerminalDrawer with expand/collapse/maximize controls and Ctrl+` shortcut handling, and unit test suites for `EditorTabs.test.tsx` (4/4) and `TerminalDrawer.test.tsx` (4/4). `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,55 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-53] Implement Responsive Workspace Docks, Multi-File Editor Tabs, and Terminal Drawer (Steps 3-5) — 2026-08-27
+Prompt: Implement Steps 3-5 of the responsive workspace layout: add right-hand dock area for tablet/desktop, collapsible bottom terminal drawer in workspace column, and multi-file EditorTabs tab bar with openFileIds state management.
+Files touched:
+- `src/components/EditorTabs.tsx` (new)
+- `src/components/EditorTabs.test.tsx` (new)
+- `src/components/TerminalDrawer.tsx` (new)
+- `src/components/TerminalDrawer.test.tsx` (new)
+- `src/store.ts` (modified)
+- `src/hooks/useGlobalKeyboardShortcuts.ts` (modified)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `openFileIds`, `setOpenFileIds`, `openFile`, `closeFile`, `isTerminalDrawerOpen`, `setIsTerminalDrawerOpen`, and `toggleTerminalDrawer` to the Zustand store.
+- Created `EditorTabs.tsx` supporting horizontal scroll, active tab highlighting, tab closing with propagation prevention, and auto-scrolling active tabs into view.
+- Created `TerminalDrawer.tsx` supporting collapsed header toggle, maximized height mode, close button, and embedded TerminalPanel.
+- Integrated the horizontal workspace layout in `App.tsx`: Editor in center, persistent or tabbed right-hand docks (side-by-side Chat & Preview on desktop, mutually exclusive Chat/Preview dock on tablet), and collapsible bottom TerminalDrawer.
+- Updated `useGlobalKeyboardShortcuts.ts` so `Ctrl+\`` toggles the terminal drawer seamlessly.
+- Created unit test suites `EditorTabs.test.tsx` and `TerminalDrawer.test.tsx` verifying tab selection/closing and drawer expand/collapse/maximize interactions.
+Decisions: Retained single-file overlay behavior on phone (<700px) so phone experience remains completely identical, while unlocking multi-tab editing and docks on larger viewports.
+Deviations: none
+Verified: `compile_applet` passed; `lint_applet` passed with 0 errors; full Vitest test suite passed with 66 test files and 467 passing tests.
+Open questions: none
+
+### [HOTFIX-52] Implement Responsive Layout Scaffold (Step 1 & Step 2) with State Persistence — 2026-08-27
+Prompt: Implement Step 1 & Step 2 of the responsive workspace layout: replace window-width Tailwind variants with shell breakpoint hook (phone/tablet/desktop), lift rehydrated local state to store to prevent unmount losses across breakpoint boundaries, render persistent ActivityRail + FileTree on tablet/desktop, hoist modals/toasts to root level, and preserve phone experience bit-for-bit.
+Files touched:
+- `src/hooks/useShellBreakpoint.ts` (new)
+- `src/store.ts` (modified)
+- `src/components/ActivityRail.tsx` (new)
+- `src/components/ActivityRail.test.tsx` (new)
+- `src/components/ProjectFilesPane.tsx` (new)
+- `src/components/FileTree.tsx` (modified)
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/ChatPanel.test.tsx` (modified)
+- `src/components/TopStrip.tsx` (modified)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Created `useShellBreakpoint.ts` observing the root container width via `ResizeObserver` with 8px hysteresis dead-band and lazy window initialization to avoid initial flash.
+- Lifted `expandedFolderPaths` and `chatDraft` into the central Zustand store (`src/store.ts`) so that unmounting/remounting across breakpoint boundaries preserves in-progress state seamlessly.
+- Extracted `ProjectFilesPane.tsx` to enable seamless reuse between the single-screen phone files tab and the persistent 220px desktop sidebar.
+- Created `ActivityRail.tsx` (46px icon rail) with tooltips, keyboard shortcut hints, and full ARIA accessibility (`role="tablist"`).
+- Updated `App.tsx` to branch JSX cleanly: preserved `< 700px` phone container and bottom navigation bar bit-for-bit; rendered 3-column scaffold on `>= 700px` (ActivityRail + ProjectFilesPane + Workspace Column).
+- Hoisted all shared modals, overlays, and toasts (`Toaster`, `ProjectMetadataPanel`, `PatchReviewSheet`, `GithubImportModal`, `GithubPushModal`, `DeployModal`, `FindWhatBrokeModal`, `TrustReportModal`, `CreateProjectModal`, `ReloadPrompt`, `InstallPrompt`) outside the branched layouts to ensure single instance rendering.
+Decisions: Preserved phone layout dimensions and touch patterns identically; initialized breakpoint lazily from window.innerWidth; added `ActivityRail.test.tsx` test suite.
+Deviations: none
+Verified: `compile_applet` passed; `lint_applet` passed with 0 errors; full Vitest test suite passed with 64 test files and 459 passing tests.
+Open questions: none
 
 ### [HOTFIX-51] Regroup SettingsPanel into 5 Named Categories with Responsive Navigation — 2026-08-27
 Prompt: Regroup SettingsPanel sections into 5 named categories (Appearance, AI & Providers, Integrations, Security & Vault, Advanced) with a single-column drill-down (<700px) and a persistent two-column rail (>=700px), preserving all state/handlers/logic/modals, and update SettingsPanel.test.tsx.

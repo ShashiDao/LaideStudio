@@ -76,7 +76,9 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
       setAttachPreviewVision: mockSetAttachPreviewVision,
       ensembleModeEnabled: false,
       ensembleCandidateBProfileId: null,
-      setPendingPatches: mockSetPendingPatches
+      setPendingPatches: mockSetPendingPatches,
+      chatDraft: '',
+      setChatDraft: vi.fn()
     };
   });
 
