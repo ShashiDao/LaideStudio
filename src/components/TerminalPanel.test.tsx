@@ -252,4 +252,78 @@ describe('TerminalPanel Component', () => {
 
     expect(screen.queryByText('hello terminal')).toBeNull();
   });
+
+  it('rejects unknown commands with standard "sh: command not found: [input]" error without creating files', async () => {
+    const onFilesChanged = vi.fn();
+    render(<TerminalPanel projectId={projectId} files={mockFiles} onFilesChanged={onFilesChanged} />);
+
+    const input = screen.getByPlaceholderText(/Type a command/);
+    fireEvent.change(input, { target: { value: 'foobar_unknown_cmd --flag' } });
+    fireEvent.submit(input);
+
+    await waitFor(() => {
+      expect(screen.getByText(/sh: command not found: foobar_unknown_cmd/)).toBeDefined();
+    });
+
+    // Verify no files were created in DB
+    const dbFiles = await db.files.where('projectId').equals(projectId).toArray();
+    expect(dbFiles.length).toBe(mockFiles.length);
+    expect(onFilesChanged).not.toHaveBeenCalled();
+  });
+
+  it('safely rejects pasted multi-line JavaScript code block without creating artifact files on disk', async () => {
+    const onFilesChanged = vi.fn();
+    render(<TerminalPanel projectId={projectId} files={mockFiles} onFilesChanged={onFilesChanged} />);
+
+    const pastedScript = `const x = 10;\nfunction test() { return x > 5; }\nconsole.log(test());`;
+    const input = screen.getByPlaceholderText(/Type a command/);
+    fireEvent.change(input, { target: { value: pastedScript } });
+    fireEvent.submit(input);
+
+    await waitFor(() => {
+      expect(screen.getByText(/sh: command not found: const/)).toBeDefined();
+    });
+
+    const dbFiles = await db.files.where('projectId').equals(projectId).toArray();
+    expect(dbFiles.length).toBe(mockFiles.length);
+    expect(onFilesChanged).not.toHaveBeenCalled();
+  });
+
+  it('safely executes redirection for valid commands like "echo hello > /test.txt"', async () => {
+    const onFilesChanged = vi.fn();
+    render(<TerminalPanel projectId={projectId} files={mockFiles} onFilesChanged={onFilesChanged} />);
+
+    const input = screen.getByPlaceholderText(/Type a command/);
+    fireEvent.change(input, { target: { value: 'echo "hello file" > /test.txt' } });
+    fireEvent.submit(input);
+
+    await waitFor(() => {
+      expect(onFilesChanged).toHaveBeenCalled();
+    });
+
+    const created = await db.files.where({ projectId, path: '/test.txt' }).first();
+    expect(created).toBeDefined();
+    expect(created?.content).toBe('hello file');
+  });
+
+  it('purges existing accidental artifact files on mount', async () => {
+    const artifactFile: FileItem = {
+      id: 'artifact-bad-1',
+      projectId,
+      path: '/const x = 10; }',
+      content: 'bad content',
+      updatedAt: Date.now()
+    };
+    await db.files.add(artifactFile);
+
+    const onFilesChanged = vi.fn();
+    render(<TerminalPanel projectId={projectId} files={[...mockFiles, artifactFile]} onFilesChanged={onFilesChanged} />);
+
+    await waitFor(() => {
+      expect(onFilesChanged).toHaveBeenCalled();
+    });
+
+    const remaining = await db.files.where('projectId').equals(projectId).toArray();
+    expect(remaining.find(f => f.id === 'artifact-bad-1')).toBeUndefined();
+  });
 });

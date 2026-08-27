@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-66
-- Last verified working: Resolved mobile overflow bug in `ChatPanel` where an unusable, disabled Send button was rendered alongside the unconfigured profile warning banner and clipped at the right screen edge. Made the warning banner full width (`w-full`) when `activeProfileId` is null, rendering the textarea and Send/Stop controls only when an active profile is configured. Vitest tests (484/484 tests passing across 68 suites), `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-67
+- Last verified working: Safe terminal shell input evaluation rejecting unrecognized command strings with "sh: command not found: [input]", preventing multi-line pasted code snippets and invalid redirection operators from creating artifact files on disk, and purging accidental artifact files from VFS on project load. Vitest unit tests in `TerminalPanel.test.tsx` (17/17 passing) and full test suite pass cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,24 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-67] Safe Shell Command Evaluation, Code Block Pasting Protection & Artifact Cleanup — 2026-08-27
+Prompt: Refactor the input evaluation parser inside the Terminal shell panel to handle unknown string operations and clean up file tree artifacts: delete accidental artifact files from virtual root directory, reject execution if command does not match an allowed operation alias, and output standard "sh: command not found: [input]" error message.
+Files touched:
+- `src/components/TerminalPanel.tsx` (modified)
+- `src/services/fs/vfs.ts` (modified)
+- `src/components/TerminalPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented `ALLOWED_COMMANDS` Set in `TerminalPanel.tsx` containing explicit operation aliases, safely rejecting any unknown command strings before executing or evaluating redirection.
+- Added `extractRedirection` helper to only recognize `>` and `>>` outside quoted string literals and validate target filenames against `isValidFilePath`.
+- Added standard Unix shell error message `sh: command not found: [input]` on unrecognized commands, preventing filesystem writes.
+- Implemented `isValidFilePath` and `purgeArtifactFiles` in `src/services/fs/vfs.ts` to identify and purge accidental artifact files from Dexie and OPFS on startup/mount.
+- Added comprehensive unit tests in `TerminalPanel.test.tsx` verifying unknown command rejection, pasted script rejection, safe redirection, and artifact file purging.
+Decisions: Kept redirection disabled whenever the evaluated command outputs stderr or is not in the allowed commands set.
+Deviations: none
+Verified: Vitest unit tests in `TerminalPanel.test.tsx` (17/17 passing), full Vitest suite, `compile_applet`, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-66] Hide Disabled Send Button & Make Profile Warning Bar Full-Width — 2026-08-27
 Prompt: Fix clipped send button in mobile chat view when AI profile is not configured.

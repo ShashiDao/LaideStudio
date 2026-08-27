@@ -18,7 +18,9 @@ import {
   writeFile, 
   deleteFile, 
   deleteFolder, 
-  renameFile 
+  renameFile,
+  isValidFilePath,
+  purgeArtifactFiles
 } from '../services/fs/vfs';
 import { runProjectTests } from '../services/bundler/testRunner';
 import { detectBundledProject } from '../services/bundler/entryDetection';
@@ -32,7 +34,7 @@ export interface TerminalOutputItem {
   interactiveFiles?: Array<{ path: string; id?: string }>;
 }
 
-const COMMAND_LIST = [
+export const ALLOWED_COMMANDS = new Set([
   'help',
   'clear',
   'cls',
@@ -56,20 +58,16 @@ const COMMAND_LIST = [
   'open',
   'code',
   'edit',
-  'npm test',
+  'bisect',
+  'npm',
   'test',
   'vitest',
-  'bisect',
-  'npm run build',
   'build',
-  'npm list',
-  'npm ls',
   'pkg',
   'node',
   'eval',
   'run',
-  'git status',
-  'git diff',
+  'git',
   'env',
   'export',
   'date',
@@ -79,7 +77,9 @@ const COMMAND_LIST = [
   'theme',
   'history',
   'reset'
-];
+]);
+
+const COMMAND_LIST = Array.from(ALLOWED_COMMANDS);
 
 function normalizePath(path: string): string {
   if (!path.startsWith('/')) path = '/' + path;
@@ -108,6 +108,55 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function extractRedirection(input: string): { commandStr: string; redirectMode: 'write' | 'append' | null; redirectFile: string } {
+  let inQuotes = false;
+  let quoteChar = '';
+  let redirectIndex = -1;
+  let redirectMode: 'write' | 'append' | null = null;
+  let opLength = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if ((ch === '"' || ch === "'") && (!inQuotes || quoteChar === ch)) {
+      if (inQuotes) {
+        inQuotes = false;
+        quoteChar = '';
+      } else {
+        inQuotes = true;
+        quoteChar = ch;
+      }
+    } else if (!inQuotes) {
+      if (input.slice(i, i + 2) === '>>') {
+        redirectIndex = i;
+        redirectMode = 'append';
+        opLength = 2;
+        break;
+      } else if (ch === '>') {
+        redirectIndex = i;
+        redirectMode = 'write';
+        opLength = 1;
+        break;
+      }
+    }
+  }
+
+  if (redirectIndex !== -1 && redirectMode) {
+    const cmdPart = input.slice(0, redirectIndex).trim();
+    const targetPart = input.slice(redirectIndex + opLength).trim();
+    return {
+      commandStr: cmdPart,
+      redirectMode,
+      redirectFile: targetPart
+    };
+  }
+
+  return {
+    commandStr: input,
+    redirectMode: null,
+    redirectFile: ''
+  };
+}
+
 function tokenize(input: string): string[] {
   const tokens: string[] = [];
   let current = '';
@@ -124,7 +173,7 @@ function tokenize(input: string): string[] {
         inQuotes = true;
         quoteChar = ch;
       }
-    } else if (ch === ' ' && !inQuotes) {
+    } else if (/\s/.test(ch) && !inQuotes) {
       if (current.length > 0) {
         tokens.push(current);
         current = '';
@@ -225,6 +274,17 @@ Type "help" for a list of available commands or click quick actions below.`,
       active = false;
     };
   }, [cwd]);
+
+  // Purge any accidental artifact files from VFS on project load
+  useEffect(() => {
+    if (projectId) {
+      purgeArtifactFiles(projectId).then(count => {
+        if (count > 0) {
+          onFilesChanged?.();
+        }
+      }).catch(() => {});
+    }
+  }, [projectId, onFilesChanged]);
 
   const addOutput = useCallback((
     type: TerminalOutputItem['type'], 
@@ -355,22 +415,8 @@ Type "help" for a list of available commands or click quick actions below.`,
     addOutput('cmd', trimmed, { cwd });
     setInput('');
 
-    // Check for output redirection (> or >>)
-    let commandStr = trimmed;
-    let redirectMode: 'write' | 'append' | null = null;
-    let redirectFile = '';
-
-    if (commandStr.includes('>>')) {
-      const parts = commandStr.split('>>');
-      commandStr = parts[0].trim();
-      redirectMode = 'append';
-      redirectFile = parts[1].trim();
-    } else if (commandStr.includes('>')) {
-      const parts = commandStr.split('>');
-      commandStr = parts[0].trim();
-      redirectMode = 'write';
-      redirectFile = parts[1].trim();
-    }
+    // Extract redirection (> or >>) safely only outside quoted strings
+    const { commandStr, redirectMode, redirectFile } = extractRedirection(trimmed);
 
     // Tokenize
     let tokens = tokenize(commandStr);
@@ -385,8 +431,29 @@ Type "help" for a list of available commands or click quick actions below.`,
       return t;
     });
 
-    const command = tokens[0].toLowerCase();
+    const command = tokens[0]?.toLowerCase() || '';
     const args = tokens.slice(1);
+
+    // If a command input line doesn't match an explicit allowed operation alias,
+    // safely reject the execution loop entirely and output standard clean error.
+    if (!ALLOWED_COMMANDS.has(command)) {
+      addOutput('stderr', `sh: command not found: ${command || trimmed}`);
+      return;
+    }
+
+    // Clean and validate target redirection filename if present
+    let targetRedirectFile = redirectFile;
+    if ((targetRedirectFile.startsWith('"') && targetRedirectFile.endsWith('"')) ||
+        (targetRedirectFile.startsWith("'") && targetRedirectFile.endsWith("'"))) {
+      targetRedirectFile = targetRedirectFile.slice(1, -1).trim();
+    }
+
+    if (targetRedirectFile) {
+      if (!isValidFilePath(resolvePath(cwd, targetRedirectFile)) || /[\r\n\t]/.test(targetRedirectFile)) {
+        addOutput('stderr', `sh: syntax error near unexpected token '${targetRedirectFile}'`);
+        return;
+      }
+    }
 
     setIsRunning(true);
 
@@ -1271,14 +1338,14 @@ Access: 0644/-rw-r--r--`;
 
         default: {
           outputType = 'stderr';
-          outputText = `command not found: "${command}". Type "help" to see available commands.`;
+          outputText = `sh: command not found: ${command}`;
           break;
         }
       }
 
-      // Handle file redirection if outputText exists
-      if (redirectFile && projectId) {
-        const dest = resolvePath(cwd, redirectFile);
+      // Handle file redirection only on success (outputType !== 'stderr') and valid target
+      if (targetRedirectFile && projectId && outputType !== 'stderr') {
+        const dest = resolvePath(cwd, targetRedirectFile);
         const existing = files.find(f => f.path === dest);
         if (existing) {
           const newContent = redirectMode === 'append' ? existing.content + '\n' + outputText : outputText;

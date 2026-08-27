@@ -53,9 +53,55 @@ export async function deleteOpfsFile(projectId: string, path: string): Promise<v
   }
 }
 
+/**
+ * Determines whether a file path is a valid workspace path or an accidental artifact
+ * (e.g. created by pasting code snippets or invalid shell parameters).
+ */
+export function isValidFilePath(path: string): boolean {
+  if (!path || typeof path !== 'string') return false;
+  if (path.length > 255) return false;
+  // Disallow control characters, newlines, and tabs
+  if (/[\r\n\t\0]/.test(path)) return false;
+  // Disallow common code tokens / symbols that indicate pasted script artifacts
+  if (/[{}();<>=]/.test(path)) return false;
+  if (/\b(function|const|let|var|return|console|import|export|typeof|instanceof)\b/.test(path)) return false;
+  // Disallow paths starting with number/semicolon/brace artifacts like /0; or / 0
+  if (/^\/?\s*[0-9]+(\s|;|})/.test(path)) return false;
+  return true;
+}
+
+export function isArtifactPath(path: string): boolean {
+  return !isValidFilePath(path);
+}
+
+/**
+ * Deletes any accidental artifact files from Dexie and OPFS.
+ */
+export async function purgeArtifactFiles(projectId?: string): Promise<number> {
+  const allFiles = projectId
+    ? await db.files.where('projectId').equals(projectId).toArray()
+    : await db.files.toArray();
+
+  const artifactFiles = allFiles.filter(f => isArtifactPath(f.path));
+  if (artifactFiles.length > 0) {
+    for (const f of artifactFiles) {
+      try {
+        await deleteOpfsFile(f.projectId, f.path);
+      } catch {
+        // Ignore if file doesn't exist in OPFS
+      }
+    }
+    await db.files.bulkDelete(artifactFiles.map(f => f.id));
+  }
+  return artifactFiles.length;
+}
+
 export async function checkPathCollision(projectId: string, path: string, excludeFileId?: string): Promise<void> {
   if (!path.startsWith('/')) {
     throw new Error(`Path must start with '/': ${path}`);
+  }
+  if (!isValidFilePath(path)) {
+    throw new Error(`Invalid file path: ${path}`);
   }
   const allFiles = await db.files.where('projectId').equals(projectId).toArray();
   
@@ -88,6 +134,23 @@ export async function getAllFileContent(projectIdOrFiles?: string | FileItem[]):
   } else {
     files = await db.files.toArray();
   }
+
+  // Filter out any invalid artifact files and clean them up
+  const validFiles: FileItem[] = [];
+  const corruptFileIds: string[] = [];
+  for (const f of files) {
+    if (isValidFilePath(f.path)) {
+      validFiles.push(f);
+    } else {
+      corruptFileIds.push(f.id);
+    }
+  }
+
+  if (corruptFileIds.length > 0) {
+    db.files.bulkDelete(corruptFileIds).catch(() => {});
+  }
+
+  files = validFiles;
 
   if (isOpfsSupported()) {
     await Promise.all(
