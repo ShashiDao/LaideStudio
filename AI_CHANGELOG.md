@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-75
-- Last verified working: Replaced cramped viewport scaling chips (Phone/Tablet/Desktop) on mobile screens (`breakpoint === 'phone'`) with high-utility mobile-native preview tools: an In-Preview Console Log Drawer toggle with real-time runtime error and warning indicators, an interactive Tap-to-Inspect UI mode with live DOM component element inspector banner, and a Scan QR modal with SVG code rendering for local network mobile device testing. All 68 test suites (491 unit tests) pass, `PreviewPanel.test.tsx` (12/12) pass, and `compile_applet` builds cleanly.
+- Phase: HOTFIX-76
+- Last verified working: Implemented sticky keyboard accessory bar with fixed shell modifiers (`Tab` autocomplete, `↑`/`↓` command history cycling, `-` hyphen, `/` path slash, `|` pipe, and `Ctrl+C` SIGINT abort) pinned directly above the bottom terminal command input, alongside sticky quick command chips (`npm test`, `npm run build`, `tree`, `ls -la`, `help`). All 27 unit tests in `TerminalPanel.test.tsx` and `TerminalDrawer.test.tsx` pass, and `compile_applet` builds cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,22 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-76] Terminal Virtual Keyboard Ergonomics & Fixed Shell Modifiers — 2026-08-27
+Prompt: Terminal Virtual Keyboard Ergonomics: Float a compact accessory strip directly above the active mobile keyboard with Tab (autocomplete), ↑/↓ (command history cycling), -, /, |, and Ctrl+C (SIGINT abort), preventing chips and actions from scrolling out of view when the virtual keyboard pops up.
+Files touched:
+- `src/components/TerminalPanel.tsx` (modified)
+- `src/components/TerminalPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Integrated a sticky bottom console control zone combining the command input and a floating accessory toolbar pinned directly above the mobile virtual keyboard and terminal output area.
+- Added tactile fixed shell modifier buttons: `Tab ⇥` for command/path autocompletion, `↑` / `↓` for history navigation, `-` for inserting flag hyphens, `/` for path slashes, `|` for piping commands, and `^C` / `Ctrl+C` for SIGINT abort.
+- Co-located quick command chips (`npm test`, `npm run build`, `tree`, `ls -la`, `help`) within the horizontally scrollable sticky accessory bar so they remain accessible at all times.
+- Supported both touch interactions and physical keyboard bindings for all modifiers and SIGINT abort.
+Decisions: Inserted characters at current input cursor selection position with autofocus restoration to maintain fluid typing flow on touch devices.
+Deviations: none
+Verified: All 27 unit tests in `TerminalPanel.test.tsx` and `TerminalDrawer.test.tsx` passed, and `compile_applet` passed cleanly.
+Open questions: none
 
 ### [HOTFIX-75] Mobile Preview Toolbar Optimization & High-Utility Native Mobile Tools — 2026-08-27
 Prompt: Preview Tab Breakpoint Paradox: Remove Viewport Scaling Chips on Mobile (scaling desktop canvas inside phone causes cramped pinching) and swap for high-utility mobile controls: in-preview console log toggle, interactive tap-to-inspect UI mode, and Scan QR button to open preview on another device.

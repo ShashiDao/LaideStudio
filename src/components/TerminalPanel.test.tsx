@@ -326,4 +326,110 @@ describe('TerminalPanel Component', () => {
     const remaining = await db.files.where('projectId').equals(projectId).toArray();
     expect(remaining.find(f => f.id === 'artifact-bad-1')).toBeUndefined();
   });
+
+  describe('Sticky Keyboard Accessory Bar & Shell Modifiers', () => {
+    it('renders the sticky keyboard accessory bar with all required shell modifiers and quick chips', () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+
+      const toolbar = screen.getByRole('toolbar', { name: 'Terminal keyboard accessory bar' });
+      expect(toolbar).toBeDefined();
+
+      expect(screen.getByRole('button', { name: 'Tab Autocomplete' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'History Previous' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'History Next' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Insert hyphen' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Insert slash' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'Insert pipe' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'SIGINT Abort (Ctrl+C)' })).toBeDefined();
+
+      // Quick chips
+      expect(screen.getByRole('button', { name: /npm test/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /npm run build/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'tree' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'ls -la' })).toBeDefined();
+      expect(screen.getByRole('button', { name: 'help' })).toBeDefined();
+    });
+
+    it('inserts characters (-, /, |) into input when modifier buttons are clicked', () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const input = screen.getByPlaceholderText<HTMLInputElement>(/Type a command/);
+
+      const hyphenBtn = screen.getByRole('button', { name: 'Insert hyphen' });
+      const slashBtn = screen.getByRole('button', { name: 'Insert slash' });
+      const pipeBtn = screen.getByRole('button', { name: 'Insert pipe' });
+
+      fireEvent.click(hyphenBtn);
+      expect(input.value).toBe('-');
+
+      fireEvent.click(slashBtn);
+      expect(input.value).toBe('-/');
+
+      fireEvent.click(pipeBtn);
+      expect(input.value).toBe('-/ | ');
+    });
+
+    it('handles Tab autocomplete via modifier button', () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const input = screen.getByPlaceholderText<HTMLInputElement>(/Type a command/);
+      const tabBtn = screen.getByRole('button', { name: 'Tab Autocomplete' });
+
+      fireEvent.change(input, { target: { value: 'tre' } });
+      fireEvent.click(tabBtn);
+
+      expect(input.value).toBe('tree ');
+    });
+
+    it('cycles command history with Up and Down modifier buttons', async () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const input = screen.getByPlaceholderText<HTMLInputElement>(/Type a command/);
+      const upBtn = screen.getByRole('button', { name: 'History Previous' });
+      const downBtn = screen.getByRole('button', { name: 'History Next' });
+
+      // Run 2 commands
+      fireEvent.change(input, { target: { value: 'echo first' } });
+      fireEvent.submit(input);
+
+      fireEvent.change(input, { target: { value: 'echo second' } });
+      fireEvent.submit(input);
+
+      // Press Up: should show "echo second"
+      fireEvent.click(upBtn);
+      expect(input.value).toBe('echo second');
+
+      // Press Up again: should show "echo first"
+      fireEvent.click(upBtn);
+      expect(input.value).toBe('echo first');
+
+      // Press Down: should go back to "echo second"
+      fireEvent.click(downBtn);
+      expect(input.value).toBe('echo second');
+
+      // Press Down: should clear input back to current edit buffer
+      fireEvent.click(downBtn);
+      expect(input.value).toBe('');
+    });
+
+    it('aborts input or running command with SIGINT (^C) modifier button', () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const input = screen.getByPlaceholderText<HTMLInputElement>(/Type a command/);
+      const sigintBtn = screen.getByRole('button', { name: 'SIGINT Abort (Ctrl+C)' });
+
+      fireEvent.change(input, { target: { value: 'long running unsubmitted' } });
+      fireEvent.click(sigintBtn);
+
+      expect(input.value).toBe('');
+      expect(screen.getByText(/long running unsubmitted \^C/)).toBeDefined();
+    });
+
+    it('executes quick command when sticky quick chip is clicked', async () => {
+      render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+      const treeBtn = screen.getByRole('button', { name: 'tree' });
+
+      fireEvent.click(treeBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText(/package\.json/)).toBeDefined();
+      });
+    });
+  });
 });
