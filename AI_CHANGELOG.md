@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-67
-- Last verified working: Safe terminal shell input evaluation rejecting unrecognized command strings with "sh: command not found: [input]", preventing multi-line pasted code snippets and invalid redirection operators from creating artifact files on disk, and purging accidental artifact files from VFS on project load. Vitest unit tests in `TerminalPanel.test.tsx` (17/17 passing) and full test suite pass cleanly.
+- Phase: HOTFIX-68
+- Last verified working: Refactored top action toolbar controls in `PreviewPanel.tsx` with a space-aware scrollable container (`flex justify-between items-center gap-2 px-3 w-full overflow-x-auto sb-hidden`), high-density mobile "AI View" vision toggle with responsive text visibility below 640px, and proportional button padding across segmented viewport controls and Reload action. Vitest unit tests in `PreviewPanel.test.tsx` (11/11 passing), `compile_applet`, and `lint_applet` pass cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,24 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-68] Mobile Action Toolbar Layout & High-Density Vision Toggle in Preview Panel — 2026-08-27
+Prompt: Refactor the top action toolbar controls inside the Preview Tab panel view to resolve mobile truncation and button overlaps: update "Let AI See" text to compact "AI View" format on mobile, wrap the toolbar in a flexible space-aware container with `sb-hidden`, and apply proportional padding across viewport and reload controls.
+Files touched:
+- `src/components/PreviewPanel.tsx` (modified)
+- `src/components/PreviewPanel.test.tsx` (modified)
+- `src/index.css` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Wrapped the PreviewPanel top toolbar in a flexible, space-aware container: `flex justify-between items-center gap-2 px-3 w-full overflow-x-auto sb-hidden`.
+- Added `.sb-hidden` scrollbar utility class in `src/index.css` for cross-browser hidden scrollbars.
+- Refactored the vision capture button to display compact "AI View" / "Vision Ready" labels with `<span className="hidden sm:inline">`, displaying only the eye/check icon on mobile viewports (< 640px) to prevent button overlapping.
+- Applied proportional padding (`p-1.5 px-2` and `p-1 px-1.5 sm:px-2`) across the viewport size segmented control, Publish button, and Reload button.
+- Added unit tests in `PreviewPanel.test.tsx` testing the mobile-optimized toolbar, vision button aria-label, and controls rendering.
+Decisions: Retained full descriptive tooltips and accessible `aria-label` attributes on all icon buttons for screen readers and desktop hovers.
+Deviations: none
+Verified: Vitest unit tests in `PreviewPanel.test.tsx` (11/11 passing), `compile_applet` build passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-67] Safe Shell Command Evaluation, Code Block Pasting Protection & Artifact Cleanup — 2026-08-27
 Prompt: Refactor the input evaluation parser inside the Terminal shell panel to handle unknown string operations and clean up file tree artifacts: delete accidental artifact files from virtual root directory, reject execution if command does not match an allowed operation alias, and output standard "sh: command not found: [input]" error message.

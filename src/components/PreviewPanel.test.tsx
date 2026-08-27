@@ -300,5 +300,27 @@ describe('PreviewPanel script injection sanitization', () => {
 
       unmount();
     });
+
+    it('renders mobile-optimized toolbar with AI View button and space-aware container', async () => {
+      const { unmount } = render(<PreviewPanel files={sampleFiles as any} onOpenDeploy={() => {}} />);
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Preview')).toBeDefined();
+      });
+
+      const visionBtn = screen.getByRole('button', { name: 'Capture current preview for AI vision feedback' });
+      expect(visionBtn).toBeDefined();
+      expect(visionBtn.textContent).toContain('AI View');
+
+      const reloadBtn = screen.getByRole('button', { name: 'Refresh Preview' });
+      expect(reloadBtn).toBeDefined();
+      expect(reloadBtn.textContent).toContain('Reload');
+
+      const publishBtn = screen.getByRole('button', { name: 'Publish Live Web Application' });
+      expect(publishBtn).toBeDefined();
+      expect(publishBtn.textContent).toContain('Publish');
+
+      unmount();
+    });
   });
 });

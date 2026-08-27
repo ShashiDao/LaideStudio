@@ -294,33 +294,35 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-bg relative">
-      <div className="h-10 shrink-0 flex items-center justify-between px-4 bg-surface border-b border-border">
-        <div className="flex items-center gap-2 text-accent font-sans text-xs">
+      <div className="h-10 shrink-0 flex justify-between items-center gap-2 px-3 w-full overflow-x-auto sb-hidden bg-surface border-b border-border">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-accent font-sans text-xs shrink-0 select-none">
           <Play size={14} />
-          <span>Preview</span>
+          <span className="font-medium">Preview</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {onOpenDeploy && (
             <button
               type="button"
               onClick={onOpenDeploy}
-              className="p-1.5 rounded transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer text-accent bg-accent/10 border border-accent/30 hover:bg-accent/20 active:scale-95 shadow-xs"
+              className="p-1.5 px-2 rounded transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer text-accent bg-accent/10 border border-accent/30 hover:bg-accent/20 active:scale-95 shadow-xs shrink-0"
               title="Publish Live Web Application (Netlify / Vercel)"
+              aria-label="Publish Live Web Application"
             >
               <Rocket size={12} className="text-accent" />
-              <span className="font-bold">Publish</span>
+              <span className="font-bold hidden sm:inline">Publish</span>
             </button>
           )}
           <button
             type="button"
             onClick={handleCapture}
             disabled={!isPreviewable || isCapturing}
-            className={`p-1.5 rounded transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`p-1.5 px-2 rounded transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
               justCaptured 
                 ? 'bg-moss/20 text-moss border border-moss/30' 
                 : 'text-accent bg-accent/10 border border-accent/20 hover:bg-accent/20'
             }`}
             title="Capture current preview for AI vision feedback"
+            aria-label="Capture current preview for AI vision feedback"
           >
             {isCapturing ? (
               <Loader2 size={12} className="animate-spin" />
@@ -329,19 +331,19 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
             ) : (
               <Eye size={12} />
             )}
-            <span>{justCaptured ? 'Vision Ready' : 'Let AI See'}</span>
+            <span className="hidden sm:inline">{justCaptured ? 'Vision Ready' : 'AI View'}</span>
           </button>
           
           {/* Viewport size segmented control */}
           <div 
-            className="flex items-center rounded bg-surface-elevated border border-border p-0.5" 
+            className="flex items-center rounded bg-surface-elevated border border-border p-0.5 shrink-0" 
             role="group" 
             aria-label="Viewport size"
           >
             <button
               type="button"
               onClick={() => setViewportMode('phone')}
-              className={`p-1 px-1.5 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+              className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
                 viewportMode === 'phone'
                   ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
                   : 'text-muted hover:text-text border border-transparent'
@@ -356,7 +358,7 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
             <button
               type="button"
               onClick={() => setViewportMode('tablet')}
-              className={`p-1 px-1.5 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+              className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
                 viewportMode === 'tablet'
                   ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
                   : 'text-muted hover:text-text border border-transparent'
@@ -371,7 +373,7 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
             <button
               type="button"
               onClick={() => setViewportMode('desktop')}
-              className={`p-1 px-1.5 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+              className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
                 viewportMode === 'desktop'
                   ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
                   : 'text-muted hover:text-text border border-transparent'
@@ -389,11 +391,12 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
             type="button"
             onClick={() => setRefreshKey(k => k + 1)}
             disabled={!isPreviewable}
-            className="p-1.5 text-muted hover:text-text hover:bg-surface rounded transition-colors flex items-center gap-1.5 text-xs font-mono disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-border"
+            className="p-1.5 px-2 text-muted hover:text-text hover:bg-surface-elevated rounded transition-colors flex items-center gap-1.5 text-xs font-mono disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer border border-border shrink-0"
             title="Refresh Preview"
+            aria-label="Refresh Preview"
           >
             <RefreshCw size={12} />
-            <span>Reload</span>
+            <span className="hidden sm:inline">Reload</span>
           </button>
         </div>
       </div>

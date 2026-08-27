@@ -252,4 +252,13 @@
   }
 }
 
+/* Scrollbar hiding utility */
+.sb-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.sb-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 
