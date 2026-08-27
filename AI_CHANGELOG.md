@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-81
-- Last verified working: Clean codebase import resolution across all modularized security services (`src/services/security/crypto`, `session`, `backup`, `lockConfig`) and panel components (`PreviewPanel`, `SettingsPanel`, `TerminalPanel`, `QuickConnectSheet`, `main.tsx`, `store.ts`, `deployClient.ts`, `githubClient.ts`, `factory.ts`). All TypeScript types resolved, linting passed with 0 errors and 0 syntax warnings, and full production build compiled successfully.
+- Phase: HOTFIX-82
+- Last verified working: Clean production and CI/Vercel build with standardized extensionless module imports in `src/main.tsx` (`ErrorBoundary`, `App`) and ESM-compliant URL path resolution for the `@` alias in `vite.config.ts`. Full `npm run build` and `tsc` compilation passing with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,21 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-82] Vercel Build Resolution & Vite Config ESM URL Normalization — 2026-08-27
+Prompt: Fix Vercel build failure caused by explicit .tsx extension unresolved import in src/main.tsx and __dirname warning in vite.config.ts.
+Files touched:
+- `src/main.tsx` (modified)
+- `vite.config.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Standardized `src/main.tsx` imports for `ErrorBoundary` and `App` to extensionless module specifiers.
+- Replaced Node CommonJS `__dirname` in `vite.config.ts` with standard ESM `fileURLToPath(new URL('.', import.meta.url))` to eliminate Vite config native loader warnings.
+- Removed unused imports and verified clean `npm run build` production bundling.
+Decisions: Used standard modern ESM path resolution in Vite config.
+Deviations: none
+Verified: `npm run build` and `compile_applet` passed successfully.
+Open questions: none
 
 ### [HOTFIX-81] Codebase Import Resolution & Clean Modular Architecture Build — 2026-08-27
 Prompt: Resolve all broken module import paths and TS2307/TS2305 compilation errors following security and component reorganization.

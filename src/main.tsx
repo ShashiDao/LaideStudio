@@ -1,8 +1,8 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import App from './App';
 import './index.css';
-import { ErrorBoundary } from './components/core/ErrorBoundary.tsx';
+import { ErrorBoundary } from './components/core/ErrorBoundary';
 import { migrateXiomToLaide } from './db';
 
 migrateXiomToLaide().finally(() => {
