@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-50
-- Last verified working: Full test suite passes cleanly with Vitest (63 test files, 453 tests passing). Responsive viewport size toggles (Phone / Tablet / Desktop) in `PreviewPanel.tsx` and full test coverage in `PreviewPanel.test.tsx`. `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-51
+- Last verified working: Full test suite passes cleanly with Vitest (63 test files, 456 tests passing). Refactored `SettingsPanel.tsx` into 5 organized categories (Appearance, AI & Providers, Integrations, Security & Vault, Advanced) with responsive single-column drill-down (<700px) and persistent two-column navigation rail (>=700px). Unit test coverage in `SettingsPanel.test.tsx` (10/10 passing). `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,22 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-51] Regroup SettingsPanel into 5 Named Categories with Responsive Navigation — 2026-08-27
+Prompt: Regroup SettingsPanel sections into 5 named categories (Appearance, AI & Providers, Integrations, Security & Vault, Advanced) with a single-column drill-down (<700px) and a persistent two-column rail (>=700px), preserving all state/handlers/logic/modals, and update SettingsPanel.test.tsx.
+Files touched:
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/SettingsPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Grouped all settings sections into 5 categorized modules: Appearance (theme + contrast), AI & Providers (connection profiles + ensemble + custom instructions), Integrations (GitHub + deploy tokens + MCP servers), Security & Vault (lock vault + encrypted backup/restore), and Advanced (system diagnostics + dependency cache + keyboard shortcuts).
+- Implemented responsive navigation architecture: single-column drill-down on narrow viewports (<700px) with slide-in detail views and back navigation, and persistent ~200px category rail beside the active pane on wider viewports (>=700px).
+- Preserved all state hooks, encryption/decryption flows, Dexie queries, and root overlay modals (Lock confirm, Backup restore confirm, Provider sheet).
+- Updated `SettingsPanel.test.tsx` with full test coverage for category rail switching, narrow drill-down and back navigation, connection profiles provider sheet, contrast slider presets, and collapsible keyboard shortcuts.
+Decisions: Used `ResizeObserver` with container bounding-box measurement fallback for adaptive layout switching at 700px breakpoint; retained all modal lifecycle triggers and data structures verbatim.
+Deviations: none
+Verified: `npx vitest run src/components/SettingsPanel.test.tsx` passed (10/10 tests); full test suite passed (63 files, 456 tests); `compile_applet` and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-50] Add Responsive Viewport Size Controls to PreviewPanel Toolbar — 2026-08-27
 Prompt: Add three toggle chips to PreviewPanel toolbar (Phone / Tablet / Desktop) using lucide-react Smartphone, Tablet, and Monitor icons to scale the preview rendering width, centered with visible border/shadow and animated width transition, defaulting to Desktop (100%), and update PreviewPanel.test.tsx.

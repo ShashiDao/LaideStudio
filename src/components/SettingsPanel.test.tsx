@@ -58,38 +58,128 @@ describe('SettingsPanel', () => {
     cleanup();
   });
 
-  it('prefills OpenRouter base URL when selected', () => {
-    render(React.createElement(SettingsPanel));
-    
-    // Open provider sheet
-    const providerBtn = screen.getByText(/Selected:/i);
-    fireEvent.click(providerBtn);
+  describe('Navigation & Category Routing', () => {
+    it('renders all 5 category items in wide rail layout by default', () => {
+      render(React.createElement(SettingsPanel));
 
-    // Select OpenRouter from sheet
-    const openRouterOption = screen.getByRole('button', { name: /400\+ models via OpenRouter/i });
-    fireEvent.click(openRouterOption);
+      const rail = screen.getByTestId('settings-category-rail');
+      expect(rail).toBeTruthy();
 
-    // Verify Base URL input is prefilled
-    const baseUrlInputs = screen.getAllByPlaceholderText('https://openrouter.ai/api/v1') as HTMLInputElement[];
-    expect(baseUrlInputs.length).toBeGreaterThan(0);
-    expect(baseUrlInputs[0].value).toBe('https://openrouter.ai/api/v1');
+      expect(screen.getByRole('button', { name: /Appearance/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /AI & Providers/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Integrations/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Security & Vault/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Advanced/i })).toBeTruthy();
+    });
+
+    it('switches between categories when clicking rail items', () => {
+      render(React.createElement(SettingsPanel));
+
+      // Default is Appearance
+      expect(screen.getByText('Display Contrast')).toBeTruthy();
+
+      // Click AI & Providers
+      const aiBtn = screen.getByRole('button', { name: /AI & Providers/i });
+      fireEvent.click(aiBtn);
+      expect(screen.getByText('Connection Profiles')).toBeTruthy();
+      expect(screen.getByText('Dual-LLM Ensemble Mode')).toBeTruthy();
+      expect(screen.getByText('Custom Instructions')).toBeTruthy();
+
+      // Click Integrations
+      const intBtn = screen.getByRole('button', { name: /Integrations/i });
+      fireEvent.click(intBtn);
+      expect(screen.getByText('GitHub Integration')).toBeTruthy();
+      expect(screen.getByText('1-Click Live Deploy Tokens')).toBeTruthy();
+      expect(screen.getByText('Model Context Protocol (MCP) Servers')).toBeTruthy();
+
+      // Click Security & Vault
+      const secBtn = screen.getByRole('button', { name: /Security & Vault/i });
+      fireEvent.click(secBtn);
+      expect(screen.getByText('Encrypted Vault Backup')).toBeTruthy();
+      expect(screen.getAllByText('Lock Vault').length).toBeGreaterThanOrEqual(1);
+
+      // Click Advanced
+      const advBtn = screen.getByRole('button', { name: /Advanced/i });
+      fireEvent.click(advBtn);
+      expect(screen.getByText('System Diagnostics & Context')).toBeTruthy();
+      expect(screen.getByText('Dependency Cache')).toBeTruthy();
+      expect(screen.getByText('Keyboard Shortcuts')).toBeTruthy();
+    });
+
+    it('supports single-column drill-down and back navigation on narrow widths (<700px)', () => {
+      const origGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+      Element.prototype.getBoundingClientRect = vi.fn().mockReturnValue({ width: 500, height: 800, top: 0, left: 0, bottom: 800, right: 500 });
+      
+      try {
+        render(React.createElement(SettingsPanel));
+        
+        // In narrow mode, category list is rendered
+        const categoryList = screen.getByTestId('settings-category-list');
+        expect(categoryList).toBeTruthy();
+
+        // Tap on Security & Vault category card
+        const secCard = screen.getByRole('button', { name: /Security & Vault/i });
+        fireEvent.click(secCard);
+
+        // Detail view should now be rendered
+        expect(screen.getByTestId('settings-category-detail')).toBeTruthy();
+        expect(screen.getByText('Encrypted Vault Backup')).toBeTruthy();
+
+        // Back button should be visible in header
+        const backBtn = screen.getByRole('button', { name: /Back to Settings categories/i });
+        expect(backBtn).toBeTruthy();
+        fireEvent.click(backBtn);
+
+        // Should return to category list
+        expect(screen.getByTestId('settings-category-list')).toBeTruthy();
+      } finally {
+        Element.prototype.getBoundingClientRect = origGetBoundingClientRect;
+      }
+    });
   });
 
-  it('does not prefill base URL for openai-compatible', () => {
-    render(React.createElement(SettingsPanel));
-    
-    // Open provider sheet
-    const providerBtn = screen.getByText(/Selected:/i);
-    fireEvent.click(providerBtn);
+  describe('AI & Providers Category', () => {
+    it('prefills OpenRouter base URL when selected in Connection Profiles', () => {
+      render(React.createElement(SettingsPanel));
+      
+      // Navigate to AI & Providers
+      const aiBtn = screen.getByRole('button', { name: /AI & Providers/i });
+      fireEvent.click(aiBtn);
 
-    // Select OpenAI Compatible from sheet
-    const compatibleOption = screen.getByRole('button', { name: /Local & custom endpoints/i });
-    fireEvent.click(compatibleOption);
+      // Open provider sheet
+      const providerBtn = screen.getByText(/Selected:/i);
+      fireEvent.click(providerBtn);
 
-    // Verify Base URL input exists but is empty
-    const baseUrlInputs = screen.getAllByPlaceholderText('https://openrouter.ai/api/v1') as HTMLInputElement[];
-    expect(baseUrlInputs.length).toBeGreaterThan(0);
-    expect(baseUrlInputs[0].value).toBe('');
+      // Select OpenRouter from sheet
+      const openRouterOption = screen.getByRole('button', { name: /400\+ models via OpenRouter/i });
+      fireEvent.click(openRouterOption);
+
+      // Verify Base URL input is prefilled
+      const baseUrlInputs = screen.getAllByPlaceholderText('https://openrouter.ai/api/v1') as HTMLInputElement[];
+      expect(baseUrlInputs.length).toBeGreaterThan(0);
+      expect(baseUrlInputs[0].value).toBe('https://openrouter.ai/api/v1');
+    });
+
+    it('does not prefill base URL for openai-compatible', () => {
+      render(React.createElement(SettingsPanel));
+      
+      // Navigate to AI & Providers
+      const aiBtn = screen.getByRole('button', { name: /AI & Providers/i });
+      fireEvent.click(aiBtn);
+
+      // Open provider sheet
+      const providerBtn = screen.getByText(/Selected:/i);
+      fireEvent.click(providerBtn);
+
+      // Select OpenAI Compatible from sheet
+      const compatibleOption = screen.getByRole('button', { name: /Local & custom endpoints/i });
+      fireEvent.click(compatibleOption);
+
+      // Verify Base URL input exists but is empty
+      const baseUrlInputs = screen.getAllByPlaceholderText('https://openrouter.ai/api/v1') as HTMLInputElement[];
+      expect(baseUrlInputs.length).toBeGreaterThan(0);
+      expect(baseUrlInputs[0].value).toBe('');
+    });
   });
 
   describe('Theme Contrast Slider & Appearance', () => {
@@ -138,9 +228,13 @@ describe('SettingsPanel', () => {
     });
   });
 
-  describe('Keyboard Shortcuts Collapsible Dropdown', () => {
+  describe('Keyboard Shortcuts Collapsible Dropdown (in Advanced category)', () => {
     it('is collapsed by default and expands when clicked', () => {
       render(React.createElement(SettingsPanel));
+
+      // Navigate to Advanced category
+      const advBtn = screen.getByRole('button', { name: /Advanced/i });
+      fireEvent.click(advBtn);
 
       // Shortcuts list items should not be visible by default
       expect(screen.queryByText('Toggle Files tab')).toBeNull();
