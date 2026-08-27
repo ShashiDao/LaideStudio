@@ -61,10 +61,16 @@
 }
 
 @layer base {
+  *, ::before, ::after {
+    touch-action: manipulation;
+  }
+
   body {
     @apply bg-bg text-text font-sans antialiased;
     background-color: var(--bg);
     color: var(--text-primary);
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
   }
 
   /* Instrument panel / Blueprint Monospace typography for headings and readouts */
