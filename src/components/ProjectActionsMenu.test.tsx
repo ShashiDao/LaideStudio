@@ -288,4 +288,29 @@ describe('ProjectActionsMenu Component', () => {
     fireEvent.click(screen.getByLabelText('Close actions dialog'));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  it('renders Trust & Provenance with high-contrast Ledger badge and triggers callback', () => {
+    const onOpenTrustReport = vi.fn();
+    render(
+      <ProjectActionsMenu
+        project={mockProject}
+        fileCount={12}
+        onOpenGithubImport={() => {}}
+        onOpenGithubPush={() => {}}
+        onUploadClick={() => {}}
+        onExportClick={() => {}}
+        onDeleteClick={() => {}}
+        onOpenTrustReport={onOpenTrustReport}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText('Workspace actions menu'));
+    expect(screen.getByText('Trust & Provenance')).toBeDefined();
+    const badge = screen.getByText('Ledger');
+    expect(badge).toBeDefined();
+    expect(badge.className).toContain('text-amber-800');
+
+    fireEvent.click(screen.getByText('Trust & Provenance'));
+    expect(onOpenTrustReport).toHaveBeenCalledTimes(1);
+  });
 });

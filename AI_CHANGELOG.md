@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-57
-- Last verified working: Full test suite passes cleanly with Vitest (68 test files, 479 tests passing). Refactored Project Selector dropdown from native HTML `<select>` tag into a custom React dropdown component (`ProjectSelector`) with amber trigger styling matching the existing layout, dynamic chevron rotation, high z-index responsive dropdown list (mobile bottom sheet & desktop floating popover), project name with file count subtext, automatic project-switching handler and clean dismissals. `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-58
+- Last verified working: Full test suite passes cleanly with Vitest (68 test files, 480 tests passing). Refactored Workspace Actions & Tools menu padding and drag handle layout (added `pt-4 sm:pt-0` to prevent overlap with header/close button, centered drag handle at `absolute top-2 left-1/2`, improved Ledger badge contrast with rich dark amber tokens `bg-amber-500/20 text-amber-800 dark:text-amber-300`, and added container-respecting corner radius on grouped action items). Refactored ProjectSearchModal to streamline input placeholder to "Search workspace...", header subtitle to "Search across all files", and enforced `pr-32` right-padding to prevent query text overlap with search filter toggle buttons. `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,26 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-58] Refactor Workspace Actions Drawer Layout, Ledger Contrast, and Project Search Modal Spacing — 2026-08-27
+Prompt: Refactor the padding and spacing configurations of the Workspace Actions & Tools bottom sheet component and Project Search Modal: push header safely below mobile drag handle, increase contrast on Ledger badge, prevent text clipping in project search input, and streamline placeholder/subtitles.
+Files touched:
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/ProjectActionsMenu.test.tsx` (modified)
+- `src/components/ProjectSearchModal.tsx` (modified)
+- `src/components/ProjectSearchModal.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `pt-4 sm:pt-0` padding to the `ProjectActionsMenu` mobile drawer and positioned the grab handle at `absolute top-2 left-1/2 -translate-x-1/2` so it does not collide with header text or the close button.
+- Updated the "Ledger" badge color in `ProjectActionsMenu` to a high-contrast dark amber token (`bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/30`).
+- Applied rounded corner clipping (`first:rounded-t-lg last:rounded-b-lg`) to grouped menu action buttons to match the parent container radius on active/focus states.
+- Updated `ProjectSearchModal` search input placeholder to `"Search workspace..."` and shortened subtitle to `"Search across all files"`.
+- Enforced `pr-32` right padding on the search input to ensure typed query text never overlaps with search modifier toggle buttons.
+- Updated all unit tests in `ProjectActionsMenu.test.tsx` and `ProjectSearchModal.test.tsx` (15/15 passing).
+Decisions: Kept the mobile bottom sheet responsive with `max-h-[88vh]` while desktop retains centered modal behavior (`sm:max-w-md sm:max-h-[80vh] sm:pt-0`).
+Deviations: none
+Verified: Vitest suite (480/480 passing across 68 files), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-57] Refactor Project Selector from Native Select to Custom React Popover Dropdown — 2026-08-27
 Prompt: Refactor the Project Selector dropdown component (<select> element) located in the workspace header into a custom controlled React dropdown component with amber styling, chevron toggle, floating/sheet popover, z-index isolation, file counts subtext, and seamless project switching.

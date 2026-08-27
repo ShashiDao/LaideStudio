@@ -202,7 +202,7 @@ export function ProjectSearchModal({
                 </span>
               </div>
               <p className="text-[10px] text-muted truncate">
-                Search text and regex patterns across all project files
+                Search across all files
               </p>
             </div>
           </div>
@@ -224,8 +224,8 @@ export function ProjectSearchModal({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search across all files in project... (Regex supported)"
-              aria-label="Search across all files in project"
+              placeholder="Search workspace..."
+              aria-label="Search workspace"
               className="w-full pl-9 pr-32 py-2 bg-surface border border-border rounded-lg text-xs font-mono text-text placeholder:text-muted/60 focus:outline-none focus:border-accent transition-colors shadow-inner"
             />
             

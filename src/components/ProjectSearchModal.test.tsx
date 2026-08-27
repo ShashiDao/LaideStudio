@@ -43,7 +43,7 @@ describe('ProjectSearchModal', () => {
 
     expect(screen.getByText('Find in Files')).toBeDefined();
     expect(screen.getByText('Ctrl+Shift+F')).toBeDefined();
-    expect(screen.getByPlaceholderText(/Search across all files in project/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/Search workspace.../i)).toBeDefined();
   });
 
   it('searches across files and displays matching lines and counts', () => {
@@ -55,7 +55,7 @@ describe('ProjectSearchModal', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search across all files in project/i);
+    const input = screen.getByPlaceholderText(/Search workspace.../i);
     fireEvent.change(input, { target: { value: 'export function' } });
 
     expect(screen.getByText(/2 matches/i)).toBeDefined();
@@ -73,7 +73,7 @@ describe('ProjectSearchModal', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search across all files in project/i);
+    const input = screen.getByPlaceholderText(/Search workspace.../i);
     fireEvent.change(input, { target: { value: 'hello' } });
 
     // Case-insensitive match initially found
@@ -97,7 +97,7 @@ describe('ProjectSearchModal', () => {
       />
     );
 
-    const input = screen.getByPlaceholderText(/Search across all files in project/i);
+    const input = screen.getByPlaceholderText(/Search workspace.../i);
     fireEvent.change(input, { target: { value: 'calculateTotal' } });
 
     const matchRow = screen.getByText('calculateTotal');
@@ -129,7 +129,7 @@ describe('ProjectSearchModal', () => {
     expect(screen.getByLabelText(/Files to include filter/i)).toBeDefined();
     expect(screen.getByLabelText(/Files to exclude filter/i)).toBeDefined();
 
-    const input = screen.getByPlaceholderText(/Search across all files in project/i);
+    const input = screen.getByPlaceholderText(/Search workspace.../i);
     fireEvent.change(input, { target: { value: 'export function' } });
 
     const includeInput = screen.getByLabelText(/Files to include filter/i);
