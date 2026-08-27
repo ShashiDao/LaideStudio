@@ -7,7 +7,7 @@ import { OpenAICompatibleProvider } from './providers/openaiCompatible';
 
 
 export async function createLLMAdapter(profile: ConnectionProfile, aesKey: CryptoKey): Promise<LLMAdapter> {
-  const { decryptData } = await import('../security/crypto');
+  const { decryptData } = await import('../crypto');
   const apiKey = await decryptData(aesKey, profile.encryptedApiKey);
   if (!apiKey) {
     throw new Error('Failed to decrypt API key for profile');

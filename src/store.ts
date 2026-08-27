@@ -1,5 +1,5 @@
 import { create, StateCreator } from 'zustand';
-import type { KeyMaterial } from './services/security/crypto';
+import type { KeyMaterial } from './services/crypto';
 import type { PatchDefinition } from './services/agent/patchSchema';
 import type { LLMMessage } from './services/llm/llmAdapter';
 import type { BeforeInstallPromptEvent } from './types';
@@ -144,7 +144,6 @@ export interface ToastMessage {
   message: string;
   type: 'info' | 'error' | 'success';
 }
-export type ToastItem = ToastMessage;
 
 export interface ToastSlice {
   toasts: ToastMessage[];
@@ -271,9 +270,9 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   editorNavigationTarget: null,
   setEditorNavigationTarget: (editorNavigationTarget) => set({ editorNavigationTarget }),
   lockVault: () => {
-    import('./services/security/session').then(({ clearPersistentSession }) => {
-      clearPersistentSession().catch((err: unknown) => console.error('Failed to clear persistent session', err));
-    }).catch((err: unknown) => console.error('Failed to import session service', err));
+    import('./services/session').then(({ clearPersistentSession }) => {
+      clearPersistentSession().catch(err => console.error('Failed to clear persistent session', err));
+    }).catch(err => console.error('Failed to import session service', err));
     set({ keys: null, chatHistory: [] });
   },
 });

@@ -13,39 +13,39 @@ import { importZip, isText } from './services/fs/zipImport';
 import { exportProjectAsMarkdown, generateProjectMarkdown } from './services/fs/markdownExport';
 import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles, archiveProject, restoreProject, listArchivedProjects, deleteArchivedProject } from './services/fs/vfs';
 import { calculateProjectMetadata } from './utils/projectStats';
-import { FileTree } from './components/core/FileTree';
-import { Editor } from './components/editor/Editor';
-import { LockScreen } from './components/core/LockScreen';
+import { FileTree } from './components/FileTree';
+import { Editor } from './components/Editor';
+import { LockScreen } from './components/LockScreen';
 
-import { SettingsPanel } from './components/panels/SettingsPanel';
-import { PatchReviewSheet } from './components/modals/PatchReviewSheet';
-import { ChatPanel } from './components/panels/ChatPanel';
-import { TerminalPanel } from './components/panels/TerminalPanel';
-import { TopStrip } from './components/core/TopStrip';
-import { ErrorBoundary } from './components/core/ErrorBoundary';
-import { PreviewPanel } from './components/panels/PreviewPanel';
-import { KeyboardShortcutsModal } from './components/modals/KeyboardShortcutsModal';
-import { RenameProjectModal } from './components/modals/RenameProjectModal';
-import { ProjectActionsMenu } from './components/core/ProjectActionsMenu';
-import { ProjectFilesPane } from './components/panels/ProjectFilesPane';
-import { ActivityRail } from './components/core/ActivityRail';
-import { EditorTabs } from './components/editor/EditorTabs';
-import { TerminalDrawer } from './components/core/TerminalDrawer';
+import { SettingsPanel } from './components/SettingsPanel';
+import { PatchReviewSheet } from './components/PatchReviewSheet';
+import { ChatPanel } from './components/ChatPanel';
+import { TerminalPanel } from './components/TerminalPanel';
+import { TopStrip } from './components/TopStrip';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { PreviewPanel } from './components/PreviewPanel';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { RenameProjectModal } from './components/RenameProjectModal';
+import { ProjectActionsMenu } from './components/ProjectActionsMenu';
+import { ProjectFilesPane } from './components/ProjectFilesPane';
+import { ActivityRail } from './components/ActivityRail';
+import { EditorTabs } from './components/EditorTabs';
+import { TerminalDrawer } from './components/TerminalDrawer';
 const ProjectMetadataPanel = React.lazy(() =>
-  import('./components/panels/ProjectMetadataPanel').then((m) => ({ default: m.ProjectMetadataPanel }))
+  import('./components/ProjectMetadataPanel').then((m) => ({ default: m.ProjectMetadataPanel }))
 );
-import { GithubImportModal } from './components/modals/GithubImportModal';
-import { GithubPushModal } from './components/modals/GithubPushModal';
-import { DeployModal } from './components/modals/DeployModal';
-import { FindWhatBrokeModal } from './components/modals/FindWhatBrokeModal';
-import { TrustReportModal } from './components/modals/TrustReportModal';
-import { CreateProjectModal } from './components/modals/CreateProjectModal';
-import { ProjectSearchModal } from './components/modals/ProjectSearchModal';
-import { ArchivedProjectsModal } from './components/modals/ArchivedProjectsModal';
+import { GithubImportModal } from './components/GithubImportModal';
+import { GithubPushModal } from './components/GithubPushModal';
+import { DeployModal } from './components/DeployModal';
+import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
+import { TrustReportModal } from './components/TrustReportModal';
+import { CreateProjectModal } from './components/CreateProjectModal';
+import { ProjectSearchModal } from './components/ProjectSearchModal';
+import { ArchivedProjectsModal } from './components/ArchivedProjectsModal';
 import { createProjectFromTemplate, type TemplateId } from './services/templates/projectTemplates';
-import { ReloadPrompt } from './components/core/ReloadPrompt';
-import { InstallPrompt } from './components/core/InstallPrompt';
-import { Toaster } from './components/core/Toaster';
+import { ReloadPrompt } from './components/ReloadPrompt';
+import { InstallPrompt } from './components/InstallPrompt';
+import { Toaster } from './components/Toaster';
 import { useGlobalKeyboardShortcuts } from './hooks/useGlobalKeyboardShortcuts';
 import { useShellBreakpoint } from './hooks/useShellBreakpoint';
 
@@ -94,15 +94,15 @@ export default function App() {
     if (keys) {
       const enc = localStorage.getItem('xiom_mcp_servers');
       if (enc) {
-        import('./services/security/crypto').then(({ decryptData }) => {
-          decryptData(keys.aesKey, enc).then((str: string) => {
+        import('./services/crypto').then(({ decryptData }) => {
+          decryptData(keys.aesKey, enc).then(str => {
             try {
               setMcpServers(JSON.parse(str));
-            } catch (e: unknown) {
+            } catch (e) {
               console.error('Failed to parse MCP servers', e);
             }
-          }).catch((e: unknown) => console.error('Failed to decrypt MCP servers', e));
-        }).catch((e: unknown) => console.error('Failed to load crypto module', e));
+          }).catch(e => console.error('Failed to decrypt MCP servers', e));
+        }).catch(e => console.error('Failed to load crypto module', e));
       }
     }
   }, [keys, setMcpServers]);

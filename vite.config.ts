@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { fileURLToPath } from 'url';
+import path from 'path';
 import {defineConfig} from 'vite';
 import {VitePWA} from 'vite-plugin-pwa';
 
@@ -70,7 +70,7 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': fileURLToPath(new URL('.', import.meta.url)),
+        '@': path.resolve(__dirname, '.'),
       },
     },
     build: {
