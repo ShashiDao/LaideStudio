@@ -43,8 +43,8 @@ vi.mock('../db', () => ({
       delete: vi.fn(),
       get: vi.fn()
     },
-    projects: { toArray: vi.fn().mockResolvedValue([]) },
-    files: { toArray: vi.fn().mockResolvedValue([]) },
+    projects: { toArray: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
+    files: { toArray: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
     snapshots: { toArray: vi.fn().mockResolvedValue([]) },
   }
 }));
@@ -61,16 +61,12 @@ describe('SettingsPanel', () => {
   it('prefills OpenRouter base URL when selected', () => {
     render(React.createElement(SettingsPanel));
     
-    // Open the new profile form if not open
-    const addBtn = screen.queryByText('Add Profile');
-    if (addBtn) fireEvent.click(addBtn);
-
-    // Open provider dropdown
-    const providerBtn = screen.getByRole('button', { name: /Anthropic/i });
+    // Open provider sheet
+    const providerBtn = screen.getByText(/Selected:/i);
     fireEvent.click(providerBtn);
 
-    // Select OpenRouter
-    const openRouterOption = screen.getByText('OpenRouter');
+    // Select OpenRouter from sheet
+    const openRouterOption = screen.getByRole('button', { name: /400\+ models via OpenRouter/i });
     fireEvent.click(openRouterOption);
 
     // Verify Base URL input is prefilled
@@ -82,12 +78,12 @@ describe('SettingsPanel', () => {
   it('does not prefill base URL for openai-compatible', () => {
     render(React.createElement(SettingsPanel));
     
-    // Open provider dropdown
-    const providerBtn = screen.getByRole('button', { name: /Anthropic/i });
+    // Open provider sheet
+    const providerBtn = screen.getByText(/Selected:/i);
     fireEvent.click(providerBtn);
 
-    // Select OpenAI Compatible
-    const compatibleOption = screen.getByText('OpenAI Compatible (Local/Custom)');
+    // Select OpenAI Compatible from sheet
+    const compatibleOption = screen.getByRole('button', { name: /Local & custom endpoints/i });
     fireEvent.click(compatibleOption);
 
     // Verify Base URL input exists but is empty
@@ -100,7 +96,7 @@ describe('SettingsPanel', () => {
     it('renders the contrast slider with current contrast value and labels', () => {
       render(React.createElement(SettingsPanel));
 
-      expect(screen.getByText('Theme Contrast')).toBeTruthy();
+      expect(screen.getByText('Display Contrast')).toBeTruthy();
       expect(screen.getByText('100%')).toBeTruthy();
       expect(screen.getByText('(Standard)')).toBeTruthy();
 
@@ -123,11 +119,11 @@ describe('SettingsPanel', () => {
     it('triggers preset buttons when clicked', () => {
       render(React.createElement(SettingsPanel));
 
-      const softBtn = screen.getByRole('button', { name: /Soft \(75%\)/i });
+      const softBtn = screen.getByRole('button', { name: /^Soft$/i });
       fireEvent.click(softBtn);
       expect(mockSetThemeContrast).toHaveBeenCalledWith(75);
 
-      const highBtn = screen.getByRole('button', { name: /High \(125%\)/i });
+      const highBtn = screen.getByRole('button', { name: /^High$/i });
       fireEvent.click(highBtn);
       expect(mockSetThemeContrast).toHaveBeenCalledWith(125);
     });
@@ -160,7 +156,7 @@ describe('SettingsPanel', () => {
       expect(screen.getByText('Quick Open & Search')).toBeTruthy();
       expect(screen.getByText('Find in File')).toBeTruthy();
       expect(screen.getByText('Open Preview')).toBeTruthy();
-      expect(screen.getByText('Lock Vault')).toBeTruthy();
+      expect(screen.getAllByText('Lock Vault').length).toBeGreaterThanOrEqual(1);
 
       // Clicking again collapses it
       fireEvent.click(shortcutsToggle);

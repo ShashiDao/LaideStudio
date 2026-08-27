@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-45
-- Last verified working: Full test suite passes cleanly with 62 test files and 435 tests in Vitest (`npm test`). `compile_applet` (`npm run build`) builds the application bundle with 0 errors. Linter passes cleanly with 0 errors.
+- Phase: HOTFIX-47
+- Last verified working: Full test suite passes cleanly with Vitest (62 test files, 440 tests passing). SettingsPanel unit tests and db mocks resolved. `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,37 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-47] Fix SettingsPanel Test Queries and Database Mocks — 2026-08-27
+Prompt: Fix SettingsPanel unit test failure and verify complete test suite.
+Files touched:
+- `src/components/SettingsPanel.test.tsx` (modified)
+- `src/components/TopStrip.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `count` mock implementations to `db.projects` and `db.files` in `SettingsPanel.test.tsx`.
+- Updated provider selection queries to interact via the modal sheet, avoiding ambiguous matches across quick chips.
+- Corrected contrast slider heading and preset button matchers in `SettingsPanel.test.tsx` to align with the active component labels.
+- Prefixed unused `_dbTested` parameter in `TopStrip.tsx` to clear ESLint compiler warnings.
+Decisions: Used sheet-based provider selection buttons in tests to cleanly isolate provider changes without collision with quick-picker chips.
+Deviations: none
+Verified: `npx vitest run src/components/SettingsPanel.test.tsx` passed (7/7 tests); full Vitest test suite passed (62 files, 440 tests); `compile_applet` succeeded.
+Open questions: none
+
+### [HOTFIX-46] Wire Up onOpenShortcuts in TopStrip — 2026-08-27
+Prompt: TopStrip function signature declares unused parameter and never renders anything from it. Change signature to destructure { dbTested, onOpenShortcuts }, add CircleHelp button to left of theme toggle with aria-label="Keyboard shortcuts" and title="Keyboard Shortcuts" calling onOpenShortcuts, update tests.
+Files touched:
+- `src/components/TopStrip.tsx` (modified)
+- `src/components/TopStrip.test.tsx` (modified)
+Changed:
+- Updated `TopStrip` function signature to destructure `{ dbTested, onOpenShortcuts }`.
+- Added a `CircleHelp` icon button in the header's right action group placed immediately to the left of the theme toggle button matching existing button styling, hover states, and active feedback.
+- Added `aria-label="Keyboard shortcuts"`, `title="Keyboard Shortcuts"`, and optional-chained `onClick={() => onOpenShortcuts?.()}` handler.
+- Added unit test in `TopStrip.test.tsx` asserting the keyboard shortcuts button is rendered and triggers the `onOpenShortcuts` callback when clicked.
+Decisions: Retained existing styling classes and active scale effects consistent with other action buttons in the header row.
+Deviations: none
+Verified: `npx vitest run src/components/TopStrip.test.tsx` passes with 3/3 tests; `compile_applet` builds cleanly; `lint_applet` passes with 0 errors.
+Open questions: none
 
 ### [HOTFIX-45] Surface AI Provenance & Trust Score for Files and PRs — 2026-08-25
 Prompt: Lean into the provenance/bisect system — you already have a tamper-evident hash-chained ledger of every AI edit plus a bisect tool. Surface it as a "trust score" per file/PR showing which lines were AI-written, by which model, whether tests passed at that point — genuinely differentiated for an AI-native IDE

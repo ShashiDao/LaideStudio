@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lock, Key, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, Copy, Check, LifeBuoy, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Lock, Key, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, Copy, Check, LifeBuoy, ArrowLeft, Eye, EyeOff, Terminal } from 'lucide-react';
 import { getLockConfig, saveLockConfig, type LockConfig } from '../services/lockConfig';
 import type { KeyMaterial } from '../services/crypto';
 import { isPasskeyPrfSupported, enrollPasskey, unlockWithPasskey, type PasskeyData } from '../services/passkeyCrypto';
@@ -23,7 +23,7 @@ export function LockScreen() {
   const [recoveryPhrase, setRecoveryPhrase] = useState('');
   const [hasSavedRecoveryPhrase, setHasSavedRecoveryPhrase] = useState(false);
   const [copiedPhrase, setCopiedPhrase] = useState(false);
-  const [setupStep, setSetupStep] = useState<'passphrase' | 'recovery' | 'passkey'>('passphrase');
+  const [setupStep, setSetupStep] = useState<'intro' | 'passphrase' | 'recovery' | 'passkey'>('intro');
   
   // Unlock state
   const [unlockPassphrase, setUnlockPassphrase] = useState('');
@@ -307,6 +307,46 @@ export function LockScreen() {
   // SETUP FLOW (No config yet)
   // ==========================================
   if (!config) {
+    // Step 0: Welcome / Intro Screen on first run
+    if (setupStep === 'intro') {
+      return (
+        <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
+          <div className="bg-surface border border-border rounded-lg p-6 sm:p-8 w-full max-w-md shadow-2xl corner-ticks flex flex-col">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-accent/15 border border-accent/40 flex items-center justify-center text-accent shrink-0 shadow-xs">
+                <Terminal size={22} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h1 className="text-xl font-sans text-text font-bold">LAIDE Studio</h1>
+                <p className="text-xs font-mono text-muted tracking-wide">Local-First AI Coding Environment</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs sm:text-sm text-muted leading-relaxed mb-6">
+              <p>
+                LAIDE Studio is a local-first AI coding environment that runs entirely in your browser.
+              </p>
+              <p>
+                All project files, code generation, and developer sessions stay local and private on your machine.
+              </p>
+              <p>
+                To keep your credentials secure, an encrypted on-device vault protects your AI API keys and access tokens using zero-knowledge client-side encryption.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSetupStep('passphrase')}
+              className="w-full py-2.5 bg-accent text-accent-text-on font-sans font-bold rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors cursor-pointer shadow-xs"
+            >
+              <span>Get Started</span>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     // Step 2: Show 12-word recovery phrase
     if (setupStep === 'recovery') {
       const words = recoveryPhrase.split(' ');

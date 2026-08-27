@@ -87,9 +87,39 @@ describe('Vault Lock State & Action', () => {
 });
 
 describe('LockScreen Setup UI', () => {
+  it('renders intro step on first run with product details and Get Started button', async () => {
+    vi.mocked(getLockConfig).mockReturnValue(null);
+    render(<LockScreen />);
+
+    expect(await screen.findByText('LAIDE Studio')).toBeTruthy();
+    expect(screen.getByText('Local-First AI Coding Environment')).toBeTruthy();
+    expect(screen.getByText(/local-first AI coding environment that runs entirely in your browser/i)).toBeTruthy();
+    expect(screen.getByText(/encrypted on-device vault/i)).toBeTruthy();
+    
+    const getStartedBtn = screen.getByRole('button', { name: /get started/i });
+    expect(getStartedBtn).toBeTruthy();
+  });
+
+  it('advances from intro step to passphrase creation step when Get Started is clicked', async () => {
+    vi.mocked(getLockConfig).mockReturnValue(null);
+    render(<LockScreen />);
+
+    const getStartedBtn = await screen.findByRole('button', { name: /get started/i });
+    fireEvent.click(getStartedBtn);
+
+    expect(await screen.findByText('Initialize Vault')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Enter strong passphrase')).toBeTruthy();
+    expect(screen.getByPlaceholderText('Confirm passphrase')).toBeTruthy();
+  });
+
   it('shows real-time match feedback when typing confirm passphrase', async () => {
+    vi.mocked(getLockConfig).mockReturnValue(null);
     render(<LockScreen />);
     
+    // Advance past intro
+    const getStartedBtn = await screen.findByRole('button', { name: /get started/i });
+    fireEvent.click(getStartedBtn);
+
     const passInput = await screen.findByPlaceholderText('Enter strong passphrase');
     const confirmInput = screen.getByPlaceholderText('Confirm passphrase');
     
@@ -106,8 +136,13 @@ describe('LockScreen Setup UI', () => {
   });
 
   it('renders Keep me logged in checkbox with default unchecked state', async () => {
+    vi.mocked(getLockConfig).mockReturnValue(null);
     render(<LockScreen />);
     
+    // Advance past intro
+    const getStartedBtn = await screen.findByRole('button', { name: /get started/i });
+    fireEvent.click(getStartedBtn);
+
     const checkbox = await screen.findByRole('checkbox', { name: /keep me logged in/i });
     expect(checkbox).toBeTruthy();
     expect((checkbox as HTMLInputElement).checked).toBe(false);
@@ -117,12 +152,36 @@ describe('LockScreen Setup UI', () => {
   });
 });
 
+describe('LockScreen Unlock Flow', () => {
+  it('skips the intro step entirely when an existing lock config exists', async () => {
+    vi.mocked(getLockConfig).mockReturnValue({
+      verifierBase64: 'abc',
+      saltBase64: 'def',
+      recoveryData: { ivBase64: 'g', encryptedMasterKeyBase64: 'h' },
+    } as any);
+
+    render(<LockScreen />);
+
+    // Directly renders unlock form
+    expect(await screen.findByPlaceholderText('Enter master passphrase')).toBeTruthy();
+    expect(screen.getByText('Unlock Vault')).toBeTruthy();
+
+    // Intro step elements must not exist
+    expect(screen.queryByRole('button', { name: /get started/i })).toBeNull();
+    expect(screen.queryByText('Initialize Vault')).toBeNull();
+  });
+});
+
 describe('Form Submission preventDefault Regression', () => {
   it('calls preventDefault synchronously on setup form submission before awaiting crypto', async () => {
     // Ensure setup flow
     vi.mocked(getLockConfig).mockReturnValue(null);
     render(<LockScreen />);
     
+    // Advance past intro
+    const getStartedBtn = await screen.findByRole('button', { name: /get started/i });
+    fireEvent.click(getStartedBtn);
+
     const passInput = await screen.findByPlaceholderText('Enter strong passphrase');
     const form = passInput.closest('form')!;
     

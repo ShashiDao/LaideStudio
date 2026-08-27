@@ -153,7 +153,9 @@ export function Editor({
   const saveTimeoutRef = useRef<any>(null);
   const savedFlashTimeoutRef = useRef<any>(null);
   const contentRef = useRef(content);
-  contentRef.current = content;
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   // Find & Replace States

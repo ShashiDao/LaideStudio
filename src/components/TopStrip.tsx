@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Lock, X, Moon, Sun, Terminal } from 'lucide-react';
+import { Lock, X, Moon, Sun, Terminal, CircleHelp } from 'lucide-react';
 import { useAppStore } from '../store';
 
-export function TopStrip(_props: { dbTested?: boolean; onOpenShortcuts?: () => void } = {}) {
+export function TopStrip({ dbTested: _dbTested, onOpenShortcuts }: { dbTested?: boolean; onOpenShortcuts?: () => void } = {}) {
   const { pendingPatches, setKeys, setChatHistory, lockVault, theme, toggleTheme } = useAppStore();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -47,6 +47,17 @@ export function TopStrip(_props: { dbTested?: boolean; onOpenShortcuts?: () => v
 
         {/* Right: Uncluttered Quick Controls */}
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* Keyboard shortcuts helper */}
+          <button
+            type="button"
+            onClick={() => onOpenShortcuts?.()}
+            className="flex items-center justify-center w-7 h-7 bg-surface-elevated hover:bg-accent/15 text-muted hover:text-accent border border-border hover:border-accent/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95"
+            title="Keyboard Shortcuts"
+            aria-label="Keyboard shortcuts"
+          >
+            <CircleHelp size={13} />
+          </button>
+
           {/* Quick theme toggle */}
           <button
             type="button"

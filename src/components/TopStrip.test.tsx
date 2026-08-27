@@ -50,4 +50,16 @@ describe('TopStrip Component', () => {
     fireEvent.click(lockBtn);
     expect(mockLockVault).toHaveBeenCalledTimes(1);
   });
+
+  it('calls onOpenShortcuts when keyboard shortcuts button is clicked', () => {
+    const mockOnOpenShortcuts = vi.fn();
+    render(<TopStrip onOpenShortcuts={mockOnOpenShortcuts} />);
+
+    const shortcutsBtn = screen.getByLabelText('Keyboard shortcuts');
+    expect(shortcutsBtn).toBeDefined();
+    expect(shortcutsBtn.getAttribute('title')).toBe('Keyboard Shortcuts');
+
+    fireEvent.click(shortcutsBtn);
+    expect(mockOnOpenShortcuts).toHaveBeenCalledTimes(1);
+  });
 });
