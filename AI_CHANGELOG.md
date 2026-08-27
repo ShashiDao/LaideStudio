@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-48
-- Last verified working: Full test suite passes cleanly with Vitest (62 test files, 445 tests passing). Merged "Insights" control and toolbar overflow menu in `Editor.tsx` working and verified via unit tests in `Editor.test.ts`. `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-49
+- Last verified working: Full test suite passes cleanly with Vitest (63 test files, 450 tests passing). Collapsed summary chip with expandable detail panel in `ChatPanel.tsx` and full test coverage in `ChatPanel.test.tsx`. `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,22 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-49] Collapse Chat Composer Controls Row into Summary Chip — 2026-08-27
+Prompt: Collapse active connection profile badge, vision toggle, ensemble indicator, and session cost into one summary chip ("{modelLabel} · {visionLabel} · {costLabel}"), expand detail panel with existing controls on tap, keep no-profile warning visible, preserve colors and cost logic.
+Files touched:
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/ChatPanel.test.tsx` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Collapsed the multi-pill row above the chat composer into a single summary chip displaying model label, vision state, and session cost with an ensemble active pulse dot indicator.
+- Added expandable detail panel floating directly above the summary chip on tap/click with click-outside and navigation auto-dismissal.
+- Maintained prominent uncollapsed warning banner when no connection profile is selected.
+- Created `ChatPanel.test.tsx` testing the collapsed summary chip, ensemble indicator, expandable detail panel, vision toggle, profile navigation, click-outside dismissal, and uncollapsed warning state.
+Decisions: Used existing accent, surface, border, and oxide CSS variables to ensure zero palette deviations.
+Deviations: none
+Verified: `npx vitest run src/components/ChatPanel.test.tsx` passed (5/5 tests); full Vitest test suite passed (63 files, 450 tests); `compile_applet` and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-48] Merge Insights Control and Add Toolbar Overflow Menu — 2026-08-27
 Prompt: Merge separate Trust Score badge and AI Blame toggle into ONE "Insights" button in Editor toolbar, move Copy Path into an overflow menu (⋯), keep Find and Close always visible, and update Editor.test.ts.

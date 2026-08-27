@@ -80,9 +80,26 @@ export function ChatPanel({ projectId }: { projectId: string }) {
   const [contextFiles, setContextFiles] = useState<FileItem[]>([]);
   const [contextExpanded, setContextExpanded] = useState(false);
   const [expandedToolResults, setExpandedToolResults] = useState<Record<string, boolean>>({});
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Close details popup on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (detailsRef.current && !detailsRef.current.contains(event.target as Node)) {
+        setIsDetailsOpen(false);
+      }
+    }
+    if (isDetailsOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDetailsOpen]);
 
   const handleSend = async (overrideMessage?: string) => {
     const messageToSend = (overrideMessage !== undefined ? overrideMessage : input).trim();
@@ -347,6 +364,19 @@ export function ChatPanel({ projectId }: { projectId: string }) {
   const sessionSummary = useMemo(() => {
     return computeSessionUsageSummary(sessionUsageRecords || []);
   }, [sessionUsageRecords]);
+
+  // Collapsed summary text construction
+  const summaryText = useMemo(() => {
+    const modelStr = profileLabel || profileName || 'Assistant';
+    const visionStr = attachPreviewVision ? 'Vision on' : 'Vision off';
+    const costStr = sessionSummary.totalCostUsd > 0 ? formatUsdCost(sessionSummary.totalCostUsd) : '$0.00';
+    
+    const parts = [modelStr, visionStr, costStr];
+    if (ensembleModeEnabled) {
+      parts.push('Ensemble');
+    }
+    return parts.join(' · ');
+  }, [profileLabel, profileName, attachPreviewVision, sessionSummary.totalCostUsd, ensembleModeEnabled]);
 
   // Dynamic suggestion chips based on real project state
   const suggestionChips = useMemo(() => {
@@ -688,21 +718,136 @@ export function ChatPanel({ projectId }: { projectId: string }) {
             </div>
           )}
 
-          {/* Tappable Profile / Settings Status Row & Vision Toggle */}
+          {/* Tappable Profile / Settings Status Row & Collapsed Summary Chip */}
           <div className="flex items-center justify-between px-1 flex-wrap gap-2">
             <div className="flex items-center gap-3">
               {activeProfileId ? (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('settings')}
-                  className="flex items-center gap-1.5 text-left group cursor-pointer hover:opacity-80 transition-opacity"
-                  title="Manage connection profile in Settings"
-                >
-                  <Cpu size={12} className="text-accent shrink-0" />
-                  <span className="text-[10px] font-sans text-muted group-hover:text-accent transition-colors">
-                    {profileName}
-                  </span>
-                </button>
+                <div className="relative inline-block" ref={detailsRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsDetailsOpen(prev => !prev)}
+                    aria-expanded={isDetailsOpen}
+                    aria-label="Model and session details"
+                    title="Click to view and adjust model, vision, ensemble, and cost settings"
+                    className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-sans border transition-all cursor-pointer shadow-xs active:scale-95 ${
+                      isDetailsOpen 
+                        ? 'bg-surface-elevated border-accent text-accent font-medium' 
+                        : 'bg-surface border-border text-muted hover:text-text hover:border-accent/40'
+                    }`}
+                  >
+                    {ensembleModeEnabled && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" title="Ensemble mode active" />
+                    )}
+                    <Cpu size={11} className="text-accent shrink-0" />
+                    <span className="truncate max-w-[280px] sm:max-w-md font-mono text-[10.5px]">
+                      {summaryText}
+                    </span>
+                    {isDetailsOpen ? <ChevronDown size={11} className="shrink-0 text-muted" /> : <ChevronUp size={11} className="shrink-0 text-muted" />}
+                  </button>
+
+                  {/* Expanded Detail Panel */}
+                  {isDetailsOpen && (
+                    <div 
+                      className="absolute bottom-full mb-1.5 left-0 z-30 p-2 rounded-lg bg-surface border border-border shadow-xl flex items-center flex-wrap gap-2 min-w-[280px] sm:min-w-[340px] animate-in fade-in zoom-in-95 duration-100 font-sans"
+                      role="region"
+                      aria-label="Session control details"
+                    >
+                      {/* Profile switch button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('settings');
+                          setIsDetailsOpen(false);
+                        }}
+                        aria-label="Manage connection profile in Settings"
+                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-elevated border border-border hover:border-accent/40 text-left group cursor-pointer transition-colors"
+                        title="Manage connection profile in Settings"
+                      >
+                        <Cpu size={12} className="text-accent shrink-0" />
+                        <span className="text-[10px] font-sans text-muted group-hover:text-accent transition-colors truncate max-w-[180px]">
+                          {profileName}
+                        </span>
+                      </button>
+
+                      {/* Vision Toggle Button / Badge */}
+                      {lastPreviewScreenshot ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setAttachPreviewVision(!attachPreviewVision)}
+                            className={`px-2 py-1 rounded text-[10px] font-sans flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                              attachPreviewVision 
+                                ? 'bg-accent/15 border-accent/40 text-accent font-medium' 
+                                : 'bg-surface-elevated border-border text-muted hover:text-text'
+                            }`}
+                            title={attachPreviewVision ? 'Vision enabled: Preview screenshot attached to prompt' : 'Vision disabled: Click to attach preview screenshot'}
+                          >
+                            <Eye size={11} className={attachPreviewVision ? 'text-accent' : 'text-muted'} />
+                            <span>{attachPreviewVision ? 'Vision Attached' : 'Attach Preview'}</span>
+                            {lastPreviewScreenshot.dataUrl && attachPreviewVision && (
+                              <img
+                                src={lastPreviewScreenshot.dataUrl}
+                                alt="Preview snapshot"
+                                className="w-3.5 h-3.5 object-cover rounded border border-accent/40 ml-0.5"
+                              />
+                            )}
+                          </button>
+                          {attachPreviewVision && (
+                            <button
+                              type="button"
+                              onClick={() => setAttachPreviewVision(false)}
+                              className="p-1 text-muted hover:text-oxide rounded transition-colors cursor-pointer"
+                              title="Detach preview screenshot"
+                            >
+                              <X size={11} />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('preview');
+                            setIsDetailsOpen(false);
+                          }}
+                          className="px-2 py-1 rounded text-[10px] font-sans flex items-center gap-1 bg-surface-elevated border border-border text-muted hover:text-accent hover:border-accent/40 transition-colors cursor-pointer"
+                          title="Open Preview panel to capture screenshot for vision feedback"
+                        >
+                          <Eye size={11} />
+                          <span>Preview Vision</span>
+                        </button>
+                      )}
+
+                      {/* Ensemble Mode Indicator */}
+                      {ensembleModeEnabled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('settings');
+                            setIsDetailsOpen(false);
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 rounded bg-accent/15 border border-accent/30 text-accent text-[10px] font-sans font-semibold cursor-pointer hover:bg-accent/25 transition-colors"
+                          title="Dual-LLM Ensemble Mode Active: coding requests are sent to two models in parallel and verified with sandboxed tests"
+                        >
+                          <GitMerge size={11} />
+                          <span>Ensemble Mode</span>
+                        </button>
+                      )}
+
+                      {/* Session Token Spend & Cost Badge */}
+                      {sessionSummary.totalCostUsd > 0 && (
+                        <div
+                          className="flex items-center gap-1 px-2 py-1 rounded bg-surface-elevated border border-border text-muted text-[10px] font-mono shadow-xs"
+                          title={`Session API Spend: ${formatUsdCost(sessionSummary.totalCostUsd)} (${formatTokenCount(sessionSummary.totalTokens)} total tokens across ${sessionSummary.recordsCount} run${sessionSummary.recordsCount === 1 ? '' : 's'})`}
+                        >
+                          <Coins size={11} className="text-accent" />
+                          <span className="font-semibold text-text">{formatUsdCost(sessionSummary.totalCostUsd)}</span>
+                          <span className="opacity-60">• {formatTokenCount(sessionSummary.totalTokens)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <button
                   type="button"
@@ -715,76 +860,6 @@ export function ChatPanel({ projectId }: { projectId: string }) {
                     No profile selected — Tap to configure
                   </span>
                 </button>
-              )}
-
-              {/* Vision Toggle Button / Badge */}
-              {lastPreviewScreenshot ? (
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setAttachPreviewVision(!attachPreviewVision)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-sans flex items-center gap-1.5 transition-colors cursor-pointer border ${
-                      attachPreviewVision 
-                        ? 'bg-accent/15 border-accent/40 text-accent font-medium' 
-                        : 'bg-surface border-border text-muted hover:text-text'
-                    }`}
-                    title={attachPreviewVision ? 'Vision enabled: Preview screenshot attached to prompt' : 'Vision disabled: Click to attach preview screenshot'}
-                  >
-                    <Eye size={11} className={attachPreviewVision ? 'text-accent' : 'text-muted'} />
-                    <span>{attachPreviewVision ? 'Vision Attached' : 'Attach Preview'}</span>
-                    {lastPreviewScreenshot.dataUrl && attachPreviewVision && (
-                      <img
-                        src={lastPreviewScreenshot.dataUrl}
-                        alt="Preview snapshot"
-                        className="w-3.5 h-3.5 object-cover rounded border border-accent/40 ml-0.5"
-                      />
-                    )}
-                  </button>
-                  {attachPreviewVision && (
-                    <button
-                      type="button"
-                      onClick={() => setAttachPreviewVision(false)}
-                      className="p-0.5 text-muted hover:text-oxide rounded transition-colors cursor-pointer"
-                      title="Detach preview screenshot"
-                    >
-                      <X size={11} />
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('preview')}
-                  className="px-2 py-0.5 rounded text-[10px] font-sans flex items-center gap-1 bg-surface border border-border text-muted hover:text-accent hover:border-accent/40 transition-colors cursor-pointer"
-                  title="Open Preview panel to capture screenshot for vision feedback"
-                >
-                  <Eye size={11} />
-                  <span>Preview Vision</span>
-                </button>
-              )}
-
-              {/* Ensemble Mode Indicator */}
-              {ensembleModeEnabled && (
-                <div 
-                  onClick={() => setActiveTab('settings')}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-accent/15 border border-accent/30 text-accent text-[10px] font-sans font-semibold cursor-pointer hover:bg-accent/25 transition-colors"
-                  title="Dual-LLM Ensemble Mode Active: coding requests are sent to two models in parallel and verified with sandboxed tests"
-                >
-                  <GitMerge size={11} />
-                  <span>Ensemble Mode</span>
-                </div>
-              )}
-
-              {/* Session Token Spend & Cost Badge */}
-              {sessionSummary.totalCostUsd > 0 && (
-                <div
-                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-surface border border-border text-muted hover:text-accent hover:border-accent/40 text-[10px] font-mono cursor-pointer transition-colors shadow-xs"
-                  title={`Session API Spend: ${formatUsdCost(sessionSummary.totalCostUsd)} (${formatTokenCount(sessionSummary.totalTokens)} total tokens across ${sessionSummary.recordsCount} run${sessionSummary.recordsCount === 1 ? '' : 's'})`}
-                >
-                  <Coins size={11} className="text-accent" />
-                  <span className="font-semibold text-text">{formatUsdCost(sessionSummary.totalCostUsd)}</span>
-                  <span className="opacity-60 hidden sm:inline">• {formatTokenCount(sessionSummary.totalTokens)}</span>
-                </div>
               )}
             </div>
 
