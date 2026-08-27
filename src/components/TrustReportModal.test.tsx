@@ -55,9 +55,20 @@ describe('TrustReportModal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/AI Provenance & Trust Report/i)).toBeDefined();
-      expect(screen.getByText(/SHA-256 Ledger Intact/i)).toBeDefined();
-      expect(screen.getAllByText(/\/src\/math\.ts/i).length).toBeGreaterThan(0);
+      const headerTitle = screen.getByText(/AI Provenance & Trust Report/i);
+      expect(headerTitle).toBeDefined();
+      expect(headerTitle.className).toContain('font-bold');
+      expect(headerTitle.className).not.toContain('truncate');
+
+      const ledgerBadge = screen.getByText(/SHA-256 Ledger Intact/i);
+      expect(ledgerBadge).toBeDefined();
+
+      const pathCells = screen.getAllByText(/\/src\/math\.ts/i);
+      expect(pathCells.length).toBeGreaterThan(0);
+      // The table cell should have standard horizontal padding
+      const cellElement = pathCells[0].closest('td');
+      expect(cellElement?.className).toContain('px-4');
+
       expect(screen.getAllByText(/claude-3-7-sonnet/i).length).toBeGreaterThan(0);
     });
   });

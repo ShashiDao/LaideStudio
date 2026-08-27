@@ -163,7 +163,7 @@ export function ProjectActionsMenu({
                       <button
                         type="button"
                         onClick={() => handleAction(onNewProjectClick)}
-                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                         role="menuitem"
                       >
                         <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -180,7 +180,7 @@ export function ProjectActionsMenu({
                       <button
                         type="button"
                         onClick={() => handleAction(onOpenProjectSearch)}
-                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                         role="menuitem"
                       >
                         <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -200,7 +200,7 @@ export function ProjectActionsMenu({
                       <button
                         type="button"
                         onClick={() => handleAction(onRenameClick)}
-                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                         role="menuitem"
                       >
                         <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -217,7 +217,7 @@ export function ProjectActionsMenu({
                       <button
                         type="button"
                         onClick={() => handleAction(onOpenAnalytics)}
-                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                         role="menuitem"
                       >
                         <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -234,7 +234,7 @@ export function ProjectActionsMenu({
                       <button
                         type="button"
                         onClick={() => handleAction(onOpenBisect)}
-                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                         role="menuitem"
                       >
                         <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -251,7 +251,7 @@ export function ProjectActionsMenu({
                       <button
                         type="button"
                         onClick={() => handleAction(onOpenTrustReport)}
-                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                         role="menuitem"
                       >
                         <div className="p-1 rounded bg-accent/15 text-accent border border-accent/30 shrink-0">
@@ -281,7 +281,7 @@ export function ProjectActionsMenu({
                     <button
                       type="button"
                       onClick={() => handleAction(onOpenDeploy)}
-                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer group"
+                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 rounded-lg first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer group"
                       role="menuitem"
                     >
                       <div className="p-1 rounded bg-accent/20 text-accent border border-accent/40 shrink-0 group-hover:scale-105 transition-transform">
@@ -308,7 +308,7 @@ export function ProjectActionsMenu({
                   <button
                     type="button"
                     onClick={() => handleAction(onOpenGithubImport)}
-                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                     role="menuitem"
                   >
                     <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -323,7 +323,7 @@ export function ProjectActionsMenu({
                   <button
                     type="button"
                     onClick={() => handleAction(onOpenGithubPush)}
-                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                     role="menuitem"
                   >
                     <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -346,7 +346,7 @@ export function ProjectActionsMenu({
                   <button
                     type="button"
                     onClick={() => handleAction(onUploadClick)}
-                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                     role="menuitem"
                   >
                     <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -361,7 +361,7 @@ export function ProjectActionsMenu({
                   <button
                     type="button"
                     onClick={() => handleAction(onExportClick)}
-                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                     role="menuitem"
                   >
                     <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -377,7 +377,7 @@ export function ProjectActionsMenu({
                     <button
                       type="button"
                       onClick={() => handleAction(onExportMarkdownClick)}
-                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                       role="menuitem"
                     >
                       <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -394,7 +394,7 @@ export function ProjectActionsMenu({
                     <button
                       type="button"
                       onClick={() => handleAction(onCopyMarkdownClick)}
-                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg transition-colors cursor-pointer"
+                      className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
                       role="menuitem"
                     >
                       <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
@@ -417,7 +417,7 @@ export function ProjectActionsMenu({
                 <button
                   type="button"
                   onClick={() => handleAction(onDeleteClick)}
-                  className="w-full text-left p-3 rounded-lg border border-error/30 bg-error/10 hover:bg-error/20 active:bg-error/30 text-error flex items-center gap-3 transition-all cursor-pointer group shadow-xs active:scale-[0.99] overflow-hidden"
+                  className="w-full text-left p-3 rounded-lg border border-error/30 bg-error/10 hover:bg-error/20 active:bg-error/30 active:rounded-lg text-error flex items-center gap-3 transition-all cursor-pointer group shadow-xs active:scale-[0.99] overflow-hidden"
                   role="menuitem"
                 >
                   <div className="p-1.5 rounded-md bg-error/20 text-error border border-error/40 shrink-0 group-hover:scale-105 transition-transform">

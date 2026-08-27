@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-59
-- Last verified working: Full test suite passes cleanly with Vitest (68 test files, 480 tests passing). Refactored Language Distribution breakdown row layout in ProjectMetadataPanel to use an explicit 3-column CSS Grid (`grid-cols-[1fr_auto_auto] items-center gap-2.5 sm:gap-4`) with isolated left container for color dot/language name/file counts, right-aligned LOC readout, and locked percentage column with min-width to prevent text collisions on narrow viewports. `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-61
+- Last verified working: Applied touch states polish to Workspace Actions row buttons (added `first:active:rounded-t-lg last:active:rounded-b-lg` and hover/active corner matching to prevent square highlight leaks). Refactored AI Blame & Trust inspector into a floating slide-up bottom sheet with backdrop on mobile to prevent horizontal squeezing of CodeMirror lines, and dynamically collapsed the adjacent Insights button in the editor header rail when active to allocate 100% of top space to the file path. Vitest tests (68 test files, 480 tests passing), `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,38 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-61] Polish Workspace Actions Touch State Radii & Mobile AI Blame Sheet Overlay — 2026-08-27
+Prompt: Apply touch states corner polish to the row items inside the Workspace Actions bottom sheet to prevent square highlight leaks on tapped cards. Refactor the AI Blame & Trust inspector from a side-squeezing drawer to a floating slide-up bottom sheet on mobile viewports so CodeMirror lines preserve full width, and programmatically shrink the Insights button in the header rail when blame is active to allocate maximum space to the full file path.
+Files touched:
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/EditorAiBlame.tsx` (modified)
+- `src/components/Editor.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg` to all action buttons in `ProjectActionsMenu.tsx` to ensure touch state highlights strictly respect card corner boundaries without square leaks.
+- Re-architected `AiBlameSidePanel` in `EditorAiBlame.tsx` to render as a floating slide-up bottom sheet with a backdrop overlay and grab handle on mobile screens (`fixed inset-x-0 bottom-0 z-40 max-h-[80vh] rounded-t-2xl sm:static sm:z-20 sm:w-80 sm:rounded-none sm:border-l`), preventing CodeMirror editor text from being squeezed into narrow columns on mobile.
+- Programmatically collapsed the "Insights {score}%" label (`hidden md:inline`) in `Editor.tsx` when the AI Blame panel is active, shrinking the control to a compact icon badge and dedicating maximum horizontal rail space to the active file path string.
+Decisions: Retained docked side-panel positioning on desktop viewports (`sm:` and above) while transforming mobile behavior into an overlay bottom sheet.
+Deviations: none
+Verified: Vitest unit tests in `Editor.test.ts`, `EditorAiBlame.test.tsx`, and `ProjectActionsMenu.test.tsx` (24/24 passing), full test suite passing, `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
+
+### [HOTFIX-60] Refactor AI Provenance & Trust Report Header, Ledger Badge Alignment, and Table Padding — 2026-08-27
+Prompt: Refactor the layouts for the 'Find What Broke This' (Bisection) and 'AI Provenance Ledger' modal views: fix the green Ledger badge position to not overlap title or action buttons, display full un-truncated header titles with responsive text sizes, and apply standard horizontal cell padding (px-4) in the file-by-file analytics table.
+Files touched:
+- `src/components/TrustReportModal.tsx` (modified)
+- `src/components/TrustReportModal.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Refactored `TrustReportModal` modal header into a responsive flex layout (`flex-col sm:flex-row sm:items-center justify-between gap-3`) with dedicated button groupings that prevent overlapping with title tags or subtitles.
+- Nested the green "SHA-256 Ledger Intact" security badge in an inline wrapping flex container next to the un-truncated modal title (`text-base sm:text-lg font-bold font-mono text-accent uppercase tracking-wider`).
+- Applied standard horizontal cell padding (`px-4 py-2.5` on the file path column, `px-3 py-2.5` across metric columns) in the File-by-File Provenance tracking table to prevent text from touching inner grid frame borders.
+- Updated unit test assertions in `TrustReportModal.test.tsx` to verify un-truncated header typography and standard `px-4` cell padding.
+Decisions: Kept the header responsive across mobile and desktop breakpoints while ensuring copy/export actions and close buttons remain strictly isolated on the right.
+Deviations: none
+Verified: Vitest unit tests in `TrustReportModal.test.tsx` and `FindWhatBrokeModal.test.tsx` (3/3 passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-59] Fix Language Distribution Row Text Overlap with Explicit 3-Column Grid Layout — 2026-08-27
 Prompt: Fix the text overlap alignment bugs inside the Language Distribution list view where numeric lines-of-code (LOC) values were crashing into file counts on mobile viewports.

@@ -650,7 +650,7 @@ export function Editor({
             <div
               role="status"
               aria-live="polite"
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 transition-all duration-300 animate-in fade-in shrink-0"
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 transition-all duration-300 animate-in fade-in shrink-0 ${isBlameOpen ? 'hidden sm:inline-flex' : ''}`}
               title="Changes saved and synced to local database"
             >
               <Check size={11} className="stroke-[2.5]" />
@@ -658,7 +658,7 @@ export function Editor({
             </div>
           ) : isUnsaved ? (
             <div
-              className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono text-muted/70 bg-surface-elevated border border-border/70 shrink-0 transition-all"
+              className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono text-muted/70 bg-surface-elevated border border-border/70 shrink-0 transition-all ${isBlameOpen ? 'hidden sm:inline-flex' : ''}`}
               title="Unsaved changes pending database sync"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
@@ -675,14 +675,16 @@ export function Editor({
             aria-label="Insights"
             aria-expanded={isBlameOpen}
             title={`Insights: ${fileTrustScore.score}% (${fileTrustScore.grade}) • Toggle AI Blame & Trust Inspector`}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer shadow-xs active:scale-95 ${
+            className={`flex items-center gap-1 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer shadow-xs active:scale-95 ${
               isBlameOpen 
-                ? 'bg-accent text-accent-text-on border-accent font-bold' 
-                : 'border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent'
+                ? 'px-1.5 sm:px-2 bg-accent text-accent-text-on border-accent font-bold' 
+                : 'px-2 border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent'
             }`}
           >
-            <Sparkles size={12} className="shrink-0 text-accent" />
-            <span className="font-semibold text-[10.5px]">Insights {fileTrustScore.score}%</span>
+            <Sparkles size={12} className={`shrink-0 ${isBlameOpen ? 'text-accent-text-on' : 'text-accent'}`} />
+            <span className={`font-semibold text-[10.5px] ${isBlameOpen ? 'hidden md:inline' : ''}`}>
+              Insights {fileTrustScore.score}%
+            </span>
           </button>
 
           {/* Find & Replace Toggle Button */}

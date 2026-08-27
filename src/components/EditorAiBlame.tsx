@@ -198,28 +198,38 @@ export const AiBlameSidePanel: React.FC<AiBlameSidePanelProps> = ({
   };
 
   return (
-    <aside
-      aria-label="AI Blame Inspector"
-      className={`w-72 sm:w-80 shrink-0 border-l flex flex-col z-20 text-xs transition-colors overflow-y-auto ${
-        isLight ? 'bg-[#F4F7F9] border-[#CBD8E2] text-[#1F2E3D]' : 'bg-[#0E0E11] border-border text-[#F2F0EA]'
-      }`}
-    >
-      {/* Header */}
-      <div className={`h-[40px] px-3 border-b flex items-center justify-between shrink-0 ${
-        isLight ? 'bg-[#EAEFF4] border-[#CBD8E2]' : 'bg-surface border-border'
-      }`}>
-        <div className="flex items-center gap-1.5 font-semibold text-accent text-xs">
-          <Sparkles size={14} className="text-accent" />
-          <span>AI Blame & Trust</span>
+    <>
+      {/* Mobile backdrop overlay */}
+      <div 
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs z-30 sm:hidden animate-in fade-in duration-150"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        aria-label="AI Blame Inspector"
+        className={`fixed sm:static inset-x-0 bottom-0 z-40 sm:z-20 w-full sm:w-80 max-h-[80vh] sm:max-h-none sm:h-full shrink-0 border-t sm:border-t-0 sm:border-l flex flex-col rounded-t-2xl sm:rounded-none shadow-2xl sm:shadow-none text-xs transition-colors overflow-y-auto animate-in slide-in-from-bottom sm:slide-in-from-right duration-200 ${
+          isLight ? 'bg-[#F4F7F9] border-[#CBD8E2] text-[#1F2E3D]' : 'bg-[#0E0E11] border-border text-[#F2F0EA]'
+        }`}
+      >
+        {/* Grab handle indicator for mobile bottom sheet */}
+        <div className="w-10 h-1 bg-muted/40 rounded-full mx-auto mt-2 mb-1 sm:hidden shrink-0 pointer-events-none" />
+
+        {/* Header */}
+        <div className={`h-[40px] px-3 border-b flex items-center justify-between shrink-0 ${
+          isLight ? 'bg-[#EAEFF4] border-[#CBD8E2]' : 'bg-surface border-border'
+        }`}>
+          <div className="flex items-center gap-1.5 font-semibold text-accent text-xs">
+            <Sparkles size={14} className="text-accent" />
+            <span>AI Blame & Trust</span>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close AI Blame Panel"
+            className="text-muted hover:text-text p-1 rounded cursor-pointer transition-colors"
+          >
+            <X size={14} />
+          </button>
         </div>
-        <button
-          onClick={onClose}
-          aria-label="Close AI Blame Panel"
-          className="text-muted hover:text-text p-1 rounded cursor-pointer transition-colors"
-        >
-          <X size={14} />
-        </button>
-      </div>
 
       {/* Trust Score & Provenance Summary Card */}
       <div className={`p-3 border-b space-y-2 ${isLight ? 'border-[#CBD8E2] bg-white' : 'border-border bg-surface/50'}`}>
@@ -410,5 +420,6 @@ export const AiBlameSidePanel: React.FC<AiBlameSidePanelProps> = ({
         )}
       </div>
     </aside>
+    </>
   );
 };

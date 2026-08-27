@@ -159,20 +159,20 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
         }`}
       >
         {/* Header */}
-        <div className={`px-4 py-3 border-b flex items-center justify-between shrink-0 ${
+        <div className={`px-4 py-3 sm:px-5 sm:py-3.5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 ${
           isLight ? 'bg-[#EAEFF4] border-[#CBD8E2]' : 'bg-surface-elevated/40 border-border/70'
         }`}>
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-1.5 rounded-lg bg-accent/15 text-accent border border-accent/30 shrink-0 shadow-xs">
-              <ShieldCheck size={18} />
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="p-2 rounded-lg bg-accent/15 text-accent border border-accent/30 shrink-0 shadow-xs mt-0.5 sm:mt-0">
+              <ShieldCheck size={20} />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 id="trust-report-title" className="text-sm font-bold font-mono text-accent uppercase tracking-wider truncate">
+            <div className="min-w-0 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 id="trust-report-title" className="text-base sm:text-lg font-bold font-mono text-accent uppercase tracking-wider">
                   AI Provenance & Trust Report
                 </h2>
                 {projectTrust && (
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono border font-semibold ${
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border font-semibold shrink-0 ${
                     projectTrust.chainIntegrity.valid 
                       ? 'bg-emerald-950/40 text-emerald-400 border-emerald-800/60'
                       : 'bg-rose-950/40 text-rose-400 border-rose-800/60'
@@ -181,13 +181,13 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-muted truncate">
+              <p className="text-[11px] text-muted">
                 Tamper-evident verification, model attribution & test provenance across your workspace
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
             <button
               type="button"
               onClick={handleCopyMarkdown}
@@ -474,19 +474,19 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
                       isLight ? 'bg-[#EAEFF4] text-[#1F2E3D]' : 'bg-surface text-muted'
                     }`}>
                       <tr>
-                        <th className="py-2 px-3 font-semibold">File Path</th>
-                        <th className="py-2 px-2.5 font-semibold text-center">Score</th>
-                        <th className="py-2 px-2.5 font-semibold text-center">Grade</th>
-                        <th className="py-2 px-2.5 font-semibold text-center">AI %</th>
-                        <th className="py-2 px-2.5 font-semibold">Models Used</th>
-                        <th className="py-2 px-2.5 font-semibold text-right">Patch Tests</th>
-                        <th className="py-2 px-2.5 font-semibold text-center">Inspect</th>
+                        <th className="py-2.5 px-4 font-semibold">File Path</th>
+                        <th className="py-2.5 px-3 font-semibold text-center">Score</th>
+                        <th className="py-2.5 px-3 font-semibold text-center">Grade</th>
+                        <th className="py-2.5 px-3 font-semibold text-center">AI %</th>
+                        <th className="py-2.5 px-3 font-semibold">Models Used</th>
+                        <th className="py-2.5 px-3 font-semibold text-right">Patch Tests</th>
+                        <th className="py-2.5 px-4 font-semibold text-center">Inspect</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40">
                       {filteredAndSortedFiles.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-6 text-center text-muted font-sans text-xs">
+                          <td colSpan={7} className="py-6 px-4 text-center text-muted font-sans text-xs">
                             No files match filter &quot;{searchQuery}&quot;
                           </td>
                         </tr>
@@ -502,26 +502,26 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
                               }`}
                               onClick={() => setSelectedFile(file)}
                             >
-                              <td className="py-2 px-3 font-medium text-text truncate max-w-xs" title={file.filePath}>
+                              <td className="py-2.5 px-4 font-medium text-text truncate max-w-xs" title={file.filePath}>
                                 {file.filePath}
                               </td>
-                              <td className="py-2 px-2.5 text-center">
+                              <td className="py-2.5 px-3 text-center">
                                 <span className={`font-bold ${fStyles.text}`}>{file.score}%</span>
                               </td>
-                              <td className="py-2 px-2.5 text-center">
+                              <td className="py-2.5 px-3 text-center">
                                 <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${fStyles.badge}`}>
                                   {file.grade}
                                 </span>
                               </td>
-                              <td className="py-2 px-2.5 text-center text-muted">
+                              <td className="py-2.5 px-3 text-center text-muted">
                                 {aiPct}%
                               </td>
-                              <td className="py-2 px-2.5 text-muted truncate max-w-[140px]">
+                              <td className="py-2.5 px-3 text-muted truncate max-w-[140px]">
                                 {file.modelAttributions.length > 0 
                                   ? file.modelAttributions.map(m => m.model).join(', ') 
                                   : 'Human'}
                               </td>
-                              <td className="py-2 px-2.5 text-right">
+                              <td className="py-2.5 px-3 text-right">
                                 {file.failingAiLines > 0 ? (
                                   <span className="text-rose-400 font-semibold">❌ {file.failingAiLines} fail</span>
                                 ) : file.verifiedAiLines > 0 ? (
@@ -530,7 +530,7 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
                                   <span className="text-muted">⚪ Pristine</span>
                                 )}
                               </td>
-                              <td className="py-2 px-2.5 text-center">
+                              <td className="py-2.5 px-4 text-center">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -540,7 +540,7 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
                                       onClose();
                                     }
                                   }}
-                                  className="px-2 py-0.5 bg-surface-elevated hover:bg-accent/20 text-muted hover:text-accent border border-border rounded text-[10px] cursor-pointer transition-colors"
+                                  className="px-2.5 py-1 bg-surface-elevated hover:bg-accent/20 text-muted hover:text-accent border border-border rounded text-[10px] cursor-pointer transition-colors"
                                   title="Open in Code Editor"
                                 >
                                   Open
