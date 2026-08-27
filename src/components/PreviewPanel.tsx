@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Play, AlertCircle, Loader2, Sparkles, Eye, Check, Rocket } from 'lucide-react';
+import { RefreshCw, Play, AlertCircle, Loader2, Sparkles, Eye, Check, Rocket, Smartphone, Tablet, Monitor } from 'lucide-react';
 import type { FileItem } from '../db';
 import { useAppStore } from '../store';
 import { SUGGESTION_PROMPTS } from '../services/agent/prompts';
@@ -89,6 +89,7 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
     setAttachPreviewVision,
     autoVisionOnPatch
   } = useAppStore();
+  const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'phone'>('desktop');
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [runtimeError, setRuntimeError] = useState<{ message: string; stack?: string } | null>(null);
@@ -330,6 +331,60 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
             )}
             <span>{justCaptured ? 'Vision Ready' : 'Let AI See'}</span>
           </button>
+          
+          {/* Viewport size segmented control */}
+          <div 
+            className="flex items-center rounded bg-surface-elevated border border-border p-0.5" 
+            role="group" 
+            aria-label="Viewport size"
+          >
+            <button
+              type="button"
+              onClick={() => setViewportMode('phone')}
+              className={`p-1 px-1.5 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                viewportMode === 'phone'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="Phone view (~420px)"
+              aria-label="Phone viewport"
+              aria-pressed={viewportMode === 'phone'}
+            >
+              <Smartphone size={12} />
+              <span className="hidden sm:inline">Phone</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewportMode('tablet')}
+              className={`p-1 px-1.5 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                viewportMode === 'tablet'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="Tablet view (~768px)"
+              aria-label="Tablet viewport"
+              aria-pressed={viewportMode === 'tablet'}
+            >
+              <Tablet size={12} />
+              <span className="hidden sm:inline">Tablet</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewportMode('desktop')}
+              className={`p-1 px-1.5 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                viewportMode === 'desktop'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="Desktop view (100%)"
+              aria-label="Desktop viewport"
+              aria-pressed={viewportMode === 'desktop'}
+            >
+              <Monitor size={12} />
+              <span className="hidden sm:inline">Desktop</span>
+            </button>
+          </div>
+
           <button 
             type="button"
             onClick={() => setRefreshKey(k => k + 1)}
@@ -343,7 +398,7 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
         </div>
       </div>
       
-      <div className="flex-1 relative bg-white overflow-hidden">
+      <div className={`flex-1 relative overflow-hidden ${viewportMode === 'desktop' ? 'bg-white' : 'bg-bg/60 canvas-grid-pattern'}`}>
         {error || runtimeError ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-bg canvas-grid-pattern">
             {error && error.includes('No index.html found') ? (
@@ -387,15 +442,28 @@ export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
             )}
           </div>
         ) : previewHtml ? (
-          <iframe
-            ref={iframeRef}
-            key={refreshKey}
-            srcDoc={previewHtml}
-            onLoad={handleIframeLoad}
-            className="w-full h-full border-0"
-            title="Preview"
-            sandbox="allow-scripts allow-modals allow-forms"
-          />
+          <div className="w-full h-full flex items-center justify-center overflow-hidden">
+            <div 
+              data-testid="preview-viewport-container"
+              className={`h-full mx-auto transition-all duration-200 ease-in-out flex flex-col ${
+                viewportMode === 'phone'
+                  ? 'w-[420px] max-w-full border-x border-border shadow-xl bg-white'
+                  : viewportMode === 'tablet'
+                  ? 'w-[768px] max-w-full border-x border-border shadow-xl bg-white'
+                  : 'w-full shadow-none bg-white'
+              }`}
+            >
+              <iframe
+                ref={iframeRef}
+                key={refreshKey}
+                srcDoc={previewHtml}
+                onLoad={handleIframeLoad}
+                className="w-full h-full border-0"
+                title="Preview"
+                sandbox="allow-scripts allow-modals allow-forms"
+              />
+            </div>
+          </div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-bg canvas-grid-pattern">
             <div className="flex items-center gap-3 text-muted font-mono text-xs bg-surface border border-border px-4 py-2 rounded-lg shadow-xs">

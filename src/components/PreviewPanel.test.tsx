@@ -4,7 +4,7 @@ import { buildBundledHtml, PreviewPanel } from './PreviewPanel';
 import * as esbuild from 'esbuild-wasm';
 import { createVfsPlugin } from '../services/bundler/esbuild.worker';
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
 describe('PreviewPanel script injection sanitization', () => {
   it('escapes closing script tags case-insensitively in script code', () => {
@@ -213,5 +213,92 @@ describe('PreviewPanel script injection sanitization', () => {
     });
 
     unmount();
+  });
+
+  describe('PreviewPanel Viewport Modes (Phone / Tablet / Desktop)', () => {
+    const sampleFiles = [
+      {
+        path: '/index.html',
+        content: '<!DOCTYPE html><html><head></head><body><h1>Viewport Test</h1></body></html>',
+        type: 'file',
+        updatedAt: Date.now()
+      }
+    ];
+
+    it('defaults to Desktop mode (100% width) and renders segmented control chips', async () => {
+      const { unmount } = render(<PreviewPanel files={sampleFiles as any} />);
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Preview')).toBeDefined();
+      });
+
+      const phoneBtn = screen.getByRole('button', { name: 'Phone viewport' });
+      const tabletBtn = screen.getByRole('button', { name: 'Tablet viewport' });
+      const desktopBtn = screen.getByRole('button', { name: 'Desktop viewport' });
+
+      expect(phoneBtn).toBeDefined();
+      expect(tabletBtn).toBeDefined();
+      expect(desktopBtn).toBeDefined();
+
+      expect(desktopBtn.getAttribute('aria-pressed')).toBe('true');
+      expect(phoneBtn.getAttribute('aria-pressed')).toBe('false');
+      expect(tabletBtn.getAttribute('aria-pressed')).toBe('false');
+
+      const viewportContainer = screen.getByTestId('preview-viewport-container');
+      expect(viewportContainer.className).toContain('w-full');
+      expect(viewportContainer.className).not.toContain('w-[420px]');
+      expect(viewportContainer.className).not.toContain('w-[768px]');
+
+      unmount();
+    });
+
+    it('scales to Phone width (~420px) with border/shadow styling on clicking Phone chip', async () => {
+      const { unmount } = render(<PreviewPanel files={sampleFiles as any} />);
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Preview')).toBeDefined();
+      });
+
+      const phoneBtn = screen.getByRole('button', { name: 'Phone viewport' });
+      fireEvent.click(phoneBtn);
+
+      expect(phoneBtn.getAttribute('aria-pressed')).toBe('true');
+      expect(screen.getByRole('button', { name: 'Desktop viewport' }).getAttribute('aria-pressed')).toBe('false');
+
+      const viewportContainer = screen.getByTestId('preview-viewport-container');
+      expect(viewportContainer.className).toContain('w-[420px]');
+      expect(viewportContainer.className).toContain('border-x');
+      expect(viewportContainer.className).toContain('shadow-xl');
+
+      unmount();
+    });
+
+    it('scales to Tablet width (~768px) with border/shadow styling on clicking Tablet chip and restores Desktop on Desktop click', async () => {
+      const { unmount } = render(<PreviewPanel files={sampleFiles as any} />);
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Preview')).toBeDefined();
+      });
+
+      const tabletBtn = screen.getByRole('button', { name: 'Tablet viewport' });
+      fireEvent.click(tabletBtn);
+
+      expect(tabletBtn.getAttribute('aria-pressed')).toBe('true');
+      const viewportContainer = screen.getByTestId('preview-viewport-container');
+      expect(viewportContainer.className).toContain('w-[768px]');
+      expect(viewportContainer.className).toContain('border-x');
+      expect(viewportContainer.className).toContain('shadow-xl');
+
+      // Click Desktop to return to full width
+      const desktopBtn = screen.getByRole('button', { name: 'Desktop viewport' });
+      fireEvent.click(desktopBtn);
+
+      expect(desktopBtn.getAttribute('aria-pressed')).toBe('true');
+      expect(viewportContainer.className).toContain('w-full');
+      expect(viewportContainer.className).not.toContain('w-[768px]');
+      expect(viewportContainer.className).toContain('shadow-none');
+
+      unmount();
+    });
   });
 });

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-49
-- Last verified working: Full test suite passes cleanly with Vitest (63 test files, 450 tests passing). Collapsed summary chip with expandable detail panel in `ChatPanel.tsx` and full test coverage in `ChatPanel.test.tsx`. `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-50
+- Last verified working: Full test suite passes cleanly with Vitest (63 test files, 453 tests passing). Responsive viewport size toggles (Phone / Tablet / Desktop) in `PreviewPanel.tsx` and full test coverage in `PreviewPanel.test.tsx`. `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,22 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-50] Add Responsive Viewport Size Controls to PreviewPanel Toolbar — 2026-08-27
+Prompt: Add three toggle chips to PreviewPanel toolbar (Phone / Tablet / Desktop) using lucide-react Smartphone, Tablet, and Monitor icons to scale the preview rendering width, centered with visible border/shadow and animated width transition, defaulting to Desktop (100%), and update PreviewPanel.test.tsx.
+Files touched:
+- `src/components/PreviewPanel.tsx` (modified)
+- `src/components/PreviewPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added a connected segmented control with Phone (~420px), Tablet (~768px), and Desktop (100%) viewport chips to the left of the Reload button in `PreviewPanel.tsx`.
+- Wrapped the preview iframe inside a centered, smoothly animated viewport container (`transition-all duration-200 ease-in-out`) with distinct border and shadow treatments when constrained.
+- Maintained component-local state defaulting to Desktop (100% width) with responsive canvas grid backdrop when scaled down.
+- Added comprehensive unit tests in `PreviewPanel.test.tsx` verifying default Desktop selection and width styling, Phone width switching, Tablet width switching, and restoration to Desktop.
+Decisions: Used `w-[420px]` for Phone, `w-[768px]` for Tablet, and `w-full` for Desktop with `border-x border-border shadow-xl` to cleanly separate the framed device canvas from surrounding container chrome.
+Deviations: none
+Verified: `npx vitest run src/components/PreviewPanel.test.tsx` passed (10/10 tests); full test suite passed (63 files, 453 tests); `compile_applet` and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-49] Collapse Chat Composer Controls Row into Summary Chip — 2026-08-27
 Prompt: Collapse active connection profile badge, vision toggle, ensemble indicator, and session cost into one summary chip ("{modelLabel} · {visionLabel} · {costLabel}"), expand detail panel with existing controls on tap, keep no-profile warning visible, preserve colors and cost logic.
