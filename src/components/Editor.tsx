@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Copy, Check, Search, Sparkles, ShieldCheck } from 'lucide-react';
+import { X, Copy, Check, Search, Sparkles, MoreHorizontal } from 'lucide-react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
@@ -175,6 +175,23 @@ export function Editor({
   const [provenanceEntries, setProvenanceEntries] = useState<ProvenanceEntry[]>([]);
   const [isBlameOpen, setIsBlameOpen] = useState(false);
   const [activeLineNumber, setActiveLineNumber] = useState<number | null>(1);
+  const [isOverflowOpen, setIsOverflowOpen] = useState(false);
+  const overflowRef = useRef<HTMLDivElement>(null);
+
+  // Close overflow menu on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (overflowRef.current && !overflowRef.current.contains(event.target as Node)) {
+        setIsOverflowOpen(false);
+      }
+    }
+    if (isOverflowOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOverflowOpen]);
 
   // Fetch provenance entries for this file
   useEffect(() => {
@@ -539,15 +556,20 @@ export function Editor({
         setIsFindOpen(true);
         setIsReplaceOpen(true);
         setFocusTarget('replace');
-      } else if (e.key === 'Escape' && isFindOpen) {
-        e.preventDefault();
-        handleCloseFind();
+      } else if (e.key === 'Escape') {
+        if (isOverflowOpen) {
+          e.preventDefault();
+          setIsOverflowOpen(false);
+        } else if (isFindOpen) {
+          e.preventDefault();
+          handleCloseFind();
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFindOpen, doSave]);
+  }, [isFindOpen, isOverflowOpen, doSave]);
 
   // CodeMirror search and keymap extensions
   const searchExt = useMemo(() => [
@@ -645,40 +667,25 @@ export function Editor({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          {/* File Trust Score Badge */}
-          <button
-            type="button"
-            onClick={() => {
-              if (onOpenTrustReport) {
-                onOpenTrustReport(file.path);
-              } else {
-                setIsBlameOpen(true);
-              }
-            }}
-            aria-label="File Trust Score"
-            title={`File Trust Score: ${fileTrustScore.score}% (${fileTrustScore.grade}) • Click to view full AI provenance & trust analysis`}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer shadow-xs active:scale-95 ${trustColorStyles.badge}`}
-          >
-            <ShieldCheck size={12} className="shrink-0" />
-            <span className="font-bold">Trust {fileTrustScore.score}%</span>
-            <span className="opacity-80 text-[10px]">({fileTrustScore.grade})</span>
-          </button>
-
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Merged Insights & Trust Score Control */}
           <button
             type="button"
             onClick={() => setIsBlameOpen(prev => !prev)}
-            aria-label="AI Blame"
-            title="Toggle AI Blame Inspector"
-            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono border transition-colors cursor-pointer ${
+            aria-label="Insights"
+            aria-expanded={isBlameOpen}
+            title={`Insights: ${fileTrustScore.score}% (${fileTrustScore.grade}) • Toggle AI Blame & Trust Inspector`}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer shadow-xs active:scale-95 ${
               isBlameOpen 
-                ? 'bg-accent text-accent-text-on border-accent font-bold shadow-xs' 
+                ? 'bg-accent text-accent-text-on border-accent font-bold' 
                 : 'border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent'
             }`}
           >
-            <Sparkles size={13} />
-            <span className="hidden sm:inline text-[10px]">AI Blame</span>
+            <Sparkles size={12} className="shrink-0 text-accent" />
+            <span className="font-semibold text-[10.5px]">Insights {fileTrustScore.score}%</span>
           </button>
+
+          {/* Find & Replace Toggle Button */}
           <button
             type="button"
             onClick={handleToggleFind}
@@ -693,16 +700,48 @@ export function Editor({
             <Search size={13} />
             <span className="hidden sm:inline text-[10px]">Find</span>
           </button>
-          <button
-            type="button"
-            onClick={handleCopyPath}
-            aria-label="Copy file path"
-            title={`Copy file path (${file.path})`}
-            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono border border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent transition-colors cursor-pointer"
-          >
-            {copiedPath ? <Check size={13} className="text-accent" /> : <Copy size={13} />}
-            <span className="hidden sm:inline text-[10px]">Copy Path</span>
-          </button>
+
+          {/* Overflow Menu ("⋯") */}
+          <div className="relative" ref={overflowRef}>
+            <button
+              type="button"
+              onClick={() => setIsOverflowOpen(prev => !prev)}
+              aria-label="More actions"
+              aria-haspopup="true"
+              aria-expanded={isOverflowOpen}
+              title="More actions"
+              className={`flex items-center justify-center p-1 rounded text-xs border transition-colors cursor-pointer ${
+                isOverflowOpen
+                  ? 'bg-accent text-accent-text-on border-accent font-bold shadow-xs'
+                  : 'border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent'
+              }`}
+            >
+              <MoreHorizontal size={14} />
+            </button>
+
+            {isOverflowOpen && (
+              <div 
+                className="absolute right-0 top-full mt-1 z-30 w-44 bg-surface border border-border rounded-lg shadow-xl py-1 font-mono text-xs animate-in fade-in zoom-in-95 duration-100"
+                role="menu"
+                aria-orientation="vertical"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCopyPath();
+                    setIsOverflowOpen(false);
+                  }}
+                  className="w-full px-3 py-1.5 flex items-center gap-2 text-left text-text hover:text-accent hover:bg-surface-elevated transition-colors cursor-pointer"
+                  role="menuitem"
+                >
+                  {copiedPath ? <Check size={13} className="text-accent" /> : <Copy size={13} />}
+                  <span>{copiedPath ? 'Copied Path!' : 'Copy Path'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Close Button */}
           <button 
             onClick={handleClose}
             aria-label="Close file"

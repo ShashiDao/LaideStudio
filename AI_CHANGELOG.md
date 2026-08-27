@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-47
-- Last verified working: Full test suite passes cleanly with Vitest (62 test files, 440 tests passing). SettingsPanel unit tests and db mocks resolved. `compile_applet` and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-48
+- Last verified working: Full test suite passes cleanly with Vitest (62 test files, 445 tests passing). Merged "Insights" control and toolbar overflow menu in `Editor.tsx` working and verified via unit tests in `Editor.test.ts`. `compile_applet` and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,22 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-48] Merge Insights Control and Add Toolbar Overflow Menu — 2026-08-27
+Prompt: Merge separate Trust Score badge and AI Blame toggle into ONE "Insights" button in Editor toolbar, move Copy Path into an overflow menu (⋯), keep Find and Close always visible, and update Editor.test.ts.
+Files touched:
+- `src/components/Editor.tsx` (modified)
+- `src/components/Editor.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Merged the separate Trust Score badge and AI Blame toggle into a single "Insights [Score]%" button that opens the AI Blame & Trust Inspector side panel.
+- Replaced the top-level "Copy Path" button with a compact overflow menu ("⋯" icon button) featuring click-outside and Escape key dismissal.
+- Kept the "Find" and "Close" icon buttons, keyboard shortcuts (Ctrl+F, Escape), file path truncation, and saved/editing status indicators intact.
+- Updated `Editor.test.ts` with unit tests for Insights toggle, overflow menu Copy Path interaction, Find & Replace, Close handler, and lazy language extension loading.
+Decisions: Kept the rich provenance and trust score breakdown card within `AiBlameSidePanel` so full provenance information remains immediately accessible on toggle.
+Deviations: none
+Verified: `npx vitest run src/components/Editor.test.ts` passed (8/8 tests); full Vitest test suite passed (62 files, 445 tests); `compile_applet` and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-47] Fix SettingsPanel Test Queries and Database Mocks — 2026-08-27
 Prompt: Fix SettingsPanel unit test failure and verify complete test suite.
