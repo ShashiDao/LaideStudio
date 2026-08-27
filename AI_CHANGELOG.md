@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-74
-- Last verified working: Eliminated subtitle text clipping across all Settings menu categories by replacing single-line ellipsis truncation with clean multi-line wrapping (`leading-snug break-words`) and concise category descriptors ("Themes & Contrast", "LLM Profiles & Ensembles", "GitHub, Deploys & MCP", "Vault Lock & Backups", "Diagnostics, Cache & Keys"). Removed redundant duplicate "Lock Vault" button in the Settings sub-header to preserve vertical screen space (relying on the persistent TopStrip quick Lock button and dedicated in-depth Vault Security controls). All tests (11/11 in SettingsPanel.test.tsx), `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-75
+- Last verified working: Replaced cramped viewport scaling chips (Phone/Tablet/Desktop) on mobile screens (`breakpoint === 'phone'`) with high-utility mobile-native preview tools: an In-Preview Console Log Drawer toggle with real-time runtime error and warning indicators, an interactive Tap-to-Inspect UI mode with live DOM component element inspector banner, and a Scan QR modal with SVG code rendering for local network mobile device testing. All 68 test suites (491 unit tests) pass, `PreviewPanel.test.tsx` (12/12) pass, and `compile_applet` builds cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,25 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-75] Mobile Preview Toolbar Optimization & High-Utility Native Mobile Tools — 2026-08-27
+Prompt: Preview Tab Breakpoint Paradox: Remove Viewport Scaling Chips on Mobile (scaling desktop canvas inside phone causes cramped pinching) and swap for high-utility mobile controls: in-preview console log toggle, interactive tap-to-inspect UI mode, and Scan QR button to open preview on another device.
+Files touched:
+- `src/components/PreviewPanel.tsx` (modified)
+- `src/components/QRCodeModal.tsx` (new)
+- `src/services/bundler/previewCapture.ts` (modified)
+- `src/App.tsx` (modified)
+- `src/components/PreviewPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Conditionally swapped viewport scaling chips (`[Phone] [Tablet] [Desktop]`) on mobile screens (`breakpoint === 'phone'`) for high-utility mobile developer controls (`[Logs]`, `[Inspect]`, `[QR]`), reserving viewport scaling chips for tablet and desktop viewports.
+- Implemented real-time In-Preview Console drawer capturing `console.log`, `warn`, `error`, `info`, and uncaught exceptions with counter badges and clear action.
+- Implemented interactive Tap-to-Inspect mode with touch & pointer highlighting inside the sandboxed preview iframe, displaying element tag name, ID, CSS class, dimensions, and text snippet in an inspector bar.
+- Implemented standalone `QRCodeModal.tsx` rendering SVG QR code of the current workspace URL with one-click copy and cross-device testing instructions.
+Decisions: Kept the viewport scaling controls available on tablet and desktop screens where down-scaling or testing mobile layouts provides high utility, while prioritizing mobile-first developer tools on phones.
+Deviations: none
+Verified: All 68 test suites and 491 unit tests passed, including `PreviewPanel.test.tsx` mobile & desktop tests (12/12 passed), and `compile_applet` passed.
+Open questions: none
 
 ### [HOTFIX-74] Settings Subtitle Truncation Fix & Redundant Lock Trigger Elimination — 2026-08-27
 Prompt: Settings Subtitle Truncation & Redundant Lock Triggers: Fix Card Text Clipping in Settings menu (remove truncate/whitespace-nowrap and allow wrapping across 2 clean lines or use shorter descriptions) and eliminate duplicate Lock Vault actions in Settings header.
