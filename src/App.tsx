@@ -7,11 +7,11 @@ import { FileText, MessageSquare, MonitorPlay, Upload, FolderPlus, Plus, Setting
 import { useAppStore, type TabId } from './store';
 import type { BeforeInstallPromptEvent } from './types';
 import { testDatabaseReadback } from './seed';
-import { db, type FileItem, type Project } from './db';
+import { db, type FileItem, type Project, type ArchivedProject } from './db';
 import { exportZip } from './services/fs/zipExport';
 import { importZip, isText } from './services/fs/zipImport';
 import { exportProjectAsMarkdown, generateProjectMarkdown } from './services/fs/markdownExport';
-import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles } from './services/fs/vfs';
+import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles, archiveProject, restoreProject, listArchivedProjects, deleteArchivedProject } from './services/fs/vfs';
 import { calculateProjectMetadata } from './utils/projectStats';
 import { FileTree } from './components/FileTree';
 import { Editor } from './components/Editor';
@@ -41,6 +41,7 @@ import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
 import { TrustReportModal } from './components/TrustReportModal';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { ProjectSearchModal } from './components/ProjectSearchModal';
+import { ArchivedProjectsModal } from './components/ArchivedProjectsModal';
 import { createProjectFromTemplate, type TemplateId } from './services/templates/projectTemplates';
 import { ReloadPrompt } from './components/ReloadPrompt';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -108,6 +109,7 @@ export default function App() {
 
   const [dbTested, setDbTested] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [archivedProjects, setArchivedProjects] = useState<ArchivedProject[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [showGithubImport, setShowGithubImport] = useState(false);
   const [showGithubPush, setShowGithubPush] = useState(false);
@@ -117,6 +119,7 @@ export default function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [focusSearchTrigger, setFocusSearchTrigger] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [showArchivedModal, setShowArchivedModal] = useState(false);
   const [showProjectStats, setShowProjectStats] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
@@ -188,6 +191,58 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to delete project', err);
+    }
+  };
+
+  const handleArchiveProject = async (project: Project) => {
+    try {
+      await archiveProject(project.id);
+      const remainingProjects = await db.projects.toArray();
+      const updatedArchived = await listArchivedProjects();
+      setProjects(remainingProjects);
+      setArchivedProjects(updatedArchived);
+
+      const nextActive = remainingProjects.find(p => p.id !== project.id) || null;
+      if (nextActive) {
+        setActiveProjectId(nextActive.id);
+        setFiles(await listFiles(nextActive.id));
+      } else {
+        setActiveProjectId(null);
+        setFiles([]);
+      }
+
+      useAppStore.getState().addToast(`Archived "${project.name}" to separate collection`, 'success');
+    } catch (err) {
+      console.error('Failed to archive project', err);
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to archive project', 'error');
+    }
+  };
+
+  const handleRestoreProject = async (projectId: string) => {
+    try {
+      const restored = await restoreProject(projectId);
+      const allProjects = await db.projects.toArray();
+      const updatedArchived = await listArchivedProjects();
+      setProjects(allProjects);
+      setArchivedProjects(updatedArchived);
+      setActiveProjectId(restored.id);
+      setFiles(await listFiles(restored.id));
+      useAppStore.getState().addToast(`Restored "${restored.name}" to workspace`, 'success');
+    } catch (err) {
+      console.error('Failed to restore project', err);
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to restore project', 'error');
+    }
+  };
+
+  const handleDeleteArchivedProject = async (projectId: string) => {
+    try {
+      await deleteArchivedProject(projectId);
+      const updatedArchived = await listArchivedProjects();
+      setArchivedProjects(updatedArchived);
+      useAppStore.getState().addToast('Archived project permanently deleted', 'success');
+    } catch (err) {
+      console.error('Failed to delete archived project', err);
+      useAppStore.getState().addToast('Failed to delete archived project', 'error');
     }
   };
 
@@ -352,6 +407,12 @@ export default function App() {
       setDbTested(res.success);
       const loadedProjects = res.projects;
       setProjects(loadedProjects);
+      try {
+        const loadedArchived = await listArchivedProjects();
+        setArchivedProjects(loadedArchived);
+      } catch (e) {
+        console.error('Failed to load archived projects', e);
+      }
 
       if (loadedProjects.length > 0) {
         // Existing user with project data: restore saved project or most recently updated
@@ -453,12 +514,15 @@ export default function App() {
                 }}
                 onOpenCreateProjectModal={() => setShowCreateProjectModal(true)}
                 onOpenRenameModal={() => setShowRenameModal(true)}
+                onArchiveProject={handleArchiveProject}
                 onPromptDeleteProject={setProjectToDelete}
                 onFileUpload={handleFileUpload}
                 onIncomingFiles={handleIncomingFiles}
                 activeProjectMetadata={activeProjectMetadata}
                 showProjectStats={showProjectStats}
                 setShowProjectStats={setShowProjectStats}
+                archivedCount={archivedProjects.length}
+                onOpenArchivedProjects={() => setShowArchivedModal(true)}
               />
             )}
             {activeTab === 'chat' && (
@@ -555,12 +619,15 @@ export default function App() {
                 }}
                 onOpenCreateProjectModal={() => setShowCreateProjectModal(true)}
                 onOpenRenameModal={() => setShowRenameModal(true)}
+                onArchiveProject={handleArchiveProject}
                 onPromptDeleteProject={setProjectToDelete}
                 onFileUpload={handleFileUpload}
                 onIncomingFiles={handleIncomingFiles}
                 activeProjectMetadata={activeProjectMetadata}
                 showProjectStats={showProjectStats}
                 setShowProjectStats={setShowProjectStats}
+                archivedCount={archivedProjects.length}
+                onOpenArchivedProjects={() => setShowArchivedModal(true)}
               />
             </aside>
 
@@ -837,6 +904,15 @@ export default function App() {
             }}
           />
         )}
+
+        {/* Archived Projects Modal */}
+        <ArchivedProjectsModal
+          isOpen={showArchivedModal}
+          onClose={() => setShowArchivedModal(false)}
+          archivedProjects={archivedProjects}
+          onRestoreProject={handleRestoreProject}
+          onDeleteArchivedProject={handleDeleteArchivedProject}
+        />
 
         {/* Create Project / Select Template Modal */}
         <CreateProjectModal

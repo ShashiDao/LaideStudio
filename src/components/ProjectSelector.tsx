@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FileText, ChevronDown, Check, FolderPlus, X } from 'lucide-react';
+import { FileText, ChevronDown, Check, FolderPlus, X, Archive } from 'lucide-react';
 import type { Project } from '../db';
 import { db } from '../db';
 
@@ -12,6 +12,8 @@ export interface ProjectSelectorProps {
   className?: string;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  archivedCount?: number;
+  onOpenArchivedProjects?: () => void;
 }
 
 export function ProjectSelector({
@@ -23,6 +25,8 @@ export function ProjectSelector({
   className = '',
   isOpen: controlledIsOpen,
   onOpenChange,
+  archivedCount,
+  onOpenArchivedProjects,
 }: ProjectSelectorProps) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const isControlled = controlledIsOpen !== undefined;
@@ -272,20 +276,37 @@ export function ProjectSelector({
               )}
             </div>
 
-            {/* Quick Create Action Footer */}
-            {onCreateBlankProject && (
-              <div className="p-1.5 border-t border-border/60 bg-surface-elevated/20 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsOpen(false);
-                    onCreateBlankProject();
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-surface hover:bg-accent/10 text-accent border border-border hover:border-accent/50 rounded-lg transition-all text-xs font-mono cursor-pointer shadow-xs active:scale-[0.98]"
-                >
-                  <FolderPlus size={13} />
-                  <span>Create New Project</span>
-                </button>
+            {/* Footer Actions: Create New Project & View Archived Projects */}
+            {(onCreateBlankProject || onOpenArchivedProjects || (archivedCount !== undefined && archivedCount > 0)) && (
+              <div className="p-1.5 border-t border-border/60 bg-surface-elevated/20 shrink-0 flex flex-col gap-1">
+                {onCreateBlankProject && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      onCreateBlankProject();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-surface hover:bg-accent/10 text-accent border border-border hover:border-accent/50 rounded-lg transition-all text-xs font-mono cursor-pointer shadow-xs active:scale-[0.98]"
+                  >
+                    <FolderPlus size={13} />
+                    <span>Create New Project</span>
+                  </button>
+                )}
+
+                {(onOpenArchivedProjects || (archivedCount !== undefined && archivedCount > 0)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false);
+                      onOpenArchivedProjects?.();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-surface hover:bg-surface-elevated text-muted hover:text-amber-500 border border-border hover:border-amber-500/40 rounded-lg transition-all text-[11px] font-mono cursor-pointer shadow-xs active:scale-[0.98]"
+                    aria-label="View archived projects"
+                  >
+                    <Archive size={12} className="text-amber-500" />
+                    <span>Archived Projects {archivedCount !== undefined ? `(${archivedCount})` : ''}</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

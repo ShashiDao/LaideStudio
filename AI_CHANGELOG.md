@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-71
-- Last verified working: Re-architected the AI Provider card selection block in `SettingsPanel.tsx` using an adaptive grid (`grid-cols-2 sm:grid-cols-3 gap-2`) with balanced full-width mobile spanning for odd/last items, removed the redundant "Selected: [Provider]" dropdown container, applied standardized `gap-2.5` / `space-y-2.5` spacing across profile inputs, encapsulated the introductory text of the "1-Click Live Deploy Tokens" card entirely inside the parent form container, and elevated placeholder text contrast across all input fields using `placeholder-neutral-500`. All 68 test files and 490 Vitest tests, `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-72
+- Last verified working: Implemented the 'Archive Project' feature moving inactive projects and their associated files to separate storage collections (`archivedProjects` and `archivedFiles` in Dexie IndexedDB). Added "Archive Project" action to `ProjectActionsMenu`, integrated "View Archived Projects" badges into `ProjectSelector` and `ProjectFilesPane`, created `ArchivedProjectsModal` for restoring or permanently deleting archived projects, and integrated state synchronization across `App.tsx`. All tests, `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,29 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-72] Project Archiving & Separate Storage Collection Management — 2026-08-27
+Prompt: Add an 'Archive Project' button to the ProjectFilesPane that moves inactive projects to a separate storage collection to keep the workspace clean.
+Files touched:
+- `src/db.ts` (modified)
+- `src/services/fs/vfs.ts` (modified)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/ProjectSelector.tsx` (modified)
+- `src/components/ProjectFilesPane.tsx` (modified)
+- `src/components/ArchivedProjectsModal.tsx` (new)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `ArchivedProject` interface and database tables `archivedProjects` and `archivedFiles` in `src/db.ts` (schema version 4).
+- Implemented `archiveProject`, `restoreProject`, `listArchivedProjects`, and `deleteArchivedProject` transactional VFS services in `src/services/fs/vfs.ts`.
+- Added "Archive Project" action with confirmation prompt and archive indicator badge to `ProjectActionsMenu.tsx`.
+- Built `ArchivedProjectsModal.tsx` allowing users to view all archived projects with file count and archival date, restore projects back into active workspace, or permanently delete them.
+- Integrated archive action triggers and "Archived Projects" access into `ProjectFilesPane.tsx` and `ProjectSelector.tsx`.
+- Wired up state persistence, project switching, and modal dialogs in `App.tsx`.
+Decisions: Used a transactional move between active tables (`projects`, `files`) and archive tables (`archivedProjects`, `archivedFiles`) to ensure zero data loss and keep the active project selector clean. Restoring projects re-populates active tables and synchronizes OPFS.
+Deviations: none
+Verified: `compile_applet` build succeeded and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-71] AI Provider Grid Layout, Redundant Dropdown Removal & Deploy Card Encapsulation — 2026-08-27
 Prompt: Refactor the Provider choice layout grids and input constraints inside the AI Connections Sub-Panel view (adaptive grid, remove redundant dropdown, apply gap-2.5 spacing) and refactor the Settings Integrations Panel (encapsulate introductory text inside card container, elevate placeholder contrast with placeholder-neutral-500).

@@ -1,4 +1,4 @@
-import { db, type FileItem, type Project } from '../../db';
+import { db, type FileItem, type Project, type ArchivedProject } from '../../db';
 
 export function generateId(): string {
   return crypto.randomUUID();
@@ -374,3 +374,123 @@ export async function renameProject(projectId: string, newName: string): Promise
   await db.projects.put(updated);
   return updated;
 }
+
+/**
+ * Archives an active project by moving its project record and all its associated files
+ * from active storage into the separate `archivedProjects` and `archivedFiles` collections.
+ */
+export async function archiveProject(projectId: string): Promise<ArchivedProject> {
+  const project = await db.projects.get(projectId);
+  if (!project) throw new Error(`Project not found: ${projectId}`);
+
+  // Fetch all files and hydrate content so full content is preserved in archivedFiles
+  const files = await getAllFileContent(projectId);
+
+  const archivedItem: ArchivedProject = {
+    id: project.id,
+    name: project.name,
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+    archivedAt: Date.now(),
+    fileCount: files.length,
+  };
+
+  const archivedFilesToSave: FileItem[] = files.map(f => ({
+    id: f.id,
+    projectId: f.projectId,
+    path: f.path,
+    content: f.content,
+    updatedAt: f.updatedAt,
+  }));
+
+  await db.transaction('rw', db.projects, db.files, db.archivedProjects, db.archivedFiles, async () => {
+    await db.archivedProjects.put(archivedItem);
+    if (archivedFilesToSave.length > 0) {
+      await db.archivedFiles.bulkPut(archivedFilesToSave);
+    }
+    await db.files.where('projectId').equals(projectId).delete();
+    await db.projects.delete(projectId);
+  });
+
+  return archivedItem;
+}
+
+/**
+ * Restores an archived project back to the active workspace collections.
+ */
+export async function restoreProject(projectId: string): Promise<Project> {
+  const archived = await db.archivedProjects.get(projectId);
+  if (!archived) throw new Error(`Archived project not found: ${projectId}`);
+
+  const archivedFiles = await db.archivedFiles.where('projectId').equals(projectId).toArray();
+
+  const restoredProject: Project = {
+    id: archived.id,
+    name: archived.name,
+    createdAt: archived.createdAt,
+    updatedAt: Date.now(),
+  };
+
+  const filesToRestore: FileItem[] = archivedFiles.map(f => ({
+    id: f.id,
+    projectId: f.projectId,
+    path: f.path,
+    content: isOpfsSupported() ? '' : f.content,
+    updatedAt: f.updatedAt,
+  }));
+
+  await db.transaction('rw', db.projects, db.files, db.archivedProjects, db.archivedFiles, async () => {
+    await db.projects.put(restoredProject);
+    if (filesToRestore.length > 0) {
+      await db.files.bulkPut(filesToRestore);
+    }
+    await db.archivedProjects.delete(projectId);
+    await db.archivedFiles.where('projectId').equals(projectId).delete();
+  });
+
+  // Re-write files to OPFS if supported
+  if (isOpfsSupported() && archivedFiles.length > 0) {
+    await Promise.all(
+      archivedFiles.map(async (file) => {
+        try {
+          await writeOpfsFile(file.projectId, file.path, file.content);
+        } catch {
+          // ignore
+        }
+      })
+    );
+  }
+
+  return restoredProject;
+}
+
+/**
+ * Lists all archived projects in the separate storage collection.
+ */
+export async function listArchivedProjects(): Promise<ArchivedProject[]> {
+  try {
+    return await db.archivedProjects.orderBy('archivedAt').reverse().toArray();
+  } catch {
+    return await db.archivedProjects.toArray();
+  }
+}
+
+/**
+ * Permanently deletes an archived project from the archive collection.
+ */
+export async function deleteArchivedProject(projectId: string): Promise<void> {
+  if (isOpfsSupported()) {
+    try {
+      const root = await navigator.storage.getDirectory();
+      await root.removeEntry(projectId, { recursive: true });
+    } catch {
+      // Ignore
+    }
+  }
+
+  await db.transaction('rw', db.archivedProjects, db.archivedFiles, async () => {
+    await db.archivedFiles.where('projectId').equals(projectId).delete();
+    await db.archivedProjects.delete(projectId);
+  });
+}
+

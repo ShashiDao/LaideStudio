@@ -15,7 +15,8 @@ import {
   Copy,
   Rocket,
   Search,
-  ShieldCheck
+  ShieldCheck,
+  Archive
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';
@@ -31,6 +32,7 @@ export interface ProjectActionsMenuProps {
   onExportClick: () => void;
   onExportMarkdownClick?: () => void;
   onCopyMarkdownClick?: () => void;
+  onArchiveClick?: () => void;
   onDeleteClick: () => void;
   onRenameClick?: () => void;
   onOpenAnalytics?: () => void;
@@ -51,6 +53,7 @@ export function ProjectActionsMenu({
   onExportClick,
   onExportMarkdownClick,
   onCopyMarkdownClick,
+  onArchiveClick,
   onDeleteClick,
   onRenameClick,
   onOpenAnalytics,
@@ -153,7 +156,7 @@ export function ProjectActionsMenu({
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 scrollbar-thin">
               
               {/* 1. Workspace Section */}
-              {(onNewProjectClick || onRenameClick || onOpenAnalytics || onOpenBisect || onOpenTrustReport || onOpenProjectSearch) && (
+              {(onNewProjectClick || onRenameClick || onArchiveClick || onOpenAnalytics || onOpenBisect || onOpenTrustReport || onOpenProjectSearch) && (
                 <div className="space-y-1.5">
                   <div className="text-[10px] font-bold text-accent/80 uppercase tracking-wider px-1">
                     Workspace
@@ -209,6 +212,23 @@ export function ProjectActionsMenu({
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-medium leading-tight">Rename Project</div>
                           <div className="text-[9px] text-muted truncate">Change workspace name</div>
+                        </div>
+                      </button>
+                    )}
+
+                    {onArchiveClick && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction(onArchiveClick)}
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
+                        role="menuitem"
+                      >
+                        <div className="p-1 rounded bg-surface-elevated text-amber-500 border border-border shrink-0">
+                          <Archive size={13} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium leading-tight">Archive Project</div>
+                          <div className="text-[9px] text-muted truncate">Move to separate archive storage</div>
                         </div>
                       </button>
                     )}

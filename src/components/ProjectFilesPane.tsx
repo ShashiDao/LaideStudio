@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, BarChart3, Upload, FolderPlus } from 'lucide-react';
+import { Plus, BarChart3, Upload, FolderPlus, Archive } from 'lucide-react';
 import type { Project, FileItem } from '../db';
 import { ProjectSelector } from './ProjectSelector';
 import { ProjectActionsMenu } from './ProjectActionsMenu';
@@ -45,12 +45,15 @@ interface ProjectFilesPaneProps {
   onOpenTrustReport: () => void;
   onOpenCreateProjectModal: () => void;
   onOpenRenameModal: () => void;
+  onArchiveProject?: (project: Project) => void;
   onPromptDeleteProject: (project: Project) => void;
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onIncomingFiles: (fileList: FileList) => void;
   activeProjectMetadata: { totalLines: number; dominantLanguage: string };
   showProjectStats: boolean;
   setShowProjectStats: React.Dispatch<React.SetStateAction<boolean>>;
+  archivedCount?: number;
+  onOpenArchivedProjects?: () => void;
 }
 
 export function ProjectFilesPane({
@@ -70,12 +73,15 @@ export function ProjectFilesPane({
   onOpenTrustReport,
   onOpenCreateProjectModal,
   onOpenRenameModal,
+  onArchiveProject,
   onPromptDeleteProject,
   onFileUpload,
   onIncomingFiles,
   activeProjectMetadata,
   showProjectStats,
   setShowProjectStats,
+  archivedCount,
+  onOpenArchivedProjects,
 }: ProjectFilesPaneProps) {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,6 +99,8 @@ export function ProjectFilesPane({
             onSelectProjectId={onSelectProjectId}
             onCreateBlankProject={onCreateBlankProject}
             activeFilesCount={files.length}
+            archivedCount={archivedCount}
+            onOpenArchivedProjects={onOpenArchivedProjects}
           />
 
           <button
@@ -141,9 +149,21 @@ export function ProjectFilesPane({
           className="hidden" 
         />
 
-        {/* Right: Consolidated Professional Project Actions Dropdown Menu */}
+        {/* Right: Archive Button & Consolidated Professional Project Actions Dropdown Menu */}
         {activeProject && (
           <div className="flex items-center gap-1 shrink-0 font-mono">
+            {onArchiveProject && (
+              <button
+                type="button"
+                onClick={() => onArchiveProject(activeProject)}
+                className="flex items-center justify-center p-1.5 bg-surface border border-border hover:border-amber-500/50 hover:bg-amber-500/10 text-muted hover:text-amber-500 rounded transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
+                title={`Archive "${activeProject.name}" (move to separate archive collection)`}
+                aria-label="Archive Project"
+              >
+                <Archive size={13} strokeWidth={2} />
+              </button>
+            )}
+
             <ProjectActionsMenu
               project={activeProject}
               fileCount={files.length}
@@ -156,6 +176,7 @@ export function ProjectFilesPane({
               onOpenTrustReport={onOpenTrustReport}
               onNewProjectClick={onOpenCreateProjectModal}
               onRenameClick={onOpenRenameModal}
+              onArchiveClick={onArchiveProject ? () => onArchiveProject(activeProject) : undefined}
               onUploadClick={() => fileInputRef.current?.click()}
               onExportClick={async () => {
                 try {
@@ -287,6 +308,14 @@ export function ProjectFilesPane({
                 >
                   <GithubIcon size={14} /> Import from GitHub
                 </button>
+                {onOpenArchivedProjects && archivedCount !== undefined && archivedCount > 0 && (
+                  <button
+                    onClick={onOpenArchivedProjects}
+                    className="w-full py-2 px-3 bg-surface border border-amber-500/40 text-amber-600 dark:text-amber-400 font-mono text-xs rounded hover:bg-amber-500/10 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Archive size={14} /> View Archived Projects ({archivedCount})
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -69,6 +69,15 @@ export interface VaultSession {
   expiresAt: number;
 }
 
+export interface ArchivedProject {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  archivedAt: number;
+  fileCount?: number;
+}
+
 export class LaideDatabase extends Dexie {
   projects!: Table<Project, string>;
   files!: Table<FileItem, string>;
@@ -76,6 +85,8 @@ export class LaideDatabase extends Dexie {
   connectionProfiles!: Table<ConnectionProfile, string>;
   provenanceEntries!: Table<ProvenanceEntry, string>;
   vaultSessions!: Table<VaultSession, string>;
+  archivedProjects!: Table<ArchivedProject, string>;
+  archivedFiles!: Table<FileItem, string>;
 
   constructor() {
     super('LaideDatabase');
@@ -99,6 +110,16 @@ export class LaideDatabase extends Dexie {
       connectionProfiles: 'id, provider, label',
       provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
       vaultSessions: 'id, keyHash, createdAt, expiresAt',
+    });
+    this.version(4).stores({
+      projects: 'id, name, createdAt, updatedAt',
+      files: 'id, projectId, path, updatedAt',
+      snapshots: 'id, projectId, createdAt',
+      connectionProfiles: 'id, provider, label',
+      provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+      vaultSessions: 'id, keyHash, createdAt, expiresAt',
+      archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
+      archivedFiles: 'id, projectId, path, updatedAt',
     });
   }
 }
