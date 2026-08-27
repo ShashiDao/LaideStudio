@@ -85,6 +85,9 @@ export function CreateProjectModal({
   const selectedTemplate = PROJECT_TEMPLATES.find(t => t.id === selectedTemplateId) || PROJECT_TEMPLATES[0];
 
   const handleSelectTemplate = (template: ProjectTemplate) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(10);
+    }
     setSelectedTemplateId(template.id);
     const defaultName = existingProjectCount > 0 
       ? `${template.defaultProjectName} ${existingProjectCount + 1}`
@@ -135,44 +138,48 @@ export function CreateProjectModal({
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-project-title"
       onClick={isSubmitting ? undefined : onClose}
     >
       <div 
-        className="bg-surface border border-border/90 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden font-mono flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150"
+        className="bg-surface border border-border/90 shadow-2xl w-full font-mono flex flex-col fixed inset-x-0 bottom-0 z-50 max-h-[88vh] rounded-t-2xl sm:inset-auto sm:max-w-lg sm:rounded-2xl sm:max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-4 py-3.5 border-b border-border bg-surface-elevated/50 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-accent/15 text-accent border border-accent/30 shadow-xs">
-              <FolderPlus size={16} />
+        {/* Header with Mobile Drag Handle */}
+        <div className="px-4 pt-2 pb-3.5 sm:pt-3.5 border-b border-border bg-surface-elevated/50 flex flex-col shrink-0">
+          {/* Centered mobile drag-handle indicator */}
+          <div className="w-8 h-1 bg-border rounded-full mx-auto my-1.5 sm:hidden shrink-0" aria-hidden="true" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-accent/15 text-accent border border-accent/30 shadow-xs">
+                <FolderPlus size={16} />
+              </div>
+              <div>
+                <h2 id="create-project-title" className="text-xs font-bold text-text uppercase tracking-wider">
+                  Create New Project
+                </h2>
+                <p className="text-[10px] text-muted">
+                  Select a starter skeleton or clean template
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 id="create-project-title" className="text-xs font-bold text-text uppercase tracking-wider">
-                Create New Project
-              </h2>
-              <p className="text-[10px] text-muted">
-                Select a starter skeleton or clean template
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              aria-label="Close dialog"
+              className="p-1 text-muted hover:text-text rounded-md hover:bg-surface-elevated transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <X size={16} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isSubmitting}
-            aria-label="Close dialog"
-            className="p-1 text-muted hover:text-text rounded-md hover:bg-surface-elevated transition-colors cursor-pointer disabled:opacity-50"
-          >
-            <X size={16} />
-          </button>
         </div>
 
-        {/* Scrollable Content Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+        {/* Scrollable Content Body with Bottom Cushion */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 pb-6 sm:pb-4 space-y-4 scrollbar-thin">
           {/* Project Name Input */}
           <div className="space-y-1.5">
             <label htmlFor="project-name-input" className="block text-[11px] font-bold text-accent/90 uppercase tracking-wider">
@@ -252,7 +259,7 @@ export function CreateProjectModal({
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-muted leading-relaxed line-clamp-2">
+                      <p className="text-[10px] text-muted leading-relaxed">
                         {template.description}
                       </p>
 
@@ -291,22 +298,28 @@ export function CreateProjectModal({
             <button
               type="button"
               onClick={() => setShowFileList(prev => !prev)}
-              className="text-[10px] text-accent/80 hover:text-accent flex items-center gap-1 transition-colors cursor-pointer py-1 font-semibold"
+              className="text-[10px] text-accent/80 hover:text-accent flex items-center gap-1.5 transition-colors cursor-pointer py-1 font-semibold"
             >
               <Boxes size={12} />
               <span>{showFileList ? 'Hide skeleton files' : `View files included in "${selectedTemplate.name}"`}</span>
             </button>
 
             {showFileList && (
-              <div className="mt-2 p-2.5 rounded-lg bg-bg border border-border/80 space-y-1.5 text-[10px] font-mono animate-in fade-in duration-100">
-                <div className="text-muted text-[9px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1">
-                  <FileText size={10} />
-                  <span>Skeleton File Structure:</span>
+              <div className="mt-2 p-2.5 rounded-xl bg-bg/80 border border-border/80 space-y-2 text-[10px] font-mono animate-in fade-in duration-150">
+                <div className="text-muted text-[9px] font-bold uppercase tracking-wider flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <FileText size={11} className="text-accent" />
+                    <span>Skeleton Structure ({selectedTemplate.files.length} {selectedTemplate.files.length === 1 ? 'file' : 'files'})</span>
+                  </div>
+                  <span className="text-[9px] text-muted/60 lowercase">ready on create</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-muted">
+                <div className="flex flex-wrap gap-1.5 text-muted">
                   {selectedTemplate.files.map((file) => (
-                    <div key={file.path} className="truncate flex items-center gap-1 text-text/80">
-                      <span className="text-accent">•</span>
+                    <div 
+                      key={file.path} 
+                      className="px-2 py-0.5 rounded-md bg-surface border border-border/70 flex items-center gap-1 text-text/80 text-[10px] font-mono shadow-2xs"
+                    >
+                      <span className="text-accent text-[9px]">•</span>
                       <span>{file.path}</span>
                     </div>
                   ))}
@@ -317,7 +330,7 @@ export function CreateProjectModal({
         </form>
 
         {/* Modal Footer */}
-        <div className="px-4 py-3 border-t border-border bg-surface-elevated/40 flex items-center justify-end gap-2 shrink-0">
+        <div className="px-4 py-3 pb-safe sm:pb-3 border-t border-border bg-surface-elevated/40 flex items-center justify-end gap-2 shrink-0">
           <button
             type="button"
             onClick={onClose}

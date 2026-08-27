@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-78
-- Last verified working: Virtual keyboard layout & ergonomics optimized. Dynamically hiding bottom navigation tab bar when keyboard is active (focus-within/visualViewport drop) eliminating awkward 50-60px gap; ordered sticky terminal controls with input prompt on top and floating accessory bar at bottom flush against keyboard; enlarged active touch targets to >=36x36px with onMouseDown preventDefault to preserve keyboard focus; upgraded Tab autocomplete engine with multi-token subcommand completion (npm run build, npm test, git status, etc.) and file/directory path expansion. All 32 unit tests passed, linting has 0 errors, and build succeeds.
+- Phase: HOTFIX-79
+- Last verified working: Refactored CreateProjectModal layout and responsive framing. Mobile presentation renders as a slide-up bottom sheet with centered drag-handle indicator, while desktop retains a centered modal. Added scroll cushion (pb-6 sm:pb-4) so bottom template cards and skeleton file previews scroll clear of the sticky footer. Streamlined template descriptions and standardized 3-tag badge grids for uniform card geometry without text clipping. Added haptic feedback (navigator.vibrate) and polished skeleton file pills. All 7 unit tests in CreateProjectModal.test.tsx and 6 in projectTemplates.test.ts passed, linting has 0 errors, and build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,25 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-79] CreateProjectModal Mobile Bottom-Sheet Framing, Uniform Card Geometry & Haptics — 2026-08-27
+Prompt: Refactor CreateProjectModal layout to render as slide-up bottom sheet on mobile and centered modal on desktop, add mobile drag handle, bottom scroll cushion, uniform template descriptions and tag arrays, haptic feedback, and polished skeleton file preview.
+Files touched:
+- `src/components/CreateProjectModal.tsx` (modified)
+- `src/services/templates/projectTemplates.ts` (modified)
+- `src/components/CreateProjectModal.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Refactored `CreateProjectModal` dialog container to `fixed inset-x-0 bottom-0 z-50 max-h-[88vh] rounded-t-2xl sm:inset-auto sm:max-w-lg sm:rounded-2xl sm:max-h-[90vh]`, providing natural mobile bottom-sheet ergonomics with slide-in-from-bottom animation and centered desktop framing.
+- Added centered mobile drag-handle indicator (`w-8 h-1 bg-border rounded-full mx-auto my-1.5 sm:hidden`) at the top of the header.
+- Added bottom scroll cushion (`pb-6 sm:pb-4`) inside the scrollable form body so all template cards ("Vanilla HTML / JS") and skeleton file lists scroll clear of the sticky footer.
+- Refined template descriptions in `projectTemplates.ts` to concise, punchy copy and standardized tag arrays to 3 compact badges for consistent card heights.
+- Integrated lightweight haptic pulse (`navigator.vibrate(10)`) on template card selection.
+- Polished skeleton file structure toggle with compact badge wrapping and file count summary.
+Decisions: Kept safe-area bottom padding in footer for notchless/notched mobile displays.
+Deviations: none
+Verified: `CreateProjectModal.test.tsx` (7 tests) and `projectTemplates.test.ts` (6 tests) passed, `lint_applet` passed with 0 errors, and `compile_applet` compiled cleanly.
+Open questions: none
 
 ### [HOTFIX-78] Keyboard Dynamic Tab Bar Hiding, Thumb Ergonomics & Subcommand Tab Autocomplete — 2026-08-27
 Prompt: Hide bottom tab bar on keyboard open to eliminate 50-60px gap, stack accessory bar directly above keyboard with >=36x36px touch targets, and refine Tab autocomplete for instant subcommand/path completion.

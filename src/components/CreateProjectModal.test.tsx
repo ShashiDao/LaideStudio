@@ -7,6 +7,7 @@ import { CreateProjectModal } from './CreateProjectModal';
 describe('CreateProjectModal Component', () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it('renders nothing when isOpen is false', () => {
@@ -20,8 +21,8 @@ describe('CreateProjectModal Component', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders template options including React TypeScript, Tailwind CSS, and Empty Project', () => {
-    render(
+  it('renders template options with responsive bottom-sheet framing and drag handle', () => {
+    const { container } = render(
       <CreateProjectModal
         isOpen={true}
         onClose={() => {}}
@@ -36,12 +37,33 @@ describe('CreateProjectModal Component', () => {
     expect(screen.getByText('Empty Project')).toBeDefined();
     expect(screen.getByText('Vanilla HTML / JS')).toBeDefined();
 
+    // Verify dialog container responsive bottom-sheet classes
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).toBeDefined();
+    const modalBox = dialog?.firstElementChild as HTMLElement;
+    expect(modalBox.className).toContain('fixed inset-x-0 bottom-0');
+    expect(modalBox.className).toContain('rounded-t-2xl');
+    expect(modalBox.className).toContain('sm:inset-auto');
+    expect(modalBox.className).toContain('sm:max-w-lg');
+    expect(modalBox.className).toContain('sm:rounded-2xl');
+
+    // Verify mobile drag handle indicator
+    const dragHandle = modalBox.querySelector('.bg-border.rounded-full');
+    expect(dragHandle).toBeDefined();
+
     // Default prefilled project name
     const input = screen.getByLabelText('Project Name') as HTMLInputElement;
     expect(input.value).toBe('React TS App 3');
   });
 
-  it('switches active template and updates default name when clicking a template card', () => {
+  it('switches active template, triggers haptic feedback, and updates default name', () => {
+    const vibrateSpy = vi.fn();
+    Object.defineProperty(navigator, 'vibrate', {
+      value: vibrateSpy,
+      writable: true,
+      configurable: true,
+    });
+
     render(
       <CreateProjectModal
         isOpen={true}
@@ -58,6 +80,7 @@ describe('CreateProjectModal Component', () => {
     const tailwindBtn = screen.getByText('Tailwind CSS').closest('button')!;
     fireEvent.click(tailwindBtn);
     expect(input.value).toBe('Tailwind App');
+    expect(vibrateSpy).toHaveBeenCalledWith(10);
 
     // Click Empty Project template
     const emptyBtn = screen.getByText('Empty Project').closest('button')!;
@@ -78,9 +101,14 @@ describe('CreateProjectModal Component', () => {
     expect(toggleBtn).toBeDefined();
 
     fireEvent.click(toggleBtn);
-    expect(screen.getByText('Skeleton File Structure:')).toBeDefined();
+    expect(screen.getByText(/Skeleton Structure/)).toBeDefined();
     expect(screen.getByText('/src/App.tsx')).toBeDefined();
     expect(screen.getByText('/package.json')).toBeDefined();
+
+    // Toggle back to hide
+    const hideBtn = screen.getByText(/Hide skeleton files/);
+    fireEvent.click(hideBtn);
+    expect(screen.queryByText('/src/App.tsx')).toBeNull();
   });
 
   it('validates project name and calls onCreateProject on submit', async () => {
@@ -120,7 +148,6 @@ describe('CreateProjectModal Component', () => {
     const input = screen.getByLabelText('Project Name') as HTMLInputElement;
     fireEvent.change(input, { target: { value: '   ' } });
 
-    // The submit button is disabled when empty, but form submit should validate
     const form = input.closest('form')!;
     fireEvent.submit(form);
 
