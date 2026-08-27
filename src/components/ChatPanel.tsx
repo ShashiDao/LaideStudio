@@ -42,6 +42,39 @@ import {
 } from '../services/usage/tokenSpend';
 import ReactMarkdown from 'react-markdown';
 
+export function formatPathMiddleEllipsis(path: string, maxLength: number = 32): string {
+  if (path.length <= maxLength) return path;
+  
+  const lastSlash = path.lastIndexOf('/');
+  if (lastSlash !== -1) {
+    const filename = path.substring(lastSlash + 1);
+    const dirname = path.substring(0, lastSlash);
+    if (filename.length >= maxLength - 4) {
+      return formatPathMiddleEllipsis(filename, maxLength);
+    }
+    const availDirLen = maxLength - filename.length - 4;
+    if (availDirLen <= 3) {
+      return `.../${filename}`;
+    }
+    const startDir = dirname.substring(0, Math.max(1, availDirLen - 3));
+    return `${startDir}.../${filename}`;
+  }
+
+  const lastDot = path.lastIndexOf('.');
+  if (lastDot > 0 && path.length - lastDot <= 10) {
+    const ext = path.substring(lastDot);
+    const nameWithoutExt = path.substring(0, lastDot);
+    const availNameLen = maxLength - ext.length - 3;
+    if (availNameLen <= 3) {
+      return `${nameWithoutExt.substring(0, 3)}...${ext}`;
+    }
+    return `${nameWithoutExt.substring(0, availNameLen)}...${ext}`;
+  }
+
+  const half = Math.floor((maxLength - 3) / 2);
+  return `${path.substring(0, half)}...${path.substring(path.length - half)}`;
+}
+
 export function ChatPanel({ 
   projectId, 
   onOpenEnsembleDashboard 
@@ -484,40 +517,44 @@ export function ChatPanel({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden relative">
       {/* Collapsible Context Files Row */}
-      <div className="shrink-0 border-b border-border bg-surface/40">
-        <button
-          type="button"
-          onClick={() => setContextExpanded(!contextExpanded)}
-          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-black/5 transition-colors text-left font-sans text-xs cursor-pointer"
-        >
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Files size={13} className="text-accent shrink-0" />
-            <span className="text-muted truncate font-medium">
-              {contextFiles.length} {contextFiles.length === 1 ? 'file' : 'files'} in manifest
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted font-sans">
-            <span>{tokenUsage.codebase.toLocaleString()}{tokenUsage.isEstimate ? '*' : ''} manifest tokens</span>
-            {contextExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </div>
-        </button>
-        {contextExpanded && (
-          <div className="max-h-36 overflow-y-auto border-t border-border bg-bg/70 p-2 space-y-1">
-            {contextFiles.length === 0 ? (
-              <div className="text-[11px] font-mono text-muted px-2 py-1">No files in project yet</div>
-            ) : (
-              contextFiles.map(f => (
-                <div key={f.path} className="flex items-center justify-between text-[11px] font-mono px-2 py-0.5 rounded hover:bg-black/5">
-                  <span className="text-muted truncate">{f.path}</span>
+      {contextFiles.length > 0 && (
+        <div className="shrink-0 border-b border-border bg-surface">
+          <button
+            type="button"
+            onClick={() => setContextExpanded(!contextExpanded)}
+            aria-expanded={contextExpanded}
+            aria-label={`${tokenUsage.codebase.toLocaleString()}${tokenUsage.isEstimate ? '*' : ''} manifest tokens`}
+            className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-black/5 transition-colors text-left font-sans text-xs cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Files size={13} className="text-accent shrink-0" />
+              <span className="text-muted truncate font-medium">
+                {contextFiles.length} {contextFiles.length === 1 ? 'file' : 'files'} in manifest
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted font-sans">
+              <span>{tokenUsage.codebase.toLocaleString()}{tokenUsage.isEstimate ? '*' : ''} manifest tokens</span>
+              {contextExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </div>
+          </button>
+          {contextExpanded && (
+            <div 
+              role="region" 
+              aria-label="Manifest files list"
+              className="max-h-48 overflow-y-auto border-t border-border bg-surface shadow-2xl p-2 space-y-1 relative z-20"
+            >
+              {contextFiles.map(f => (
+                <div key={f.path} className="flex items-center justify-between text-[11px] font-mono px-2 py-0.5 rounded hover:bg-black/5" title={f.path}>
+                  <span className="text-muted truncate font-mono">{formatPathMiddleEllipsis(f.path, 36)}</span>
                   <span className="text-muted text-[10px] shrink-0 ml-2">
                     {new TextEncoder().encode(f.content).length.toLocaleString()} B
                   </span>
                 </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Persistent Pending Patches Banner */}
       {pendingPatches.length > 0 && !isPatchReviewOpen && (

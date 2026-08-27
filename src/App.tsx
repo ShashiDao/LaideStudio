@@ -42,6 +42,7 @@ import { ReloadPrompt } from './components/ReloadPrompt';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Toaster } from './components/Toaster';
 import { useGlobalKeyboardShortcuts } from './hooks/useGlobalKeyboardShortcuts';
+import type { BeforeInstallPromptEvent } from './types.d';
 
 function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
   return (
@@ -340,7 +341,7 @@ export default function App() {
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the browser's default install banner
       e.preventDefault();
-      setDeferredInstallPrompt(e);
+      setDeferredInstallPrompt(e as unknown as BeforeInstallPromptEvent);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -348,6 +349,59 @@ export default function App() {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, [setDeferredInstallPrompt]);
+
+  // Virtual keyboard / interactive input focus listener to hide bottom nav bar on mobile
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const heightDiff = window.innerHeight - window.visualViewport.height;
+        const isShrunk = heightDiff > 120 || window.visualViewport.height < window.innerHeight * 0.82;
+        setIsKeyboardOpen(isShrunk);
+      }
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        setIsKeyboardOpen(true);
+      }
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const active = document.activeElement as HTMLElement | null;
+        const isInputActive = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+        if (!isInputActive) {
+          if (window.visualViewport) {
+            const heightDiff = window.innerHeight - window.visualViewport.height;
+            if (heightDiff <= 120) {
+              setIsKeyboardOpen(false);
+            }
+          } else {
+            setIsKeyboardOpen(false);
+          }
+        }
+      }, 100);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+      window.visualViewport.addEventListener('scroll', handleViewportResize);
+    }
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', handleFocusOut);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+        window.visualViewport.removeEventListener('scroll', handleViewportResize);
+      }
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
 
   useGlobalKeyboardShortcuts({
     activeFileId,
@@ -705,20 +759,22 @@ export default function App() {
           )}
         </main>
 
-        {/* Fixed Bottom Tab Bar with safe-area padding for home indicator */}
-        <nav 
-          role="tablist" 
-          aria-label="Workspace view tabs"
-          className="pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border flex relative"
-        >
-          <div className="h-[60px] w-full flex">
-            <TabButton id="files" current={activeTab} onClick={setActiveTab} icon={<FileText size={19} />} label="Files" />
-            <TabButton id="chat" current={activeTab} onClick={setActiveTab} icon={<MessageSquare size={19} />} label="Chat" />
-            <TabButton id="preview" current={activeTab} onClick={setActiveTab} icon={<MonitorPlay size={19} />} label="Preview" />
-            <TabButton id="terminal" current={activeTab} onClick={setActiveTab} icon={<Terminal size={19} />} label="Terminal" />
-            <TabButton id="settings" current={activeTab} onClick={setActiveTab} icon={<Settings size={19} />} label="Settings" />
-          </div>
-        </nav>
+        {/* Fixed Bottom Tab Bar with safe-area padding for home indicator - conditionally hidden when virtual keyboard opens to sit flush */}
+        {!isKeyboardOpen && (
+          <nav 
+            role="tablist" 
+            aria-label="Workspace view tabs"
+            className="pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border flex relative transition-all duration-150 animate-in fade-in slide-in-from-bottom-2"
+          >
+            <div className="h-[60px] w-full flex">
+              <TabButton id="files" current={activeTab} onClick={setActiveTab} icon={<FileText size={19} />} label="Files" />
+              <TabButton id="chat" current={activeTab} onClick={setActiveTab} icon={<MessageSquare size={19} />} label="Chat" />
+              <TabButton id="preview" current={activeTab} onClick={setActiveTab} icon={<MonitorPlay size={19} />} label="Preview" />
+              <TabButton id="terminal" current={activeTab} onClick={setActiveTab} icon={<Terminal size={19} />} label="Terminal" />
+              <TabButton id="settings" current={activeTab} onClick={setActiveTab} icon={<Settings size={19} />} label="Settings" />
+            </div>
+          </nav>
+        )}
         
         {/* Agent Patch Review */}
         {activeProject && <PatchReviewSheet projectId={activeProject.id} />}

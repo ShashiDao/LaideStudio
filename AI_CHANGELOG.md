@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-77
-- Last verified working: Implemented frictionless In-Chat Onboarding with swipe-up Quick-Connect Bottom Sheet (`QuickConnectSheet.tsx`) allowing instantaneous API key entry and zero-config Ollama selection right from the Chat tab without tab switching. Implemented dynamic manifest bar hiding in `ChatPanel.tsx` that collapses and hides the manifest strip when no workspace files exist (`contextFiles.length === 0`). All 11 unit tests in `ChatPanel.test.tsx` passed, `lint_applet` passed with 0 errors, and `compile_applet` compiled cleanly.
+- Phase: HOTFIX-78
+- Last verified working: Implemented virtual keyboard listener (`visualViewport` and interactive focus handling) in `App.tsx` to automatically hide the bottom navigation bar when the keyboard is open so the input and accessory strip sit flush on top of the keyboard without wasting vertical space. Enhanced terminal accessory bar touch targets (minimum 36×36px) with `preventDefault` on pointer down to prevent keyboard unfocusing. Upgraded terminal Tab autocomplete with longest common prefix (LCP) expansion and seamless cursor restoration. Resolved TypeScript types in `App.tsx` for `BeforeInstallPromptEvent`. Passed `lint_applet` with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,24 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-78] Virtual Keyboard Bottom Navigation Auto-Hide & Terminal Autocomplete Ergonomics — 2026-08-27
+Prompt: Hide bottom tab bar when virtual keyboard opens, enhance accessory bar touch targets (36x36px minimum), and optimize Tab autocomplete to expand without unfocusing the keyboard.
+Files touched:
+- `src/App.tsx` (modified)
+- `src/components/TerminalPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added dynamic virtual keyboard detection in `App.tsx` leveraging `window.visualViewport` resize/scroll events and focus events to detect active typing.
+- Conditionally hid the fixed bottom navigation bar (`<nav role="tablist">`) while the virtual keyboard is active, allowing input fields and sticky accessory bars to sit flush against the keyboard.
+- Refined terminal sticky accessory bar modifier buttons (`Tab`, `↑`, `↓`, `-`, `/`, `|`, `^C`) with generous minimum touch targets (>= 36×36px) and active scale feedback.
+- Added `preventDefault` on pointer events across all accessory buttons and quick command chips to prevent accidental blur or unfocusing of mobile virtual keyboards.
+- Upgraded shell Tab autocomplete to perform longest common prefix (LCP) completion for multiple matches and automatic trailing space / path slash insertion with cursor retention.
+- Fixed TypeScript type casting for `BeforeInstallPromptEvent` in `App.tsx`.
+Decisions: Used `window.visualViewport` combined with focus event debouncing to guarantee reliable detection across Android Gboard, Chrome, iOS Safari, and hardware keyboards.
+Deviations: none
+Verified: `lint_applet` passed with 0 errors and `compile_applet` passed cleanly.
+Open questions: none
 
 ### [HOTFIX-77] Frictionless In-Chat Onboarding & Dynamic Manifest Bar Hiding — 2026-08-27
 Prompt: Frictionless In-Chat Onboarding (swipe-up Quick-Connect Bottom Sheet right inside Chat tab instead of forcing full tab-switch to Settings) and Dynamic Manifest Bar Hiding (collapse/hide manifest strip until at least one workspace file is loaded).

@@ -377,6 +377,18 @@ Type "help" for a list of available commands or click quick actions below.`,
       if (matches.length === 1) {
         setInput(matches[0] + ' ');
       } else if (matches.length > 1) {
+        let common = prefix;
+        for (let i = prefix.length; i < matches[0].length; i++) {
+          const char = matches[0][i];
+          if (matches.every(m => m[i] === char)) {
+            common += char;
+          } else {
+            break;
+          }
+        }
+        if (common.length > prefix.length) {
+          setInput(common);
+        }
         addOutput('info', matches.join('   '));
       }
     } else {
@@ -393,17 +405,45 @@ Type "help" for a list of available commands or click quick actions below.`,
       ].filter(item => item.toLowerCase().startsWith(filePrefix.toLowerCase()));
 
       if (candidates.length === 1) {
-        parts[parts.length - 1] = (lastToken.includes('/') ? lastToken.substring(0, lastToken.lastIndexOf('/') + 1) : '') + candidates[0];
-        setInput(parts.join(' '));
+        const prefixPath = lastToken.includes('/') ? lastToken.substring(0, lastToken.lastIndexOf('/') + 1) : '';
+        const completed = prefixPath + candidates[0];
+        parts[parts.length - 1] = completed;
+        setInput(parts.join(' ') + (candidates[0].endsWith('/') ? '' : ' '));
       } else if (candidates.length > 1) {
+        let common = filePrefix;
+        for (let i = filePrefix.length; i < candidates[0].length; i++) {
+          const char = candidates[0][i];
+          if (candidates.every(c => c[i]?.toLowerCase() === char.toLowerCase())) {
+            common += char;
+          } else {
+            break;
+          }
+        }
+        if (common.length > filePrefix.length) {
+          const prefixPath = lastToken.includes('/') ? lastToken.substring(0, lastToken.lastIndexOf('/') + 1) : '';
+          parts[parts.length - 1] = prefixPath + common;
+          setInput(parts.join(' '));
+        }
         addOutput('info', candidates.join('   '));
       }
     }
+
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus({ preventScroll: true });
+        const len = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(len, len);
+      }
+    });
   }, [input, cwd, getDirEntries, addOutput]);
 
   const handleTab = useCallback(() => {
     handleAutocomplete();
-    requestAnimationFrame(() => inputRef.current?.focus());
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus({ preventScroll: true });
+      }
+    });
   }, [handleAutocomplete]);
 
   const insertCharacter = useCallback((char: string) => {
@@ -1572,53 +1612,57 @@ Access: 0644/-rw-r--r--`;
       >
         {/* Sticky Keyboard Accessory Bar with Fixed Shell Modifiers & Quick Actions */}
         <div 
-          className="px-2 py-1.5 bg-surface-elevated/70 border-b border-border/50 flex items-center justify-between gap-1.5 overflow-x-auto scrollbar-none select-none"
+          className="px-2 py-1.5 bg-surface-elevated/70 border-b border-border/50 flex items-center justify-between gap-2 overflow-x-auto scrollbar-none select-none"
           role="toolbar"
           aria-label="Terminal keyboard accessory bar"
         >
           {/* Shell Modifiers */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {/* Tab key */}
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={handleTab}
-              className="px-2 py-1 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
+              className="min-h-[36px] min-w-[50px] px-2.5 py-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-xs text-text hover:text-accent flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
               title="Tab (Autocomplete command or path)"
               aria-label="Tab Autocomplete"
             >
               <span>Tab</span>
-              <span className="text-[9px] text-muted font-normal">⇥</span>
+              <span className="text-[10px] text-muted font-normal">⇥</span>
             </button>
 
             {/* History Up */}
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={handleHistoryUp}
               disabled={cmdHistory.length === 0}
-              className="p-1 px-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-[11px] text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0"
+              className="min-h-[36px] min-w-[36px] p-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-xs text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
               title="History Previous (Up Arrow)"
               aria-label="History Previous"
             >
-              <ArrowUp size={13} />
+              <ArrowUp size={15} />
             </button>
 
             {/* History Down */}
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={handleHistoryDown}
               disabled={historyPointer === -1}
-              className="p-1 px-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-[11px] text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0"
+              className="min-h-[36px] min-w-[36px] p-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded text-xs text-text hover:text-accent disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
               title="History Next (Down Arrow)"
               aria-label="History Next"
             >
-              <ArrowDown size={13} />
+              <ArrowDown size={15} />
             </button>
 
             {/* Insert '-' */}
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => insertCharacter('-')}
-              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
+              className="min-h-[36px] min-w-[36px] p-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-sm text-text hover:text-accent flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
               title="Insert hyphen/flag (-)"
               aria-label="Insert hyphen"
             >
@@ -1628,8 +1672,9 @@ Access: 0644/-rw-r--r--`;
             {/* Insert '/' */}
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => insertCharacter('/')}
-              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
+              className="min-h-[36px] min-w-[36px] p-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-sm text-text hover:text-accent flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
               title="Insert path slash (/)"
               aria-label="Insert slash"
             >
@@ -1639,8 +1684,9 @@ Access: 0644/-rw-r--r--`;
             {/* Insert '|' */}
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => insertCharacter(' | ')}
-              className="p-1 px-2 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-[11px] text-text hover:text-accent flex items-center justify-center transition-colors cursor-pointer shadow-xs shrink-0 min-w-[24px]"
+              className="min-h-[36px] min-w-[36px] p-1.5 bg-surface border border-border hover:border-accent/50 active:bg-accent/20 rounded font-mono font-bold text-sm text-text hover:text-accent flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
               title="Insert pipe ( | )"
               aria-label="Insert pipe"
             >
@@ -1650,63 +1696,69 @@ Access: 0644/-rw-r--r--`;
             {/* Ctrl+C SIGINT */}
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={handleSigInt}
-              className="px-1.5 py-1 bg-surface border border-border hover:border-oxide/60 hover:bg-oxide/10 active:bg-oxide/20 rounded font-mono font-bold text-[11px] text-oxide/90 hover:text-oxide flex items-center gap-1 transition-colors cursor-pointer shadow-xs shrink-0"
+              className="min-h-[36px] px-2.5 py-1 bg-surface border border-border hover:border-oxide/60 hover:bg-oxide/10 active:bg-oxide/20 rounded font-mono font-bold text-xs text-oxide/90 hover:text-oxide flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
               title="Ctrl+C (SIGINT: Abort running command or clear input)"
               aria-label="SIGINT Abort (Ctrl+C)"
             >
               <span>^C</span>
-              <span className="text-[9px] text-oxide/70 font-normal">Abort</span>
+              <span className="text-[10px] text-oxide/70 font-normal">Abort</span>
             </button>
           </div>
 
           {/* Divider */}
-          <div className="w-[1px] h-4 bg-border/80 shrink-0 mx-0.5" />
+          <div className="w-[1px] h-5 bg-border/80 shrink-0 mx-0.5" />
 
           {/* Quick Action Chips in Sticky Accessory Bar */}
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[9px] text-muted/70 uppercase tracking-wider shrink-0 mr-0.5 hidden sm:inline">Quick:</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] text-muted/70 uppercase tracking-wider shrink-0 mr-0.5 hidden sm:inline">Quick:</span>
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => executeCommand('npm test')}
               disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              className="min-h-[36px] px-2.5 py-1 bg-surface border border-border hover:border-accent/40 rounded text-xs text-text hover:text-accent flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
             >
-              <Play size={9} className="text-moss" />
+              <Play size={11} className="text-moss" />
               <span>npm test</span>
             </button>
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => executeCommand('npm run build')}
               disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              className="min-h-[36px] px-2.5 py-1 bg-surface border border-border hover:border-accent/40 rounded text-xs text-text hover:text-accent flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
             >
-              <Sparkles size={9} className="text-accent" />
+              <Sparkles size={11} className="text-accent" />
               <span>npm run build</span>
             </button>
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => executeCommand('tree')}
               disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              className="min-h-[36px] px-2.5 py-1 bg-surface border border-border hover:border-accent/40 rounded text-xs text-text hover:text-accent flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
             >
               <span>tree</span>
             </button>
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => executeCommand('ls -la')}
               disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              className="min-h-[36px] px-2.5 py-1 bg-surface border border-border hover:border-accent/40 rounded text-xs text-text hover:text-accent flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
             >
               <span>ls -la</span>
             </button>
             <button
               type="button"
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => executeCommand('help')}
               disabled={isRunning}
-              className="px-2 py-0.5 bg-surface border border-border hover:border-accent/40 rounded text-[10px] text-text hover:text-accent flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+              className="min-h-[36px] px-2.5 py-1 bg-surface border border-border hover:border-accent/40 rounded text-xs text-text hover:text-accent flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shrink-0 shadow-xs"
             >
-              <HelpCircle size={9} className="text-muted" />
+              <HelpCircle size={11} className="text-muted" />
               <span>help</span>
             </button>
           </div>

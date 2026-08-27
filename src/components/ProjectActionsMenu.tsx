@@ -16,7 +16,8 @@ import {
   Rocket,
   Search,
   ShieldCheck,
-  Scale
+  Scale,
+  Archive
 } from 'lucide-react';
 import { GithubIcon } from './GithubIcons';
 import type { Project } from '../db';
@@ -39,6 +40,7 @@ export interface ProjectActionsMenuProps {
   onOpenTrustReport?: () => void;
   onOpenEnsembleDashboard?: () => void;
   onNewProjectClick?: () => void;
+  onArchiveClick?: () => void;
   className?: string;
 }
 
@@ -55,6 +57,7 @@ export function ProjectActionsMenu({
   onCopyMarkdownClick,
   onDeleteClick,
   onRenameClick,
+  onArchiveClick,
   onOpenAnalytics,
   onOpenBisect,
   onOpenTrustReport,
@@ -212,6 +215,23 @@ export function ProjectActionsMenu({
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-medium leading-tight">Rename Project</div>
                           <div className="text-[9px] text-muted truncate">Change workspace name</div>
+                        </div>
+                      </button>
+                    )}
+
+                    {onArchiveClick && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction(onArchiveClick)}
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                        role="menuitem"
+                      >
+                        <div className="p-1 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30 shrink-0">
+                          <Archive size={13} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium leading-tight text-amber-500">Archive Project</div>
+                          <div className="text-[9px] text-muted truncate">Move to separate archive storage</div>
                         </div>
                       </button>
                     )}
