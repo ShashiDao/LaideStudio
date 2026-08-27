@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Copy, Check, Search, Sparkles, MoreHorizontal } from 'lucide-react';
+import { X, Copy, Check, Search, Sparkles, MoreHorizontal, Undo, Redo } from 'lucide-react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
 import type { Extension } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
+import { undo, redo } from '@codemirror/commands';
 import { 
   search, 
   SearchQuery, 
@@ -18,6 +19,7 @@ import {
 import { db, type FileItem, type ProvenanceEntry } from '../db';
 import { writeFile } from '../services/fs/vfs';
 import { useAppStore } from '../store';
+import { useShellBreakpoint } from '../hooks/useShellBreakpoint';
 import { EditorFindReplace } from './EditorFindReplace';
 import { getFileAiBlameCached } from '../services/provenance/blame';
 import { createAiBlameHoverTooltip, createAiBlameCursorListener, AiBlameSidePanel } from './EditorAiBlame';
@@ -133,6 +135,23 @@ export async function getLanguageExtensionAsync(path: string): Promise<Extension
   return null;
 }
 
+const MOBILE_ACCESSORY_KEYS = [
+  { label: 'Tab', value: '  ', title: 'Insert 2 spaces (Tab)' },
+  { label: '{', value: '{' },
+  { label: '}', value: '}' },
+  { label: '(', value: '(' },
+  { label: ')', value: ')' },
+  { label: '[', value: '[' },
+  { label: ']', value: ']' },
+  { label: '<', value: '<' },
+  { label: '>', value: '>' },
+  { label: '=>', value: '=>' },
+  { label: ';', value: ';' },
+  { label: "'", value: "'" },
+  { label: '"', value: '"' },
+  { label: '=', value: '=' },
+];
+
 export function Editor({ 
   file, 
   onContentChanged,
@@ -145,6 +164,8 @@ export function Editor({
   onOpenTrustReport?: (filePath?: string) => void
 }) {
   const { setActiveFileId, theme, addToast, editorNavigationTarget, setEditorNavigationTarget } = useAppStore();
+  const breakpoint = useShellBreakpoint();
+  const isPhone = breakpoint === 'phone';
   const [content, setContent] = useState(file.content);
   const [isUnsaved, setIsUnsaved] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -636,6 +657,32 @@ export function Editor({
     [languageExt, searchExt, aiBlameExtensions]
   );
 
+  const handleInsertSymbol = (symbol: string) => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+    const sel = view.state.selection.main;
+    view.dispatch({
+      changes: { from: sel.from, to: sel.to, insert: symbol },
+      selection: { anchor: sel.from + symbol.length },
+      scrollIntoView: true
+    });
+    view.focus();
+  };
+
+  const handleUndo = () => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+    undo(view);
+    view.focus();
+  };
+
+  const handleRedo = () => {
+    const view = editorRef.current?.view;
+    if (!view) return;
+    redo(view);
+    view.focus();
+  };
+
   return (
     <div className="absolute inset-0 bg-code-bg canvas-grid-pattern flex flex-col z-10 overflow-hidden">
       {/* Editor Header Bar */}
@@ -831,6 +878,70 @@ export function Editor({
           onOpenTrustReport={() => onOpenTrustReport?.(file.path)}
         />
       </div>
+
+      {/* CodeMirror Mobile Coding Accessory Bar (Sticky on Phone Viewport) */}
+      {isPhone && (
+        <div 
+          className="shrink-0 bg-surface/95 backdrop-blur-md border-t border-border px-2 py-1.5 flex items-center gap-1.5 overflow-x-auto scrollbar-none select-none z-20 touch-manipulation pb-safe"
+          role="toolbar"
+          aria-label="Mobile Coding Toolbar"
+        >
+          {/* Undo / Redo Actions */}
+          <div className="flex items-center gap-1 shrink-0 pr-1.5 border-r border-border/70">
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                handleUndo();
+              }}
+              onClick={handleUndo}
+              aria-label="Undo"
+              title="Undo (Ctrl+Z)"
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-elevated active:bg-accent active:text-accent-text-on text-text border border-border/80 text-xs font-mono font-medium shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0"
+            >
+              <Undo size={15} />
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                handleRedo();
+              }}
+              onClick={handleRedo}
+              aria-label="Redo"
+              title="Redo (Ctrl+Y)"
+              className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-elevated active:bg-accent active:text-accent-text-on text-text border border-border/80 text-xs font-mono font-medium shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0"
+            >
+              <Redo size={15} />
+            </button>
+          </div>
+
+          {/* Quick Symbol Touch Chips */}
+          <div className="flex items-center gap-1 shrink-0">
+            {MOBILE_ACCESSORY_KEYS.map((keyItem) => (
+              <button
+                key={keyItem.label}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  handleInsertSymbol(keyItem.value);
+                }}
+                onClick={() => handleInsertSymbol(keyItem.value)}
+                aria-label={`Insert ${keyItem.label}`}
+                title={keyItem.title || `Insert ${keyItem.label}`}
+                className={`min-w-9 h-9 px-2.5 flex items-center justify-center rounded-lg bg-surface-elevated active:bg-accent active:text-accent-text-on text-text border border-border/80 font-mono text-xs font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer shrink-0 ${
+                  keyItem.label === 'Tab' ? 'text-[11px] font-bold text-accent px-3' : ''
+                }`}
+              >
+                {keyItem.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

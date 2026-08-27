@@ -39,6 +39,10 @@ vi.mock('../services/fs/vfs', () => ({
   writeFile: vi.fn().mockResolvedValue(undefined)
 }));
 
+vi.mock('../hooks/useShellBreakpoint', () => ({
+  useShellBreakpoint: () => 'phone'
+}));
+
 describe('Editor lazy language extension loading', () => {
   beforeEach(() => {
     langExtensionCache.clear();
@@ -181,5 +185,23 @@ describe('Editor Toolbar & Controls', () => {
 
     fireEvent.click(closeBtn);
     expect(mockSetActiveFileId).toHaveBeenCalledWith(null);
+  });
+
+  it('renders mobile coding accessory bar with quick symbol buttons', () => {
+    render(React.createElement(Editor, {
+      file: sampleFile,
+      onContentChanged: vi.fn()
+    }));
+
+    // Check for mobile accessory bar container
+    const toolbar = screen.getByRole('toolbar', { name: 'Mobile Coding Toolbar' });
+    expect(toolbar).toBeDefined();
+
+    // Check quick symbol buttons
+    expect(screen.getByRole('button', { name: 'Insert Tab' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Insert {' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Insert }' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeDefined();
   });
 });

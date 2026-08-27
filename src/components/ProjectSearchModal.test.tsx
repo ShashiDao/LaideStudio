@@ -58,8 +58,8 @@ describe('ProjectSearchModal', () => {
     const input = screen.getByPlaceholderText(/Search workspace.../i);
     fireEvent.change(input, { target: { value: 'export function' } });
 
-    expect(screen.getByText(/2 matches/i)).toBeDefined();
-    expect(screen.getByText(/2 files/i)).toBeDefined();
+    expect(screen.getAllByText(/2 matches/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/2 files/i).length).toBeGreaterThan(0);
     expect(screen.getByText('App.tsx')).toBeDefined();
     expect(screen.getByText('helpers.ts')).toBeDefined();
   });
@@ -77,7 +77,7 @@ describe('ProjectSearchModal', () => {
     fireEvent.change(input, { target: { value: 'hello' } });
 
     // Case-insensitive match initially found
-    expect(screen.getByText(/1 match/i)).toBeDefined();
+    expect(screen.getAllByText(/1 match/i).length).toBeGreaterThan(0);
 
     // Toggle Case Sensitive (Alt+C)
     const caseBtn = screen.getByTitle(/Match Case/i);

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-79
-- Last verified working: Refactored CreateProjectModal layout and responsive framing. Mobile presentation renders as a slide-up bottom sheet with centered drag-handle indicator, while desktop retains a centered modal. Added scroll cushion (pb-6 sm:pb-4) so bottom template cards and skeleton file previews scroll clear of the sticky footer. Streamlined template descriptions and standardized 3-tag badge grids for uniform card geometry without text clipping. Added haptic feedback (navigator.vibrate) and polished skeleton file pills. All 7 unit tests in CreateProjectModal.test.tsx and 6 in projectTemplates.test.ts passed, linting has 0 errors, and build succeeded.
+- Phase: HOTFIX-80
+- Last verified working: Mobile coding accessory bar with quick touch buttons (Tab, brackets, operators, quotes, Undo/Redo) and collapsible mobile Find & Replace sub-bar in Editor.tsx; Searchable Model Picker bottom sheet modal (ModelPickerModal.tsx) with live query filtering, context window badges, and custom model manual entry in SettingsPanel.tsx and QuickConnectSheet.tsx; Desktop keyboard hint cleanup on phone touch devices in ProjectActionsMenu.tsx and ProjectSearchModal.tsx; pb-28 bottom scroll cushion in TrustReportModal.tsx and enhanced light-mode contrast on inactive theme cards in SettingsPanel.tsx. All unit tests passed, linting has 0 errors, and applet compiled cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,30 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-80] Mobile Coding Accessory Toolbar, Searchable Model Picker Bottom Sheet & Touch Polish — 2026-08-27
+Prompt: CodeMirror Mobile Coding Accessory Bar, Searchable Model Picker Bottom Sheet, Desktop Cruft Cleanup on Touch Devices, and Trust Report Table Layering & Contrast Polish.
+Files touched:
+- `src/components/Editor.tsx` (modified)
+- `src/components/ModelPickerModal.tsx` (new)
+- `src/components/ModelPickerModal.test.tsx` (new)
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/QuickConnectSheet.tsx` (modified)
+- `src/components/ProjectActionsMenu.tsx` (modified)
+- `src/components/ProjectSearchModal.tsx` (modified)
+- `src/components/TrustReportModal.tsx` (modified)
+- `src/components/Editor.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented CodeMirror mobile coding toolbar pinned above virtual keyboard on phone viewports with quick symbols (`Tab`, `{`, `}`, `(`, `)`, `[`, `]`, `<`, `>`, `=>`, `;`, `'`, `"`, `=`) and `Undo`/`Redo` with `onMouseDown` preventDefault to prevent blurring editor selection.
+- Refactored mobile Editor Find & Replace bar into a full-width collapsible sub-toolbar below the editor header to eliminate horizontal clipping on narrow viewports.
+- Created `ModelPickerModal.tsx` providing a searchable bottom sheet for discovered live LLM provider models with context window formatting, fuzzy search filtering, and custom model manual entry.
+- Cleaned up desktop keyboard shortcut badges on touch/mobile viewports across `ProjectActionsMenu.tsx` and `ProjectSearchModal.tsx`, replacing navigation keys with a mobile match count summary.
+- Added `pb-28` scroll cushion to `TrustReportModal.tsx` file list to ensure rows scroll clear of fixed bottom cards, and elevated light mode contrast on inactive theme cards in `SettingsPanel.tsx`.
+Decisions: Used `useShellBreakpoint` phone detection for conditional mobile toolbar rendering and keyboard shortcut badge hiding.
+Deviations: none
+Verified: `ModelPickerModal.test.tsx` (4 tests) and `Editor.test.ts` (9 tests) passed, `lint_applet` passed with 0 errors, and `compile_applet` built successfully.
+Open questions: none
 
 ### [HOTFIX-79] CreateProjectModal Mobile Bottom-Sheet Framing, Uniform Card Geometry & Haptics — 2026-08-27
 Prompt: Refactor CreateProjectModal layout to render as slide-up bottom sheet on mobile and centered modal on desktop, add mobile drag handle, bottom scroll cushion, uniform template descriptions and tag arrays, haptic feedback, and polished skeleton file preview.

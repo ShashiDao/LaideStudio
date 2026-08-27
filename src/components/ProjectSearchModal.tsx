@@ -197,7 +197,7 @@ export function ProjectSearchModal({
                 <h2 id="project-search-title" className="text-xs font-bold text-text uppercase tracking-wider truncate">
                   Find in Files
                 </h2>
-                <span className="text-[9px] px-1.5 py-0.2 bg-surface text-accent rounded border border-accent/30 shrink-0">
+                <span className="hidden sm:inline-block text-[9px] px-1.5 py-0.2 bg-surface text-accent rounded border border-accent/30 shrink-0">
                   Ctrl+Shift+F
                 </span>
               </div>
@@ -492,9 +492,9 @@ export function ProjectSearchModal({
           )}
         </div>
 
-        {/* Footer shortcuts helper */}
+        {/* Footer shortcuts helper / Mobile summary */}
         <div className="px-4 py-2 border-t border-border/80 bg-surface-elevated/30 flex items-center justify-between text-[10px] font-mono text-muted shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-3">
             <span><kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">↑↓</kbd> Navigate</span>
             <span><kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">↵</kbd> Open Match</span>
             <span><kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Esc</kbd> Close</span>
@@ -503,6 +503,12 @@ export function ProjectSearchModal({
             <span><kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Alt+C</kbd> Case</span>
             <span><kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Alt+W</kbd> Word</span>
             <span><kbd className="px-1 py-0.5 bg-surface border border-border rounded text-[9px]">Alt+R</kbd> Regex</span>
+          </div>
+          <div className="flex sm:hidden items-center justify-between w-full text-[10px] font-mono text-muted">
+            <span className="text-text font-medium">
+              {searchSummary.totalMatches} match{searchSummary.totalMatches === 1 ? '' : 'es'} in {searchSummary.totalFiles} file{searchSummary.totalFiles === 1 ? '' : 's'}
+            </span>
+            <span className="text-accent text-[9px]">Tap to open</span>
           </div>
         </div>
       </div>

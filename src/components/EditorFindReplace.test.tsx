@@ -51,9 +51,9 @@ describe('EditorFindReplace Component', () => {
     expect(screen.getByRole('region', { name: 'Find and Replace Bar' })).toBeDefined();
     expect(screen.getByPlaceholderText(/Find in file/i)).toBeDefined();
     expect(screen.getByText('2 of 5')).toBeDefined();
-    expect(screen.getByLabelText('Match Case')).toBeDefined();
-    expect(screen.getByLabelText('Match Whole Word')).toBeDefined();
-    expect(screen.getByLabelText('Use Regular Expression')).toBeDefined();
+    expect(screen.getAllByLabelText('Match Case').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Match Whole Word').length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText('Use Regular Expression').length).toBeGreaterThan(0);
   });
 
   it('displays 0 matches when search term exists with no matches', () => {
@@ -212,13 +212,13 @@ describe('EditorFindReplace Component', () => {
       />
     );
 
-    fireEvent.click(screen.getByLabelText('Match Case'));
+    fireEvent.click(screen.getAllByLabelText('Match Case')[0]);
     expect(setCaseSensitive).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByLabelText('Match Whole Word'));
+    fireEvent.click(screen.getAllByLabelText('Match Whole Word')[0]);
     expect(setMatchWholeWord).toHaveBeenCalled();
 
-    fireEvent.click(screen.getByLabelText('Use Regular Expression'));
+    fireEvent.click(screen.getAllByLabelText('Use Regular Expression')[0]);
     expect(setUseRegex).toHaveBeenCalled();
   });
 });

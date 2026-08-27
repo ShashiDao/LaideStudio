@@ -192,7 +192,7 @@ export function ProjectActionsMenu({
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-medium leading-tight flex items-center justify-between">
                             <span>Find in Files</span>
-                            <span className="text-[9px] px-1 py-0.2 bg-surface text-muted rounded border border-border">Ctrl+Shift+F</span>
+                            <span className="hidden sm:inline-flex text-[9px] px-1 py-0.2 bg-surface text-muted rounded border border-border">Ctrl+Shift+F</span>
                           </div>
                           <div className="text-[9px] text-muted truncate">Search text and regex across files</div>
                         </div>

@@ -31,6 +31,7 @@ import {
   getModelContextWindow,
   formatContextWindow
 } from '../services/llm/modelDiscovery';
+import { ModelPickerModal } from './ModelPickerModal';
 import { 
   createEncryptedBackup, 
   downloadBackupFile, 
@@ -370,6 +371,21 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   }, []);
 
   // Auto-discover models when API key and provider are available
+  const handleRefreshModels = async () => {
+    if (!apiKey && provider !== 'openai-compatible' && provider !== 'openrouter') {
+      return;
+    }
+    setLoadingModels(true);
+    try {
+      const models = await fetchAvailableModels(provider, apiKey, baseUrl);
+      setDiscoveredModels(models);
+    } catch {
+      setDiscoveredModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
   useEffect(() => {
     let active = true;
     const fetchModels = async () => {
@@ -690,14 +706,16 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                   type="button"
                   onClick={() => setTheme('oled')}
                   aria-pressed={theme === 'oled'}
-                  className={`flex flex-col p-3 rounded-lg border text-left transition-all cursor-pointer relative overflow-hidden ${
+                  className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden ${
                     theme === 'oled'
-                      ? 'border-accent bg-[#0D0D10] text-[#F2F0EA] shadow-xs ring-1 ring-accent/30'
-                      : 'border-border/80 bg-bg/50 text-muted hover:border-accent/40'
+                      ? 'border-accent bg-[#0D0D10] text-[#F2F0EA] shadow-md ring-1 ring-accent/40'
+                      : 'border-border bg-surface/70 text-text hover:border-accent/60 hover:bg-surface-elevated/80'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1.5">
-                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#F2F0EA]">
+                    <div className={`flex items-center gap-1.5 font-mono text-xs font-bold ${
+                      theme === 'oled' ? 'text-[#F2F0EA]' : 'text-text'
+                    }`}>
                       <Moon size={13} className="text-accent" />
                       <span>OLED / Vault</span>
                     </div>
@@ -707,15 +725,17 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] leading-relaxed mb-2.5 text-[#8A8A8F] font-sans">
+                  <p className={`text-[11px] leading-relaxed mb-2.5 font-sans ${
+                    theme === 'oled' ? 'text-[#A0A0A8]' : 'text-muted'
+                  }`}>
                     True black instrument panel styling with high-contrast amber accents.
                   </p>
-                  <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-[#232326]/60">
+                  <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-border/60">
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#000000] border border-[#232326]" />
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#0D0D10] border border-[#232326]" />
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#E8A33D]" />
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#F2F0EA]" />
-                    <span className="font-mono text-[9px] text-[#8A8A8F] ml-auto">TRUE BLACK</span>
+                    <span className="font-mono text-[9px] text-muted ml-auto font-medium">TRUE BLACK</span>
                   </div>
                 </button>
 
@@ -724,14 +744,16 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                   type="button"
                   onClick={() => setTheme('paper')}
                   aria-pressed={theme === 'paper'}
-                  className={`flex flex-col p-3 rounded-lg border text-left transition-all cursor-pointer relative overflow-hidden ${
+                  className={`flex flex-col p-3.5 rounded-xl border text-left transition-all cursor-pointer relative overflow-hidden ${
                     theme === 'paper'
-                      ? 'border-accent bg-[#F7F9FB] text-[#1F2E3D] shadow-xs ring-1 ring-accent/30'
-                      : 'border-border/80 bg-bg/50 text-muted hover:border-accent/40'
+                      ? 'border-accent bg-[#F7F9FB] text-[#1F2E3D] shadow-md ring-1 ring-accent/40'
+                      : 'border-border bg-surface/70 text-text hover:border-accent/60 hover:bg-surface-elevated/80'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1.5">
-                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-[#1F2E3D]">
+                    <div className={`flex items-center gap-1.5 font-mono text-xs font-bold ${
+                      theme === 'paper' ? 'text-[#1F2E3D]' : 'text-text'
+                    }`}>
                       <Sun size={13} className="text-accent" />
                       <span>Paper / Blueprint</span>
                     </div>
@@ -741,15 +763,17 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                       </div>
                     )}
                   </div>
-                  <p className="text-[11px] leading-relaxed mb-2.5 text-[#5C6B78] font-sans">
+                  <p className={`text-[11px] leading-relaxed mb-2.5 font-sans ${
+                    theme === 'paper' ? 'text-[#3E4E5C]' : 'text-muted'
+                  }`}>
                     Drafting-table blueprint styling with pale texture and clean ink lines.
                   </p>
-                  <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-[#B7C4CE]/60">
+                  <div className="flex items-center gap-1.5 mt-auto pt-2 border-t border-border/60">
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#EDF1F5] border border-[#B7C4CE]" />
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#F7F9FB] border border-[#B7C4CE]" />
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#E8A33D]" />
                     <div className="w-2.5 h-2.5 rounded-xs bg-[#1F2E3D]" />
-                    <span className="font-mono text-[9px] text-[#5C6B78] ml-auto">BLUEPRINT</span>
+                    <span className="font-mono text-[9px] text-muted ml-auto font-medium">BLUEPRINT</span>
                   </div>
                 </button>
               </div>
@@ -1116,7 +1140,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                         />
                         <button
                           type="button"
-                          onClick={() => setShowModelDropdown(!showModelDropdown)}
+                          onClick={() => setShowModelDropdown(true)}
                           disabled={loadingModels || (discoveredModels.length === 0 && !apiKey && provider !== 'openai-compatible' && provider !== 'openrouter')}
                           title="Select from available models"
                           aria-label="Toggle available models list"
@@ -1130,45 +1154,17 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                         </button>
                       </div>
 
-                      {/* Dynamic Model Dropdown */}
-                      {showModelDropdown && discoveredModels.length > 0 && (
-                        <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-surface-elevated border border-border rounded-lg shadow-xl max-h-56 overflow-y-auto p-1 font-sans text-xs animate-in fade-in">
-                          <div className="px-2 py-1 text-[10px] text-muted border-b border-border font-semibold flex items-center justify-between">
-                            <span>Live Provider Models</span>
-                            <span className="text-moss">✓ Connected</span>
-                          </div>
-                          {discoveredModels.map(m => {
-                            const isSelected = model === m.id;
-                            const ctx = m.contextWindow || getModelContextWindow(provider, m.id);
-                            return (
-                              <button
-                                key={m.id}
-                                type="button"
-                                onClick={() => {
-                                  setModel(m.id);
-                                  setShowModelDropdown(false);
-                                }}
-                                className={`w-full px-2.5 py-1.5 rounded-md text-left flex items-center justify-between transition-colors cursor-pointer ${
-                                  isSelected ? 'bg-accent/20 text-accent font-bold' : 'text-muted hover:bg-black/5 hover:text-text'
-                                }`}
-                              >
-                                <div className="truncate pr-2">
-                                  <div className="flex items-center gap-1.5 truncate">
-                                    <span className="truncate font-mono">{m.id}</span>
-                                    <span className="text-[10px] text-muted shrink-0 font-normal">
-                                      ({formatContextWindow(ctx)})
-                                    </span>
-                                  </div>
-                                  {m.name && m.name !== m.id && (
-                                    <div className="text-[10px] text-muted truncate">{m.name}</div>
-                                  )}
-                                </div>
-                                {isSelected && <Check size={12} className="shrink-0 text-accent" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
+                      {/* Searchable Model Picker Bottom Sheet */}
+                      <ModelPickerModal
+                        isOpen={showModelDropdown}
+                        onClose={() => setShowModelDropdown(false)}
+                        models={discoveredModels}
+                        selectedModel={model}
+                        onSelectModel={(modelId) => setModel(modelId)}
+                        provider={provider}
+                        loading={loadingModels}
+                        onRefresh={handleRefreshModels}
+                      />
                     </div>
                   </div>
                   
