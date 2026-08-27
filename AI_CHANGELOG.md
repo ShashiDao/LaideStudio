@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-80
-- Last verified working: Mobile coding accessory bar with quick touch buttons (Tab, brackets, operators, quotes, Undo/Redo) and collapsible mobile Find & Replace sub-bar in Editor.tsx; Searchable Model Picker bottom sheet modal (ModelPickerModal.tsx) with live query filtering, context window badges, and custom model manual entry in SettingsPanel.tsx and QuickConnectSheet.tsx; Desktop keyboard hint cleanup on phone touch devices in ProjectActionsMenu.tsx and ProjectSearchModal.tsx; pb-28 bottom scroll cushion in TrustReportModal.tsx and enhanced light-mode contrast on inactive theme cards in SettingsPanel.tsx. All unit tests passed, linting has 0 errors, and applet compiled cleanly.
+- Phase: HOTFIX-81
+- Last verified working: Clean codebase import resolution across all modularized security services (`src/services/security/crypto`, `session`, `backup`, `lockConfig`) and panel components (`PreviewPanel`, `SettingsPanel`, `TerminalPanel`, `QuickConnectSheet`, `main.tsx`, `store.ts`, `deployClient.ts`, `githubClient.ts`, `factory.ts`). All TypeScript types resolved, linting passed with 0 errors and 0 syntax warnings, and full production build compiled successfully.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,34 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-81] Codebase Import Resolution & Clean Modular Architecture Build — 2026-08-27
+Prompt: Resolve all broken module import paths and TS2307/TS2305 compilation errors following security and component reorganization.
+Files touched:
+- `src/components/modals/QuickConnectSheet.tsx` (modified)
+- `src/components/panels/PreviewPanel.tsx` (modified)
+- `src/components/panels/SettingsPanel.tsx` (modified)
+- `src/components/panels/TerminalPanel.tsx` (modified)
+- `src/main.tsx` (modified)
+- `src/services/deploy/deployClient.ts` (modified)
+- `src/services/deploy/deployClient.test.ts` (modified)
+- `src/services/github/githubClient.ts` (modified)
+- `src/services/llm/factory.ts` (modified)
+- `src/services/security/backup.ts` (modified)
+- `src/services/security/backup.test.ts` (modified)
+- `src/services/security/session.ts` (modified)
+- `src/services/security/session.test.ts` (modified)
+- `src/store.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Corrected relative import paths for `services/security/crypto`, `services/security/session`, and `services/security/backup` across modals, panels, and service clients.
+- Fixed `ErrorBoundary` import path in `main.tsx` and exported `ToastItem` type alias in `src/store.ts`.
+- Updated bundler invocation typings in `PreviewPanel.tsx` and `TerminalPanel.tsx`.
+- Verified clean `tsc --noEmit`, `eslint`, and production `compile_applet` build.
+Decisions: Retained backward-compatible `ToastItem` alias in `store.ts` for clean component consumption.
+Deviations: none
+Verified: `lint_applet` passed with 0 errors and `compile_applet` completed successfully.
+Open questions: none
 
 ### [HOTFIX-80] Mobile Coding Accessory Toolbar, Searchable Model Picker Bottom Sheet & Touch Polish — 2026-08-27
 Prompt: CodeMirror Mobile Coding Accessory Bar, Searchable Model Picker Bottom Sheet, Desktop Cruft Cleanup on Touch Devices, and Trust Report Table Layering & Contrast Polish.
