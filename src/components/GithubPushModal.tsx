@@ -420,14 +420,24 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-[10.5px] font-mono text-muted pt-0.5">
-                  <div className="flex items-center gap-1">
+                <div className="grid grid-cols-2 gap-2 w-full text-[10.5px] font-mono text-muted pt-1">
+                  <div className="flex items-center justify-between px-2 py-1.5 rounded bg-surface/60 border border-border/50">
                     <span>AI Attribution:</span>
                     <span className="font-semibold text-text">{Math.round(projectTrust.aiRatio * 100)}% AI</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-between px-2 py-1.5 rounded bg-surface/60 border border-border/50">
                     <span>Tests at Patch:</span>
                     <span className="font-semibold text-emerald-400">{projectTrust.overallTestPassRate}% pass</span>
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-1.5 rounded bg-surface/60 border border-border/50">
+                    <span>Chain Integrity:</span>
+                    <span className={`font-semibold ${projectTrust.chainIntegrity.valid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {projectTrust.chainIntegrity.valid ? 'Valid' : 'Warning'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-1.5 rounded bg-surface/60 border border-border/50">
+                    <span>Files Tracked:</span>
+                    <span className="font-semibold text-text">{projectTrust.totalFiles}</span>
                   </div>
                 </div>
 
@@ -475,19 +485,19 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
             <button 
               type="submit"
               disabled={loading || !owner || !repo}
-              title={`Push to New Branch (${activeTargetBranch})`}
-              className="w-full min-h-[42px] py-2.5 px-3 bg-accent text-accent-text-on font-sans font-bold rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
+              title={`Push to Remote Branch (${activeTargetBranch})`}
+              className="w-full min-h-[44px] py-2.5 px-4 bg-accent text-accent-text-on font-sans font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer shadow-xs"
             >
               {loading ? (
                 <>
                   <Loader2 size={16} className="animate-spin shrink-0" />
-                  <span className="text-xs sm:text-sm">{progress || 'Pushing...'}</span>
+                  <span className="text-xs sm:text-sm font-semibold">{progress || 'Pushing...'}</span>
                 </>
               ) : (
-                <div className="flex items-center justify-center gap-1.5 min-w-0 max-w-full text-center px-1">
-                  <GitBranch size={15} className="shrink-0" />
-                  <span className="text-xs sm:text-sm leading-tight break-all sm:break-words line-clamp-2" title={activeTargetBranch}>
-                    Push to New Branch (<span className="font-mono underline decoration-accent-text-on/30">{activeTargetBranch}</span>)
+                <div className="flex items-center justify-center gap-2 min-w-0 max-w-full text-center">
+                  <GitBranch size={16} className="shrink-0" />
+                  <span className="text-xs sm:text-sm font-bold whitespace-nowrap">
+                    Push to Remote Branch
                   </span>
                 </div>
               )}

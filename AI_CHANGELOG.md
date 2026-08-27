@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-64
-- Last verified working: Polished the text spacing and alignment within the chat view's configuration warning bar. Updated warning string to concise high-density phrasing ("Configure an AI profile to start chatting"), applied flexbox spacing (`flex justify-between items-center px-3 py-2.5`), and wrapped the right-hand action link into a distinct, high-contrast red pill badge labeled "Configure". Vitest unit tests in `ChatPanel.test.tsx` (9/9 passing), `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-65
+- Last verified working: Refactored the GitHub Push modal action button and PR Provenance card. Shortened the primary submit button text to concise "Push to Remote Branch" with whitespace-nowrap protection to guarantee a single uniform row on mobile viewports. Structured the PR Provenance and Trust Analysis card metrics into a balanced 2x2 grid layout matrix (AI Attribution, Tests at Patch, Chain Integrity, and Files Tracked). All 12 unit tests in `GithubPushModal.test.ts` and `GithubImportModal.test.ts` pass, full test suite passes, `compile_applet` succeeds, and `lint_applet` reports 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,21 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-65] Refactor GitHub Push Modal Submit Button & PR Provenance 2x2 Grid Matrix — 2026-08-27
+Prompt: Refactor the button text strings and internal analysis card alignments inside the GitHub Import and Push modal components: shorten the main orange action button text on the Push modal to be highly punchy ("Push to Remote Branch"), and refactor the PR Provenance card row content into a clean 2x2 grid layout matrix.
+Files touched:
+- `src/components/GithubPushModal.tsx` (modified)
+- `src/components/GithubPushModal.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Shortened the primary submit button text on `GithubPushModal` from "Push to New Branch (<branch>)" to concise `"Push to Remote Branch"` with `whitespace-nowrap`, preserving the target branch in the button's title tooltip.
+- Refactored the PR Provenance & Trust Analysis metric cards into a clean 2x2 grid layout matrix (`grid grid-cols-2 gap-2 w-full`) pairing AI Attribution, Tests at Patch, Chain Integrity, and Files Tracked.
+- Updated all test queries in `GithubPushModal.test.ts` to match the new button text.
+Decisions: Kept the target branch name accessible via native tooltip title and input field rather than cluttering mobile button text.
+Deviations: none
+Verified: Vitest unit tests in `GithubPushModal.test.ts` and `GithubImportModal.test.ts` (12/12 passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-64] Polish Chat View Configuration Warning Bar Text & Action Badge — 2026-08-27
 Prompt: Polish the text spacing and alignment within the chat view's configuration warning bar: update warning string to "Configure an AI profile to start chatting", refactor layout to flex justify-between items-center px-3, and wrap the action link into a standalone red outline badge labeled "Configure".

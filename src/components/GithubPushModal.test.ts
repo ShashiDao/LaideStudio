@@ -164,7 +164,7 @@ describe('GithubPushModal', () => {
     fireEvent.change(screen.getByPlaceholderText('Update from LAIDE Studio'), { target: { value: 'Feat: push test' } });
 
     // Submit form
-    const form = screen.getByRole('button', { name: /push to new branch/i });
+    const form = screen.getByRole('button', { name: /push to remote branch/i });
     fireEvent.click(form);
 
     await waitFor(() => {
@@ -275,7 +275,7 @@ describe('GithubPushModal', () => {
     fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'testorg' } });
     fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'testrepo' } });
     
-    fireEvent.click(screen.getByRole('button', { name: /push to new branch/i }));
+    fireEvent.click(screen.getByRole('button', { name: /push to remote branch/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Branch Created!')).toBeDefined();
@@ -353,7 +353,7 @@ describe('GithubPushModal', () => {
     fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'org' } });
     fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'repo' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /push to new branch/i }));
+    fireEvent.click(screen.getByRole('button', { name: /push to remote branch/i }));
 
     await waitFor(() => {
       expect(screen.getByText('No changes detected to push.')).toBeDefined();
@@ -384,7 +384,7 @@ describe('GithubPushModal', () => {
     fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'org' } });
     fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'repo' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /push to new branch/i }));
+    fireEvent.click(screen.getByRole('button', { name: /push to remote branch/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/GitHub API error: 403/i)).toBeDefined();
@@ -440,7 +440,7 @@ describe('GithubPushModal', () => {
     const newBranchInput = screen.getAllByRole('textbox').find(el => (el as HTMLInputElement).placeholder.includes('laide-')) as HTMLInputElement;
     fireEvent.change(newBranchInput, { target: { value: 'my-branch' } });
     
-    let pushButton = screen.getByRole('button', { name: /push to new branch/i });
+    let pushButton = screen.getByRole('button', { name: /push to remote branch/i });
     fireEvent.click(pushButton);
 
     await waitFor(() => {
@@ -451,7 +451,7 @@ describe('GithubPushModal', () => {
     expect(newBranchInput.value).toBe('my-branch-2');
     
     // Click push again
-    pushButton = screen.getByRole('button', { name: /push to new branch/i });
+    pushButton = screen.getByRole('button', { name: /push to remote branch/i });
     fireEvent.click(pushButton);
     
     await waitFor(() => {
