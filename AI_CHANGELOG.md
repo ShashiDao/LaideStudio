@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-65
-- Last verified working: Refactored the GitHub Push modal action button and PR Provenance card. Shortened the primary submit button text to concise "Push to Remote Branch" with whitespace-nowrap protection to guarantee a single uniform row on mobile viewports. Structured the PR Provenance and Trust Analysis card metrics into a balanced 2x2 grid layout matrix (AI Attribution, Tests at Patch, Chain Integrity, and Files Tracked). All 12 unit tests in `GithubPushModal.test.ts` and `GithubImportModal.test.ts` pass, full test suite passes, `compile_applet` succeeds, and `lint_applet` reports 0 errors.
+- Phase: HOTFIX-66
+- Last verified working: Resolved mobile overflow bug in `ChatPanel` where an unusable, disabled Send button was rendered alongside the unconfigured profile warning banner and clipped at the right screen edge. Made the warning banner full width (`w-full`) when `activeProfileId` is null, rendering the textarea and Send/Stop controls only when an active profile is configured. Vitest tests (484/484 tests passing across 68 suites), `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,21 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-66] Hide Disabled Send Button & Make Profile Warning Bar Full-Width — 2026-08-27
+Prompt: Fix clipped send button in mobile chat view when AI profile is not configured.
+Files touched:
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/ChatPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Refactored `ChatPanel` input controls to conditionally render either the full-width (`w-full`) configuration warning banner (`!activeProfileId`) or the active input group containing `<textarea>` and Send/Stop action buttons.
+- Removed the unusable, disabled Send button when no AI profile is selected, eliminating right-edge horizontal overflow and element clipping on mobile screens.
+- Updated `ChatPanel.test.tsx` to assert that the Send message button is absent in the unconfigured state.
+Decisions: When no profile is configured, the user cannot send messages; presenting only the actionable warning banner provides a cleaner, full-width touch target that routes directly to settings.
+Deviations: none
+Verified: Full Vitest suite (484 tests passing across 68 suites), `ChatPanel.test.tsx` (9 tests passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-65] Refactor GitHub Push Modal Submit Button & PR Provenance 2x2 Grid Matrix — 2026-08-27
 Prompt: Refactor the button text strings and internal analysis card alignments inside the GitHub Import and Push modal components: shorten the main orange action button text on the Push modal to be highly punchy ("Push to Remote Branch"), and refactor the PR Provenance card row content into a clean 2x2 grid layout matrix.

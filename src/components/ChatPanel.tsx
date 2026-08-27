@@ -934,7 +934,7 @@ export function ChatPanel({
                 type="button"
                 onClick={() => setActiveTab('settings')}
                 aria-label="Configure an AI profile to start chatting"
-                className="flex-1 bg-surface border border-rose-500/30 hover:border-rose-500/50 rounded-lg flex justify-between items-center px-3 py-2.5 min-h-[48px] text-left text-xs sm:text-sm text-rose-400/90 hover:text-rose-300 transition-colors cursor-pointer group shadow-xs active:scale-[0.99]"
+                className="w-full bg-surface border border-rose-500/30 hover:border-rose-500/50 rounded-lg flex justify-between items-center px-3.5 py-2.5 min-h-[48px] text-left text-xs sm:text-sm text-rose-400/90 hover:text-rose-300 transition-colors cursor-pointer group shadow-xs active:scale-[0.99]"
                 title="Configure an AI profile to start chatting"
               >
                 <span className="font-sans truncate mr-2">
@@ -945,42 +945,44 @@ export function ChatPanel({
                 </span>
               </button>
             ) : (
-              <textarea
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={loading}
-                placeholder="Describe what to build or change..."
-                className="flex-1 bg-surface border border-border rounded-lg p-3 min-h-[48px] max-h-[200px] text-sm text-text placeholder-text/40 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed resize-none leading-relaxed"
-                rows={1}
-                style={{
-                  height: input ? 'auto' : '48px',
-                }}
-              />
-            )}
+              <>
+                <textarea
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={loading}
+                  placeholder="Describe what to build or change..."
+                  className="flex-1 bg-surface border border-border rounded-lg p-3 min-h-[48px] max-h-[200px] text-sm text-text placeholder-text/40 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed resize-none leading-relaxed"
+                  rows={1}
+                  style={{
+                    height: input ? 'auto' : '48px',
+                  }}
+                />
 
-            {loading ? (
-              <button
-                type="button"
-                onClick={handleStop}
-                className="h-[48px] px-3 bg-oxide/20 border border-oxide/50 text-oxide hover:bg-oxide/30 rounded-lg flex items-center justify-center gap-1.5 font-sans text-xs font-bold transition-colors cursor-pointer shrink-0"
-                title="Cancel response"
-                aria-label="Cancel response"
-              >
-                <Square size={14} fill="currentColor" />
-                <span>Stop</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleSend()}
-                disabled={!input.trim() || !activeProfileId || loading}
-                className="h-[48px] w-[48px] shrink-0 bg-accent text-surface rounded-lg flex items-center justify-center hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                title="Send message"
-                aria-label="Send message"
-              >
-                <Send size={18} />
-              </button>
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={handleStop}
+                    className="h-[48px] px-3 bg-oxide/20 border border-oxide/50 text-oxide hover:bg-oxide/30 rounded-lg flex items-center justify-center gap-1.5 font-sans text-xs font-bold transition-colors cursor-pointer shrink-0"
+                    title="Cancel response"
+                    aria-label="Cancel response"
+                  >
+                    <Square size={14} fill="currentColor" />
+                    <span>Stop</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleSend()}
+                    disabled={!input.trim() || loading}
+                    className="h-[48px] w-[48px] shrink-0 bg-accent text-surface rounded-lg flex items-center justify-center hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    title="Send message"
+                    aria-label="Send message"
+                  >
+                    <Send size={18} />
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

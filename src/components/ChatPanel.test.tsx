@@ -100,6 +100,9 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
     fireEvent.click(settingsBtn);
     expect(mockSetActiveTab).toHaveBeenCalledWith('settings');
 
+    // Send button should not be rendered when no profile is configured
+    expect(screen.queryByRole('button', { name: /Send message/i })).toBeNull();
+
     // Detail popup should not be present
     expect(screen.queryByRole('region', { name: 'Session control details' })).toBeNull();
   });
