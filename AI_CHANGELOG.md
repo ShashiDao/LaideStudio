@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-70
-- Last verified working: Refactored vertical alignment of the "< Categories" back button in `SettingsPanel.tsx` using `flex items-center gap-1.5 h-full py-1` with text baseline matching the vector chevron, and formatted the theme "Palette" color swatches row into a cleanly padded group (`flex items-center gap-2 mt-2 px-1`). Vitest unit tests in `SettingsPanel.test.tsx` (11/11 passing), `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-71
+- Last verified working: Re-architected the AI Provider card selection block in `SettingsPanel.tsx` using an adaptive grid (`grid-cols-2 sm:grid-cols-3 gap-2`) with balanced full-width mobile spanning for odd/last items, removed the redundant "Selected: [Provider]" dropdown container, applied standardized `gap-2.5` / `space-y-2.5` spacing across profile inputs, encapsulated the introductory text of the "1-Click Live Deploy Tokens" card entirely inside the parent form container, and elevated placeholder text contrast across all input fields using `placeholder-neutral-500`. All 68 test files and 490 Vitest tests, `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,24 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-71] AI Provider Grid Layout, Redundant Dropdown Removal & Deploy Card Encapsulation — 2026-08-27
+Prompt: Refactor the Provider choice layout grids and input constraints inside the AI Connections Sub-Panel view (adaptive grid, remove redundant dropdown, apply gap-2.5 spacing) and refactor the Settings Integrations Panel (encapsulate introductory text inside card container, elevate placeholder contrast with placeholder-neutral-500).
+Files touched:
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/SettingsPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Re-architected the AI Provider card selection block in `SettingsPanel.tsx` using an adaptive grid (`grid-cols-2 sm:grid-cols-3 gap-2`), with `col-span-2 sm:col-span-1` applied to the last item ("Ollama / Local") so it gracefully spans both columns on mobile without visual voids.
+- Removed the redundant "Selected: [Provider]" dropdown trigger button and the unused provider swipe-up sheet modal.
+- Standardized spacing across the profile initialization form with `space-y-2.5` and `gap-2.5` between "Profile Label" and "Model Name".
+- Encapsulated the "1-Click Live Deploy Tokens" introductory paragraph completely inside the parent card container with `space-y-4` and `break-words` to eliminate text leakage across boundaries.
+- Enhanced contrast of empty placeholder text across all Settings textboxes and textareas using `placeholder-neutral-500`.
+- Updated provider selection unit tests in `SettingsPanel.test.tsx` to click provider chips directly.
+Decisions: Retained existing encrypted storage and API key visibility toggles while simplifying the provider selection hierarchy.
+Deviations: none
+Verified: All 68 test suites and 490 unit tests passed, `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-70] Settings Header Back-Navigation Alignment & Theme Palette Swatch Padding — 2026-08-27
 Prompt: Refactor the alignment and button spacing layout within the Settings and Appearance panel views: wrap the "< Categories" button in flex items-center gap-1.5 h-full py-1 with matched baselines, and group the bottom theme "Palette" swatches in a cleanly padded flex items-center gap-2 mt-2 px-1 row.

@@ -191,7 +191,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   const [editingId, setEditingId] = useState<string | null>(null);
   const [label, setLabel] = useState('');
   const [provider, setProvider] = useState('anthropic');
-  const [isProviderSheetOpen, setIsProviderSheetOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [baseUrl, setBaseUrl] = useState('');
@@ -1041,19 +1040,22 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                   )}
                 </div>
                 
-                <form onSubmit={handleSave} className="space-y-3.5">
+                <form onSubmit={handleSave} className="space-y-2.5">
                   {/* Quick Provider Picker Chips */}
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-medium text-muted">Provider</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                      {PROVIDERS.map(opt => {
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {PROVIDERS.map((opt, idx) => {
                         const isSelected = provider === opt.id;
+                        const isLastOdd = idx === PROVIDERS.length - 1 && PROVIDERS.length % 2 !== 0;
                         return (
                           <button
                             key={opt.id}
                             type="button"
                             onClick={() => selectProvider(opt.id)}
                             className={`px-2.5 py-2 rounded-lg border text-left flex flex-col gap-0.5 transition-all cursor-pointer ${
+                              isLastOdd ? 'col-span-2 sm:col-span-1' : 'col-span-1'
+                            } ${
                               isSelected
                                 ? 'border-accent bg-accent/15 text-accent font-semibold shadow-xs ring-1 ring-accent/30'
                                 : 'border-border/70 bg-bg/50 text-muted hover:border-accent/40 hover:text-text'
@@ -1074,25 +1076,10 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                         );
                       })}
                     </div>
-
-                    {/* Provider Selection Button for Sheet/Dropdown */}
-                    <button
-                      type="button"
-                      onClick={() => setIsProviderSheetOpen(true)}
-                      className="w-full mt-1 bg-bg/70 border border-border/80 rounded-lg px-3 py-1.5 text-text font-sans text-xs focus:border-accent focus:outline-none flex items-center justify-between text-left hover:border-accent/40 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <Bot size={13} className="text-accent shrink-0" />
-                        <span className="truncate">
-                          Selected: <strong className="text-text font-semibold">{PROVIDERS.find(p => p.id === provider)?.label || provider}</strong>
-                        </span>
-                      </div>
-                      <ChevronDown size={14} className="text-muted shrink-0 ml-2" />
-                    </button>
                   </div>
 
                   {/* Profile Label & Model Name */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div className="space-y-1">
                       <label className="block text-[11px] font-medium text-muted">Profile Label</label>
                       <div className="relative flex items-center">
@@ -1103,7 +1090,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                           onChange={e => setLabel(e.target.value)}
                           placeholder="e.g. Work Claude"
                           required
-                          className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-3 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors"
+                          className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-3 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors placeholder-neutral-500"
                         />
                       </div>
                     </div>
@@ -1125,7 +1112,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                           onChange={e => setModel(e.target.value)}
                           placeholder={`e.g. ${DEFAULT_MODELS[provider] || 'gpt-4'}`}
                           required
-                          className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-8 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono"
+                          className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-8 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono placeholder-neutral-500"
                         />
                         <button
                           type="button"
@@ -1197,7 +1184,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                           onChange={e => setBaseUrl(e.target.value)}
                           placeholder="https://openrouter.ai/api/v1"
                           required
-                          className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-3 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono"
+                          className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-3 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono placeholder-neutral-500"
                         />
                       </div>
                     </div>
@@ -1221,7 +1208,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                         onChange={e => setApiKey(e.target.value)}
                         placeholder={API_KEY_HINTS[provider] || 'sk-...'}
                         required={!editingId}
-                        className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-9 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono"
+                        className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-9 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono placeholder-neutral-500"
                       />
                       <button
                         type="button"
@@ -1359,7 +1346,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                     value={instructionsDraft}
                     onChange={(e) => setInstructionsDraft(e.target.value)}
                     placeholder="e.g. Always use TypeScript strict mode. Prefer Tailwind CSS utility classes. Keep components modular and concise. Avoid unnecessary conversational fluff."
-                    className="w-full bg-bg border border-border rounded px-3 py-2.5 text-text font-sans text-xs focus:border-accent focus:outline-none placeholder:text-muted leading-relaxed resize-y min-h-[90px]"
+                    className="w-full bg-bg border border-border rounded px-3 py-2.5 text-text font-sans text-xs focus:border-accent focus:outline-none placeholder-neutral-500 leading-relaxed resize-y min-h-[90px]"
                   />
                 </div>
 
@@ -1406,7 +1393,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                     value={githubPatInput}
                     onChange={e => setGithubPatInput(e.target.value)}
                     placeholder="ghp_..."
-                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none"
+                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none placeholder-neutral-500"
                   />
                   <p className="text-[10px] text-muted mt-1">
                     Used for importing and exporting repositories. Stored encrypted.
@@ -1424,13 +1411,13 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
             </div>
 
             {/* 1-Click Deploy & Hosting Tokens (Netlify & Vercel) */}
-            <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded space-y-5">
+            <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded space-y-4">
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Rocket size={16} className="text-accent" />
-                  <h3 className="text-sm font-sans text-accent">1-Click Live Deploy Tokens</h3>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Rocket size={16} className="text-accent shrink-0" />
+                  <h3 className="text-sm font-sans text-accent font-semibold">1-Click Live Deploy Tokens</h3>
                 </div>
-                <p className="text-xs text-muted font-sans leading-relaxed">
+                <p className="text-xs text-muted font-sans leading-relaxed break-words">
                   Configure tokens for 1-click publishing directly to Netlify or Vercel edge CDN. All tokens are encrypted with your vault master key.
                 </p>
               </div>
@@ -1452,7 +1439,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                 } catch (err) {
                   console.error('Failed to save Netlify token', err);
                 }
-              }} className="space-y-3 pt-2 border-t border-border/60">
+              }} className="space-y-3 pt-3 border-t border-border/60">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-sans text-text font-medium flex items-center gap-1.5">
                     <span>Netlify Personal Access Token</span>
@@ -1472,7 +1459,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                   value={netlifyTokenInput}
                   onChange={e => setNetlifyTokenInput(e.target.value)}
                   placeholder="nfp_..."
-                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-mono text-sm focus:border-accent focus:outline-none"
+                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-mono text-sm focus:border-accent focus:outline-none placeholder-neutral-500"
                 />
                 <button 
                   type="submit"
@@ -1500,7 +1487,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                 } catch (err) {
                   console.error('Failed to save Vercel token', err);
                 }
-              }} className="space-y-3 pt-2 border-t border-border/60">
+              }} className="space-y-3 pt-3 border-t border-border/60">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-sans text-text font-medium flex items-center gap-1.5">
                     <span>Vercel API Token</span>
@@ -1520,7 +1507,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                   value={vercelTokenInput}
                   onChange={e => setVercelTokenInput(e.target.value)}
                   placeholder="vck_..."
-                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-mono text-sm focus:border-accent focus:outline-none"
+                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-mono text-sm focus:border-accent focus:outline-none placeholder-neutral-500"
                 />
                 <button 
                   type="submit"
@@ -1571,7 +1558,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                     onChange={e => setMcpServerUrlInput(e.target.value)}
                     placeholder="http://localhost:3001/sse"
                     required
-                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none"
+                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none placeholder-neutral-500"
                   />
                 </div>
                 
@@ -2233,87 +2220,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                 )}
                 <span>{importingBackup ? 'Restoring...' : 'Confirm Restore'}</span>
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Provider Selector Swipe-Up Sheet */}
-      {isProviderSheetOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
-            onClick={() => setIsProviderSheetOpen(false)}
-          />
-          
-          {/* Sheet */}
-          <div className="relative z-10 w-full max-w-lg mx-auto bg-surface border-t border-border shadow-2xl rounded-t-2xl overflow-hidden transition-all duration-300 animate-in slide-in-from-bottom flex flex-col max-h-[80vh]">
-            {/* Grab handle */}
-            <div 
-              className="pt-3 pb-1 flex justify-center cursor-pointer"
-              onClick={() => setIsProviderSheetOpen(false)}
-            >
-              <div className="w-10 h-1 bg-white/20 rounded-full" />
-            </div>
-
-            {/* Sheet Header */}
-            <div className="h-12 flex items-center justify-between px-5 border-b border-border shrink-0">
-              <span className="font-sans text-sm text-accent font-bold">
-                Select Provider
-              </span>
-              <button 
-                type="button"
-                onClick={() => setIsProviderSheetOpen(false)}
-                aria-label="Close provider selection"
-                className="p-1 text-muted hover:text-text rounded transition-colors cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Provider Options */}
-            <div className="p-4 space-y-2.5 overflow-y-auto">
-              {PROVIDERS.map((opt) => {
-                const isSelected = provider === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => {
-                      selectProvider(opt.id);
-                      setModel(DEFAULT_MODELS[opt.id] || '');
-                      if (opt.id === 'openrouter') {
-                        setBaseUrl('https://openrouter.ai/api/v1');
-                      } else if (opt.id !== 'openai-compatible') {
-                        setBaseUrl('');
-                      }
-                      setIsProviderSheetOpen(false);
-                    }}
-                    className={`w-full p-3.5 rounded-lg border font-sans text-sm text-left flex items-center justify-between transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-accent/15 border-accent text-accent font-bold shadow-xs'
-                        : 'bg-bg/60 border-border text-muted hover:bg-black/5 hover:text-text hover:border-white/15'
-                    }`}
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span className={isSelected ? 'text-accent font-semibold' : 'text-text'}>{opt.label}</span>
-                      <span className="text-[11px] text-muted font-normal">
-                        {opt.id === 'anthropic' && 'Claude models'}
-                        {opt.id === 'openai' && 'GPT models'}
-                        {opt.id === 'google' && 'Gemini models'}
-                        {opt.id === 'openrouter' && '400+ models via OpenRouter'}
-                        {opt.id === 'openai-compatible' && 'Local & custom endpoints'}
-                      </span>
-                    </div>
-                    {isSelected && (
-                      <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center text-accent shrink-0 ml-3">
-                        <Check size={14} className="stroke-[3]" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
             </div>
           </div>
         </div>

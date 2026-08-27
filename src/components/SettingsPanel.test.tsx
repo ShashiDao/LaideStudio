@@ -146,12 +146,8 @@ describe('SettingsPanel', () => {
       const aiBtn = screen.getByRole('button', { name: /AI & Providers/i });
       fireEvent.click(aiBtn);
 
-      // Open provider sheet
-      const providerBtn = screen.getByText(/Selected:/i);
-      fireEvent.click(providerBtn);
-
-      // Select OpenRouter from sheet
-      const openRouterOption = screen.getByRole('button', { name: /400\+ models via OpenRouter/i });
+      // Select OpenRouter card directly from grid
+      const openRouterOption = screen.getByText('400+ Models').closest('button')!;
       fireEvent.click(openRouterOption);
 
       // Verify Base URL input is prefilled
@@ -167,12 +163,8 @@ describe('SettingsPanel', () => {
       const aiBtn = screen.getByRole('button', { name: /AI & Providers/i });
       fireEvent.click(aiBtn);
 
-      // Open provider sheet
-      const providerBtn = screen.getByText(/Selected:/i);
-      fireEvent.click(providerBtn);
-
-      // Select OpenAI Compatible from sheet
-      const compatibleOption = screen.getByRole('button', { name: /Local & custom endpoints/i });
+      // Select OpenAI Compatible / Ollama card directly from grid
+      const compatibleOption = screen.getByText('Ollama / Local').closest('button')!;
       fireEvent.click(compatibleOption);
 
       // Verify Base URL input exists but is empty
