@@ -1,33 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  RefreshCw, 
-  Play, 
-  AlertCircle, 
-  Loader2, 
-  Sparkles, 
-  Eye, 
-  Check, 
-  Rocket, 
-  Smartphone, 
-  Tablet, 
-  Monitor, 
-  Terminal, 
-  Crosshair, 
-  QrCode, 
-  ChevronDown, 
-  ChevronUp, 
-  Trash2,
-  X
-} from 'lucide-react';
+import { RefreshCw, Play, AlertCircle, Loader2, Sparkles, Eye, Check, Rocket, Smartphone, Tablet, Monitor } from 'lucide-react';
 import type { FileItem } from '../db';
-import type { ShellBreakpoint } from '../hooks/useShellBreakpoint';
 import { useAppStore } from '../store';
 import { SUGGESTION_PROMPTS } from '../services/agent/prompts';
 import { detectBundledProject } from '../services/bundler/entryDetection';
 import { injectCaptureScriptIntoHtml, captureIframeScreenshot } from '../services/bundler/previewCapture';
 import { stripTailwindDirectives } from '../services/bundler/esbuild.worker';
 import { EmptyState } from './EmptyState';
-import { QRCodeModal } from './QRCodeModal';
 
 export function buildBundledHtml(code: string, indexHtmlContent?: string): string {
   let finalHtml: string;
@@ -87,25 +66,8 @@ export function injectTailwindScriptIntoHtml(html: string, version: 'v3' | 'v4' 
   return `<script src="${scriptUrl}"></script>\n` + html;
 }
 
-export interface PreviewConsoleEntry {
-  id: string;
-  type: 'log' | 'warn' | 'error' | 'info' | 'debug';
-  args: string[];
-  timestamp: number;
-}
-
-export interface InspectedElementInfo {
-  tagName: string;
-  id: string | null;
-  className: string | null;
-  text: string;
-  width: number;
-  height: number;
-}
-
 interface PreviewPanelProps {
   files: FileItem[];
-  breakpoint?: ShellBreakpoint;
   onOpenDeploy?: () => void;
 }
 
@@ -118,7 +80,7 @@ function resolvePath(base: string, relative: string): string {
   return (dir ? dir + '/' : '/') + relative;
 }
 
-export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelProps) {
+export function PreviewPanel({ files, onOpenDeploy }: PreviewPanelProps) {
   const { 
     setLastBuildError, 
     setActiveTab, 
@@ -135,66 +97,17 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
   const [refreshKey, setRefreshKey] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const [justCaptured, setJustCaptured] = useState(false);
-  
-  // Mobile-native inspection, console and QR state
-  const [showConsoleDrawer, setShowConsoleDrawer] = useState(false);
-  const [consoleLogs, setConsoleLogs] = useState<PreviewConsoleEntry[]>([]);
-  const [isInspectMode, setIsInspectMode] = useState(false);
-  const [inspectedElement, setInspectedElement] = useState<InspectedElementInfo | null>(null);
-  const [showQRModal, setShowQRModal] = useState(false);
-
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Clear logs or notify iframe when refresh happens
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setConsoleLogs([]);
-      setInspectedElement(null);
-      setIsInspectMode(false);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [refreshKey, files]);
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
-      if (!e.data) return;
-      if (e.data.type === 'XIOM_PREVIEW_RUNTIME_ERROR') {
+      if (e.data && e.data.type === 'XIOM_PREVIEW_RUNTIME_ERROR') {
         setRuntimeError({ message: e.data.message, stack: e.data.stack });
-      } else if (e.data.type === 'XIOM_PREVIEW_CONSOLE_LOG') {
-        setConsoleLogs(prev => [
-          ...prev.slice(-99),
-          {
-            id: 'log_' + Math.random().toString(36).slice(2) + Date.now(),
-            type: e.data.logType || 'log',
-            args: e.data.args || [],
-            timestamp: e.data.timestamp || Date.now()
-          }
-        ]);
-      } else if (e.data.type === 'XIOM_PREVIEW_INSPECT_RESULT') {
-        setInspectedElement(e.data.element);
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, []);
-
-  const toggleInspectMode = () => {
-    const nextState = !isInspectMode;
-    setIsInspectMode(nextState);
-    if (!nextState) {
-      setInspectedElement(null);
-    }
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.postMessage({
-          type: 'XIOM_TOGGLE_INSPECT_MODE',
-          enabled: nextState
-        }, '*');
-      } catch {
-        // ignore
-      }
-    }
-  };
 
   const handleCapture = async () => {
     if (!iframeRef.current || isCapturing) return;
@@ -258,6 +171,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
           if (tailwindVersion) {
             finalHtml = injectTailwindScriptIntoHtml(finalHtml, tailwindVersion);
           }
+          
           
           if (!active) return;
           setStatus(null);
@@ -338,6 +252,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
           finalHtml = injectTailwindScriptIntoHtml(finalHtml, tailwindVersion);
         }
         
+        
         if (!active) return;
         setStatus(null);
         setPreviewHtml(finalHtml);
@@ -355,20 +270,12 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
 
     return () => {
       active = false;
+      
     };
   }, [files, refreshKey, setLastBuildError]);
 
   // Handle auto-capture after preview loads when enabled
   const handleIframeLoad = () => {
-    if (isInspectMode && iframeRef.current?.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.postMessage({
-          type: 'XIOM_TOGGLE_INSPECT_MODE',
-          enabled: true
-        }, '*');
-      } catch {}
-    }
-
     if (autoVisionOnPatch && iframeRef.current) {
       setTimeout(async () => {
         try {
@@ -384,10 +291,6 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
   };
 
   const isPreviewable = Boolean(previewHtml && !error);
-  const isPhoneScreen = breakpoint === 'phone';
-
-  const errorCount = consoleLogs.filter(l => l.type === 'error').length;
-  const warnCount = consoleLogs.filter(l => l.type === 'warn').length;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-bg relative">
@@ -409,7 +312,6 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
               <span className="font-bold hidden sm:inline">Publish</span>
             </button>
           )}
-
           <button
             type="button"
             onClick={handleCapture}
@@ -432,119 +334,58 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
             <span className="hidden sm:inline">{justCaptured ? 'Vision Ready' : 'AI View'}</span>
           </button>
           
-          {/* Mobile-Native Tools when breakpoint === 'phone' */}
-          {isPhoneScreen ? (
-            <div 
-              className="flex items-center rounded bg-surface-elevated border border-border p-0.5 shrink-0 gap-0.5" 
-              role="group" 
-              aria-label="Mobile preview tools"
+          {/* Viewport size segmented control */}
+          <div 
+            className="flex items-center rounded bg-surface-elevated border border-border p-0.5 shrink-0" 
+            role="group" 
+            aria-label="Viewport size"
+          >
+            <button
+              type="button"
+              onClick={() => setViewportMode('phone')}
+              className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                viewportMode === 'phone'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="Phone view (~420px)"
+              aria-label="Phone viewport"
+              aria-pressed={viewportMode === 'phone'}
             >
-              {/* In-preview Console Toggle */}
-              <button
-                type="button"
-                onClick={() => setShowConsoleDrawer(prev => !prev)}
-                className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  showConsoleDrawer
-                    ? 'bg-accent/20 border border-accent/30 text-accent font-semibold shadow-xs'
-                    : 'text-muted hover:text-text border border-transparent'
-                }`}
-                title="Toggle in-preview console logs"
-                aria-label="Toggle preview console"
-                aria-pressed={showConsoleDrawer}
-              >
-                <Terminal size={12} />
-                <span className="font-mono text-[10px]">
-                  Logs
-                  {consoleLogs.length > 0 && ` (${consoleLogs.length})`}
-                </span>
-                {errorCount > 0 && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-oxide animate-pulse" />
-                )}
-              </button>
-
-              {/* Tap to Inspect UI mode */}
-              <button
-                type="button"
-                onClick={toggleInspectMode}
-                className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  isInspectMode
-                    ? 'bg-accent text-accent-text-on font-semibold shadow-xs'
-                    : 'text-muted hover:text-text border border-transparent'
-                }`}
-                title="Tap-to-inspect UI mode"
-                aria-label="Tap to inspect"
-                aria-pressed={isInspectMode}
-              >
-                <Crosshair size={12} />
-                <span className="font-mono text-[10px]">Inspect</span>
-              </button>
-
-              {/* Scan QR Code button */}
-              <button
-                type="button"
-                onClick={() => setShowQRModal(true)}
-                className="p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 text-muted hover:text-text border border-transparent hover:bg-surface transition-colors cursor-pointer"
-                title="Scan QR to open preview on another device"
-                aria-label="Scan QR Code"
-              >
-                <QrCode size={12} />
-                <span className="font-mono text-[10px]">QR</span>
-              </button>
-            </div>
-          ) : (
-            /* Viewport size segmented control for Tablet & Desktop breakpoints */
-            <div 
-              className="flex items-center rounded bg-surface-elevated border border-border p-0.5 shrink-0" 
-              role="group" 
-              aria-label="Viewport size"
+              <Smartphone size={12} />
+              <span className="hidden sm:inline">Phone</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewportMode('tablet')}
+              className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                viewportMode === 'tablet'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="Tablet view (~768px)"
+              aria-label="Tablet viewport"
+              aria-pressed={viewportMode === 'tablet'}
             >
-              <button
-                type="button"
-                onClick={() => setViewportMode('phone')}
-                className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  viewportMode === 'phone'
-                    ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
-                    : 'text-muted hover:text-text border border-transparent'
-                }`}
-                title="Phone view (~420px)"
-                aria-label="Phone viewport"
-                aria-pressed={viewportMode === 'phone'}
-              >
-                <Smartphone size={12} />
-                <span className="hidden sm:inline">Phone</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewportMode('tablet')}
-                className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  viewportMode === 'tablet'
-                    ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
-                    : 'text-muted hover:text-text border border-transparent'
-                }`}
-                title="Tablet view (~768px)"
-                aria-label="Tablet viewport"
-                aria-pressed={viewportMode === 'tablet'}
-              >
-                <Tablet size={12} />
-                <span className="hidden sm:inline">Tablet</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewportMode('desktop')}
-                className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
-                  viewportMode === 'desktop'
-                    ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
-                    : 'text-muted hover:text-text border border-transparent'
-                }`}
-                title="Desktop view (100%)"
-                aria-label="Desktop viewport"
-                aria-pressed={viewportMode === 'desktop'}
-              >
-                <Monitor size={12} />
-                <span className="hidden sm:inline">Desktop</span>
-              </button>
-            </div>
-          )}
+              <Tablet size={12} />
+              <span className="hidden sm:inline">Tablet</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewportMode('desktop')}
+              className={`p-1 px-1.5 sm:px-2 rounded text-[11px] font-mono flex items-center gap-1 transition-colors cursor-pointer ${
+                viewportMode === 'desktop'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="Desktop view (100%)"
+              aria-label="Desktop viewport"
+              aria-pressed={viewportMode === 'desktop'}
+            >
+              <Monitor size={12} />
+              <span className="hidden sm:inline">Desktop</span>
+            </button>
+          </div>
 
           <button 
             type="button"
@@ -560,37 +401,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
         </div>
       </div>
       
-      {/* Inspected Element Banner (when Inspect mode is active and user tapped an element) */}
-      {isPhoneScreen && isInspectMode && inspectedElement && (
-        <div className="px-3 py-1.5 bg-accent/15 border-b border-accent/30 flex items-center justify-between gap-2 text-xs font-mono shrink-0 animate-in fade-in slide-in-from-top-1">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
-            <span className="font-bold text-accent">
-              &lt;{inspectedElement.tagName}
-              {inspectedElement.id ? `#${inspectedElement.id}` : ''}
-              {inspectedElement.className ? `.${inspectedElement.className.trim().split(/\s+/)[0]}` : ''}
-              &gt;
-            </span>
-            <span className="text-[10px] text-muted shrink-0">
-              {inspectedElement.width}×{inspectedElement.height}px
-            </span>
-            {inspectedElement.text && (
-              <span className="text-[10px] text-text/80 truncate italic">
-                "{inspectedElement.text}"
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => setInspectedElement(null)}
-            className="p-0.5 text-muted hover:text-text rounded cursor-pointer"
-            aria-label="Dismiss inspected element"
-          >
-            <X size={13} />
-          </button>
-        </div>
-      )}
-
-      <div className={`flex-1 relative overflow-hidden ${isPhoneScreen || viewportMode === 'desktop' ? 'bg-white' : 'bg-bg/60 canvas-grid-pattern'}`}>
+      <div className={`flex-1 relative overflow-hidden ${viewportMode === 'desktop' ? 'bg-white' : 'bg-bg/60 canvas-grid-pattern'}`}>
         {error || runtimeError ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-bg canvas-grid-pattern">
             {error && error.includes('No index.html found') ? (
@@ -638,9 +449,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
             <div 
               data-testid="preview-viewport-container"
               className={`h-full mx-auto transition-all duration-200 ease-in-out flex flex-col ${
-                isPhoneScreen
-                  ? 'w-full shadow-none bg-white'
-                  : viewportMode === 'phone'
+                viewportMode === 'phone'
                   ? 'w-[420px] max-w-full border-x border-border shadow-xl bg-white'
                   : viewportMode === 'tablet'
                   ? 'w-[768px] max-w-full border-x border-border shadow-xl bg-white'
@@ -666,98 +475,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
             </div>
           </div>
         )}
-
-        {/* In-preview Console Drawer (Mobile) */}
-        {isPhoneScreen && showConsoleDrawer && (
-          <div 
-            className="absolute inset-x-0 bottom-0 max-h-[50%] min-h-[140px] bg-surface/95 backdrop-blur-md border-t border-border flex flex-col shadow-2xl z-30 animate-in slide-in-from-bottom-2 duration-150"
-            role="region"
-            aria-label="Preview Console Logs"
-          >
-            {/* Console Header */}
-            <div className="h-8 px-3 bg-surface-elevated border-b border-border flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2 text-xs font-mono">
-                <Terminal size={12} className="text-accent" />
-                <span className="font-semibold text-text">Preview Console</span>
-                <span className="text-[10px] text-muted">
-                  {consoleLogs.length} events
-                </span>
-                {errorCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded bg-oxide/15 text-oxide text-[9px] font-bold">
-                    {errorCount} err
-                  </span>
-                )}
-                {warnCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-500 text-[9px] font-bold">
-                    {warnCount} warn
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setConsoleLogs([])}
-                  className="p-1 text-muted hover:text-text rounded hover:bg-surface transition-colors cursor-pointer"
-                  title="Clear Console"
-                  aria-label="Clear Console"
-                >
-                  <Trash2 size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConsoleDrawer(false)}
-                  className="p-1 text-muted hover:text-text rounded hover:bg-surface transition-colors cursor-pointer"
-                  title="Close Console"
-                  aria-label="Close Console"
-                >
-                  <ChevronDown size={14} />
-                </button>
-              </div>
-            </div>
-
-            {/* Console Body */}
-            <div className="flex-1 overflow-y-auto p-2 font-mono text-[11px] space-y-1 divide-y divide-border/30">
-              {consoleLogs.length === 0 ? (
-                <div className="text-muted/70 italic text-center py-6 text-xs">
-                  No console logs recorded yet.
-                </div>
-              ) : (
-                consoleLogs.map((log) => (
-                  <div 
-                    key={log.id} 
-                    className={`pt-1 flex items-start gap-2 ${
-                      log.type === 'error' 
-                        ? 'text-oxide bg-oxide/5' 
-                        : log.type === 'warn' 
-                        ? 'text-amber-500 bg-amber-500/5' 
-                        : log.type === 'info' 
-                        ? 'text-accent' 
-                        : 'text-text'
-                    }`}
-                  >
-                    <span className="text-[9px] uppercase px-1 rounded bg-surface-elevated text-muted border border-border/50 shrink-0 font-bold">
-                      {log.type}
-                    </span>
-                    <div className="flex-1 whitespace-pre-wrap break-all leading-snug">
-                      {log.args.join(' ')}
-                    </div>
-                    <span className="text-[9px] text-muted shrink-0">
-                      {new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
-
-      {/* QR Code Modal for Mobile testing */}
-      <QRCodeModal
-        isOpen={showQRModal}
-        onClose={() => setShowQRModal(false)}
-      />
     </div>
   );
 }
-

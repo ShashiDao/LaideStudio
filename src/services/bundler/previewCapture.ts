@@ -81,7 +81,6 @@ window.addEventListener('error', function(e) {
   showPreviewErrorBanner(e.message, e.error && e.error.stack);
   try {
     window.parent.postMessage({ type: 'XIOM_PREVIEW_RUNTIME_ERROR', message: e.message, stack: e.error && e.error.stack }, '*');
-    window.parent.postMessage({ type: 'XIOM_PREVIEW_CONSOLE_LOG', logType: 'error', args: [e.message] }, '*');
   } catch (_) {}
 });
 window.addEventListener('unhandledrejection', function(e) {
@@ -89,130 +88,8 @@ window.addEventListener('unhandledrejection', function(e) {
   showPreviewErrorBanner(msg, e.reason && e.reason.stack);
   try {
     window.parent.postMessage({ type: 'XIOM_PREVIEW_RUNTIME_ERROR', message: msg, stack: e.reason && e.reason.stack }, '*');
-    window.parent.postMessage({ type: 'XIOM_PREVIEW_CONSOLE_LOG', logType: 'error', args: [msg] }, '*');
   } catch (_) {}
 });
-
-// Intercept console.log, console.warn, console.error, console.info for in-preview console
-(function setupConsoleProxy() {
-  ['log', 'warn', 'error', 'info', 'debug'].forEach(function(method) {
-    var original = console[method];
-    console[method] = function() {
-      var args = Array.prototype.slice.call(arguments).map(function(arg) {
-        if (arg === null) return 'null';
-        if (arg === undefined) return 'undefined';
-        if (typeof arg === 'object') {
-          try {
-            return JSON.stringify(arg, null, 2);
-          } catch (e) {
-            return String(arg);
-          }
-        }
-        return String(arg);
-      });
-      try {
-        window.parent.postMessage({
-          type: 'XIOM_PREVIEW_CONSOLE_LOG',
-          logType: method,
-          args: args,
-          timestamp: Date.now()
-        }, '*');
-      } catch (_) {}
-      if (typeof original === 'function') {
-        original.apply(console, arguments);
-      }
-    };
-  });
-})();
-
-// Tap to Inspect UI mode
-(function setupInspectMode() {
-  var inspectEnabled = false;
-  var highlightOverlay = null;
-
-  function createOverlay() {
-    if (highlightOverlay) return highlightOverlay;
-    highlightOverlay = document.createElement('div');
-    highlightOverlay.id = '__xiom_inspect_overlay__';
-    highlightOverlay.style.cssText = 'position:fixed;pointer-events:none;z-index:9999999;border:2px solid #3b82f6;background:rgba(59,130,246,0.15);transition:all 0.05s ease;display:none;box-sizing:border-box;border-radius:4px;';
-    var badge = document.createElement('div');
-    badge.id = '__xiom_inspect_badge__';
-    badge.style.cssText = 'position:absolute;top:-22px;left:0;background:#3b82f6;color:#ffffff;font-size:10px;font-family:monospace;padding:2px 6px;border-radius:3px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);';
-    highlightOverlay.appendChild(badge);
-    document.documentElement.appendChild(highlightOverlay);
-    return highlightOverlay;
-  }
-
-  function handlePointerMove(e) {
-    if (!inspectEnabled) return;
-    var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el === highlightOverlay || el.id === '__xiom_inspect_overlay__' || el.id === '__xiom_inspect_badge__') return;
-
-    var rect = el.getBoundingClientRect();
-    var overlay = createOverlay();
-    overlay.style.display = 'block';
-    overlay.style.top = rect.top + 'px';
-    overlay.style.left = rect.left + 'px';
-    overlay.style.width = rect.width + 'px';
-    overlay.style.height = rect.height + 'px';
-
-    var tagName = el.tagName.toLowerCase();
-    var idStr = el.id ? '#' + el.id : '';
-    var classStr = el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/)[0] : '';
-    var dims = Math.round(rect.width) + 'x' + Math.round(rect.height);
-    var badge = overlay.querySelector('#__xiom_inspect_badge__');
-    if (badge) {
-      badge.textContent = '<' + tagName + idStr + classStr + '> ' + dims;
-    }
-  }
-
-  function handleClick(e) {
-    if (!inspectEnabled) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el.id === '__xiom_inspect_overlay__' || el.id === '__xiom_inspect_badge__') return;
-
-    var tagName = el.tagName.toLowerCase();
-    var id = el.id || null;
-    var className = typeof el.className === 'string' ? el.className : null;
-    var textContent = (el.textContent || '').trim().slice(0, 100);
-    var rect = el.getBoundingClientRect();
-
-    try {
-      window.parent.postMessage({
-        type: 'XIOM_PREVIEW_INSPECT_RESULT',
-        element: {
-          tagName: tagName,
-          id: id,
-          className: className,
-          text: textContent,
-          width: Math.round(rect.width),
-          height: Math.round(rect.height)
-        }
-      }, '*');
-    } catch (_) {}
-  }
-
-  window.addEventListener('message', function(e) {
-    if (!e.data) return;
-    if (e.data.type === 'XIOM_TOGGLE_INSPECT_MODE') {
-      inspectEnabled = Boolean(e.data.enabled);
-      if (!inspectEnabled && highlightOverlay) {
-        highlightOverlay.style.display = 'none';
-      }
-    }
-  });
-
-  document.addEventListener('mousemove', handlePointerMove, true);
-  document.addEventListener('touchstart', function(e) {
-    if (inspectEnabled && e.touches.length > 0) {
-      handlePointerMove({ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY });
-    }
-  }, true);
-  document.addEventListener('click', handleClick, true);
-})();
 
 (function() {
   if (window.__XIOM_CAPTURE_INITIALIZED__) return;

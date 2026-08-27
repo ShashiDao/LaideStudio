@@ -85,35 +85,35 @@ export const SETTINGS_CATEGORIES: SettingsCategoryDef[] = [
     id: 'appearance',
     label: 'Appearance',
     shortLabel: 'Appearance',
-    description: 'Themes & Contrast',
+    description: 'Theme styling, palettes, and display contrast calibration',
     icon: Palette
   },
   {
     id: 'ai-providers',
     label: 'AI & Providers',
     shortLabel: 'AI & Providers',
-    description: 'LLM Profiles & Ensembles',
+    description: 'Connection profiles, Dual-LLM ensemble, and custom instructions',
     icon: Bot
   },
   {
     id: 'integrations',
     label: 'Integrations',
     shortLabel: 'Integrations',
-    description: 'GitHub, Deploys & MCP',
+    description: 'GitHub sync, 1-Click deploy tokens, and MCP servers',
     icon: Globe
   },
   {
     id: 'security-vault',
     label: 'Security & Vault',
     shortLabel: 'Security',
-    description: 'Vault Lock & Backups',
+    description: 'Vault lock security and encrypted JSON backup / restore',
     icon: ShieldCheck
   },
   {
     id: 'advanced',
     label: 'Advanced',
     shortLabel: 'Advanced',
-    description: 'Diagnostics, Cache & Keys',
+    description: 'System diagnostics, dependency cache, and keyboard shortcuts',
     icon: Activity
   }
 ];
@@ -2012,6 +2012,16 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
             </div>
           )}
         </div>
+
+        <button
+          onClick={handleLockClick}
+          className="flex items-center gap-1.5 px-2.5 py-1 bg-surface border border-border hover:border-oxide/50 hover:bg-oxide/10 text-muted hover:text-oxide rounded text-xs font-sans transition-colors cursor-pointer"
+          title="Lock Vault"
+          aria-label="Lock Vault"
+        >
+          <Lock size={12} className="shrink-0" />
+          <span>Lock Vault</span>
+        </button>
       </div>
 
       {/* Main Content Area: Responsive Layout */}
@@ -2069,15 +2079,15 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                       onClick={() => handleSelectCategory(cat.id)}
                       className="w-full p-3.5 rounded-xl border border-border bg-surface/40 hover:bg-surface hover:border-accent/40 text-left flex items-center justify-between gap-3 transition-all cursor-pointer group shadow-2xs"
                     >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="w-9 h-9 rounded-lg bg-surface-elevated border border-border flex items-center justify-center text-accent group-hover:scale-105 transition-transform shrink-0">
                           <Icon size={16} />
                         </div>
-                        <div className="min-w-0 flex-1">
+                        <div className="min-w-0">
                           <h3 className="text-xs font-semibold text-text tracking-tight group-hover:text-accent transition-colors">
                             {cat.label}
                           </h3>
-                          <p className="text-[11px] text-muted mt-0.5 font-sans leading-snug break-words">
+                          <p className="text-[11px] text-muted truncate mt-0.5 font-sans">
                             {cat.description}
                           </p>
                         </div>

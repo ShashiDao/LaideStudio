@@ -5,12 +5,13 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { FileText, MessageSquare, MonitorPlay, Upload, FolderPlus, Plus, Settings, ChevronDown, Trash2, AlertTriangle, X, Terminal, BarChart3 } from 'lucide-react';
 import { useAppStore, type TabId } from './store';
+import type { BeforeInstallPromptEvent } from './types';
 import { testDatabaseReadback } from './seed';
-import { db, type FileItem, type Project } from './db';
+import { db, type FileItem, type Project, type ArchivedProject } from './db';
 import { exportZip } from './services/fs/zipExport';
 import { importZip, isText } from './services/fs/zipImport';
 import { exportProjectAsMarkdown, generateProjectMarkdown } from './services/fs/markdownExport';
-import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles } from './services/fs/vfs';
+import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles, archiveProject, restoreProject, listArchivedProjects, deleteArchivedProject } from './services/fs/vfs';
 import { calculateProjectMetadata } from './utils/projectStats';
 import { FileTree } from './components/FileTree';
 import { Editor } from './components/Editor';
@@ -26,6 +27,10 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { RenameProjectModal } from './components/RenameProjectModal';
 import { ProjectActionsMenu } from './components/ProjectActionsMenu';
+import { ProjectFilesPane } from './components/ProjectFilesPane';
+import { ActivityRail } from './components/ActivityRail';
+import { EditorTabs } from './components/EditorTabs';
+import { TerminalDrawer } from './components/TerminalDrawer';
 const ProjectMetadataPanel = React.lazy(() =>
   import('./components/ProjectMetadataPanel').then((m) => ({ default: m.ProjectMetadataPanel }))
 );
@@ -34,15 +39,15 @@ import { GithubPushModal } from './components/GithubPushModal';
 import { DeployModal } from './components/DeployModal';
 import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
 import { TrustReportModal } from './components/TrustReportModal';
-import { EnsembleDashboard } from './components/EnsembleDashboard';
 import { CreateProjectModal } from './components/CreateProjectModal';
 import { ProjectSearchModal } from './components/ProjectSearchModal';
+import { ArchivedProjectsModal } from './components/ArchivedProjectsModal';
 import { createProjectFromTemplate, type TemplateId } from './services/templates/projectTemplates';
 import { ReloadPrompt } from './components/ReloadPrompt';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Toaster } from './components/Toaster';
 import { useGlobalKeyboardShortcuts } from './hooks/useGlobalKeyboardShortcuts';
-import type { BeforeInstallPromptEvent } from './types.d';
+import { useShellBreakpoint } from './hooks/useShellBreakpoint';
 
 function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
   return (
@@ -69,6 +74,13 @@ export default function App() {
     setActiveTab, 
     activeFileId, 
     setActiveFileId,
+    openFileIds,
+    setOpenFileIds,
+    openFile,
+    closeFile,
+    isTerminalDrawerOpen,
+    setIsTerminalDrawerOpen,
+    toggleTerminalDrawer,
     activeProjectId,
     setActiveProjectId,
     keys,
@@ -97,6 +109,7 @@ export default function App() {
 
   const [dbTested, setDbTested] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [archivedProjects, setArchivedProjects] = useState<ArchivedProject[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [showGithubImport, setShowGithubImport] = useState(false);
   const [showGithubPush, setShowGithubPush] = useState(false);
@@ -106,23 +119,32 @@ export default function App() {
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [focusSearchTrigger, setFocusSearchTrigger] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [showArchivedModal, setShowArchivedModal] = useState(false);
   const [showProjectStats, setShowProjectStats] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
   const [showTrustReportModal, setShowTrustReportModal] = useState(false);
-  const [showEnsembleDashboard, setShowEnsembleDashboard] = useState(false);
   const [trustReportInitialFile, setTrustReportInitialFile] = useState<string | undefined>(undefined);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const breakpoint = useShellBreakpoint(shellRef);
 
   const handleOpenProjectSearch = (initialQuery?: string) => {
     setProjectSearchInitialQuery(initialQuery || '');
     setShowProjectSearchModal(true);
   };
 
-  const activeProject = projects.find(p => p.id === activeProjectId) || projects[0] || null;
+  const activeProject = useMemo(() => {
+    if (projects.length === 0) return null;
+    if (activeProjectId) {
+      const found = projects.find(p => p.id === activeProjectId);
+      if (found) return found;
+    }
+    return projects[0] || null;
+  }, [projects, activeProjectId]);
 
   const handleOpenBisect = (testName?: string) => {
     setBisectInitialTestName(testName);
@@ -145,9 +167,9 @@ export default function App() {
       const allProjects = await db.projects.toArray();
       setProjects(allProjects);
       useAppStore.getState().addToast(`Workspace renamed to "${updated.name}"`, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to rename project', err);
-      useAppStore.getState().addToast(err.message || 'Failed to rename workspace', 'error');
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to rename workspace', 'error');
       throw err;
     }
   };
@@ -172,19 +194,73 @@ export default function App() {
     }
   };
 
+  const handleArchiveProject = async (project: Project) => {
+    try {
+      await archiveProject(project.id);
+      const remainingProjects = await db.projects.toArray();
+      const updatedArchived = await listArchivedProjects();
+      setProjects(remainingProjects);
+      setArchivedProjects(updatedArchived);
+
+      const nextActive = remainingProjects.find(p => p.id !== project.id) || null;
+      if (nextActive) {
+        setActiveProjectId(nextActive.id);
+        setFiles(await listFiles(nextActive.id));
+      } else {
+        setActiveProjectId(null);
+        setFiles([]);
+      }
+
+      useAppStore.getState().addToast(`Archived "${project.name}" to separate collection`, 'success');
+    } catch (err) {
+      console.error('Failed to archive project', err);
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to archive project', 'error');
+    }
+  };
+
+  const handleRestoreProject = async (projectId: string) => {
+    try {
+      const restored = await restoreProject(projectId);
+      const allProjects = await db.projects.toArray();
+      const updatedArchived = await listArchivedProjects();
+      setProjects(allProjects);
+      setArchivedProjects(updatedArchived);
+      setActiveProjectId(restored.id);
+      setFiles(await listFiles(restored.id));
+      useAppStore.getState().addToast(`Restored "${restored.name}" to workspace`, 'success');
+    } catch (err) {
+      console.error('Failed to restore project', err);
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to restore project', 'error');
+    }
+  };
+
+  const handleDeleteArchivedProject = async (projectId: string) => {
+    try {
+      await deleteArchivedProject(projectId);
+      const updatedArchived = await listArchivedProjects();
+      setArchivedProjects(updatedArchived);
+      useAppStore.getState().addToast('Archived project permanently deleted', 'success');
+    } catch (err) {
+      console.error('Failed to delete archived project', err);
+      useAppStore.getState().addToast('Failed to delete archived project', 'error');
+    }
+  };
+
   const handleOpenGithubImport = () => {
-    const enc = localStorage.getItem('xiom_github_pat');
+    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
     if (!enc) {
       setActiveTab('settings');
+      useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to import repositories', 'info');
       return;
     }
     setShowGithubImport(true);
   };
 
   const handleOpenGithubPush = () => {
-    const enc = localStorage.getItem('xiom_github_pat');
+    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
     if (!enc) {
       setActiveTab('settings');
+      useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to push repositories', 'info');
       return;
     }
     setShowGithubPush(true);
@@ -206,12 +282,12 @@ export default function App() {
         }
       }
       useAppStore.getState().addToast(`Created project "${newProj.name}"`, 'success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to create project from template', err);
-      if (err.name === 'QuotaExceededError') {
+      if (err instanceof Error && err.name === 'QuotaExceededError') {
         useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
       } else {
-        useAppStore.getState().addToast(err.message || 'Failed to create project', 'error');
+        useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to create project', 'error');
       }
       throw err;
     }
@@ -308,12 +384,12 @@ export default function App() {
         `Successfully loaded ${totalImported} file${totalImported !== 1 ? 's' : ''} into "${targetProjectName}"`,
         'success'
       );
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to process uploaded files', err);
-      if (err.name === 'QuotaExceededError') {
+      if (err instanceof Error && err.name === 'QuotaExceededError') {
         useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
       } else {
-        useAppStore.getState().addToast(err.message || 'Failed to upload files', 'error');
+        useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to upload files', 'error');
       }
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -327,13 +403,32 @@ export default function App() {
   };
 
   useEffect(() => {
-    testDatabaseReadback().then((res) => {
+    testDatabaseReadback().then(async (res) => {
       setDbTested(res.success);
-      setProjects(res.projects);
-      if (activeProjectId && !res.projects.some(p => p.id === activeProjectId) && res.projects.length > 0) {
-        setActiveProjectId(res.projects[0].id);
+      const loadedProjects = res.projects;
+      setProjects(loadedProjects);
+      try {
+        const loadedArchived = await listArchivedProjects();
+        setArchivedProjects(loadedArchived);
+      } catch (e) {
+        console.error('Failed to load archived projects', e);
       }
-      // If we don't fetch activeProject's files here, we should do it when activeProject changes
+
+      if (loadedProjects.length > 0) {
+        // Existing user with project data: restore saved project or most recently updated
+        const savedId = useAppStore.getState().activeProjectId;
+        const matched = loadedProjects.find(p => p.id === savedId);
+        if (matched) {
+          setActiveProjectId(matched.id);
+        } else {
+          const sorted = [...loadedProjects].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+          setActiveProjectId(sorted[0].id);
+        }
+      } else {
+        // New user with no projects: default page is "No Project Open"
+        setActiveProjectId(null);
+        setFiles([]);
+      }
     }).catch(err => {
       console.error('[DB Test Error]', err);
     });
@@ -341,67 +436,14 @@ export default function App() {
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the browser's default install banner
       e.preventDefault();
-      setDeferredInstallPrompt(e as unknown as BeforeInstallPromptEvent);
+      setDeferredInstallPrompt(e as BeforeInstallPromptEvent);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [setDeferredInstallPrompt]);
-
-  // Virtual keyboard / interactive input focus listener to hide bottom nav bar on mobile
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-
-  useEffect(() => {
-    const handleViewportResize = () => {
-      if (window.visualViewport) {
-        const heightDiff = window.innerHeight - window.visualViewport.height;
-        const isShrunk = heightDiff > 120 || window.visualViewport.height < window.innerHeight * 0.82;
-        setIsKeyboardOpen(isShrunk);
-      }
-    };
-
-    const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        setIsKeyboardOpen(true);
-      }
-    };
-
-    const handleFocusOut = () => {
-      setTimeout(() => {
-        const active = document.activeElement as HTMLElement | null;
-        const isInputActive = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
-        if (!isInputActive) {
-          if (window.visualViewport) {
-            const heightDiff = window.innerHeight - window.visualViewport.height;
-            if (heightDiff <= 120) {
-              setIsKeyboardOpen(false);
-            }
-          } else {
-            setIsKeyboardOpen(false);
-          }
-        }
-      }, 100);
-    };
-
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportResize);
-      window.visualViewport.addEventListener('scroll', handleViewportResize);
-    }
-    window.addEventListener('focusin', handleFocusIn);
-    window.addEventListener('focusout', handleFocusOut);
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResize);
-        window.visualViewport.removeEventListener('scroll', handleViewportResize);
-      }
-      window.removeEventListener('focusin', handleFocusIn);
-      window.removeEventListener('focusout', handleFocusOut);
-    };
-  }, []);
+  }, [setActiveProjectId, setDeferredInstallPrompt]);
 
   useGlobalKeyboardShortcuts({
     activeFileId,
@@ -438,333 +480,95 @@ export default function App() {
   }
 
   return (
-    <div className="flex justify-center min-h-screen bg-black">
-      {/* Mobile Viewport Container */}
-      <div className="w-full max-w-[480px] h-dvh bg-bg text-text flex flex-col relative shadow-2xl overflow-hidden paper-grain-overlay">
-        
-        <Toaster />
+    <div ref={shellRef} className="flex justify-center min-h-screen bg-black w-full">
+      {/* Phone Layout (< 700px): Preserved Bit-for-Bit */}
+      {breakpoint === 'phone' ? (
+        <div className="w-full max-w-[480px] h-dvh bg-bg text-text flex flex-col relative shadow-2xl overflow-hidden paper-grain-overlay">
+          {/* Fixed Top Strip (~28px for context gauge) */}
+          <TopStrip 
+            dbTested={dbTested} 
+            onOpenShortcuts={() => setShowShortcutsModal(true)} 
+            breakpoint={breakpoint}
+          />
 
-        {/* Fixed Top Strip (~28px for context gauge) */}
-        <TopStrip dbTested={dbTested} onOpenShortcuts={() => setShowShortcutsModal(true)} />
-
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-hidden flex flex-col relative">
-          {activeTab === 'files' && (
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-              {/* Clean, compact single-row project header */}
-              <div className="flex items-center justify-between text-accent font-mono text-xs px-2.5 sm:px-3 py-1.5 shrink-0 border-b border-border/60 bg-surface/30 gap-2">
-                {/* Left: Project Selector & Quick Create */}
-                <div className="flex items-center gap-1.5 min-w-0 max-w-[68%] sm:max-w-[72%]">
-                  <div className="relative flex items-center bg-surface border border-border hover:border-accent/50 focus-within:border-accent rounded px-2 py-1 transition-all shadow-xs group min-w-0">
-                    <FileText size={13} className="shrink-0 text-accent/70 mr-1.5" />
-                    <select
-                      value={activeProject?.id || ''}
-                      onChange={(e) => setActiveProjectId(e.target.value)}
-                      aria-label="Select active workspace project"
-                      className="appearance-none bg-transparent font-mono font-medium outline-none cursor-pointer pr-4 text-accent truncate text-[11px] max-w-[120px] sm:max-w-[170px]"
-                    >
-                      {projects.length === 0 ? (
-                        <option value="" disabled className="bg-surface text-text">
-                          No Projects
-                        </option>
-                      ) : (
-                        projects.map(p => (
-                          <option key={p.id} value={p.id} className="bg-surface text-text">
-                            {p.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                    <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-accent/70 group-hover:text-accent transition-colors shrink-0" />
-                  </div>
-
-                  <button
-                    onClick={handleCreateBlankProject}
-                    className="flex items-center justify-center p-1.5 bg-surface border border-border hover:border-accent/50 hover:bg-accent/10 text-accent rounded transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
-                    title="Create New Project"
-                    aria-label="Create new project"
-                  >
-                    <Plus size={13} strokeWidth={2.5} />
-                  </button>
-
-                  {activeProject && (
-                    <span className="hidden xs:inline-block px-1.5 py-0.5 bg-surface text-muted text-[10px] rounded border border-border font-mono shrink-0">
-                      {files.length}
-                    </span>
-                  )}
-
-                  {/* Active Project Detailed Metadata & Chart Trigger Pill */}
-                  {activeProject && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setShowProjectStats(prev => !prev)}
-                        className={`hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer shadow-xs ${
-                          showProjectStats
-                            ? 'bg-accent text-accent-text-on border-accent font-semibold'
-                            : 'bg-surface hover:bg-surface-elevated text-muted hover:text-accent border-border hover:border-accent/40'
-                        }`}
-                        title={`View detailed project metadata & language charts (${activeProjectMetadata.totalLines.toLocaleString()} lines of code)`}
-                        aria-label="Toggle active project detailed metadata and language analytics"
-                      >
-                        <BarChart3 size={11} className={showProjectStats ? 'text-accent-text-on' : 'text-accent'} />
-                        <span>{activeProjectMetadata.totalLines.toLocaleString()} LOC</span>
-                        {activeProjectMetadata.dominantLanguage !== 'None' && (
-                          <span className="opacity-80 hidden md:inline">• {activeProjectMetadata.dominantLanguage}</span>
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowProjectStats(prev => !prev)}
-                        className={`flex sm:hidden items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono transition-all cursor-pointer ${
-                          showProjectStats
-                            ? 'bg-accent text-accent-text-on border-accent'
-                            : 'bg-surface text-muted hover:text-accent border-border'
-                        }`}
-                        title="Toggle active project analytics"
-                        aria-label="Toggle active project analytics"
-                      >
-                        <BarChart3 size={10} className={showProjectStats ? 'text-accent-text-on' : 'text-accent'} />
-                        <span>{activeProjectMetadata.totalLines.toLocaleString()}L</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {/* Hidden file input for file/zip upload */}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileUpload} 
-                  multiple
-                  className="hidden" 
-                />
-
-                {/* Right: Consolidated Professional Project Actions Dropdown Menu */}
-                {activeProject && (
-                  <div className="flex items-center gap-1 shrink-0 font-mono">
-                    <ProjectActionsMenu
-                      project={activeProject}
-                      fileCount={files.length}
-                      onOpenDeploy={() => setShowDeployModal(true)}
-                      onOpenProjectSearch={handleOpenProjectSearch}
-                      onOpenGithubImport={handleOpenGithubImport}
-                      onOpenGithubPush={handleOpenGithubPush}
-                      onOpenAnalytics={() => setShowProjectStats(true)}
-                      onOpenBisect={() => handleOpenBisect()}
-                      onOpenTrustReport={() => {
-                        setTrustReportInitialFile(undefined);
-                        setShowTrustReportModal(true);
-                      }}
-                      onOpenEnsembleDashboard={() => setShowEnsembleDashboard(true)}
-                      onNewProjectClick={() => setShowCreateProjectModal(true)}
-                      onRenameClick={() => setShowRenameModal(true)}
-                      onUploadClick={() => fileInputRef.current?.click()}
-                      onExportClick={async () => {
-                        try {
-                          if (!activeProject) return;
-                          const blob = await exportZip(activeProject.id);
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `${activeProject.name.replace(/\s+/g, '_')}.zip`;
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                          URL.revokeObjectURL(url);
-                          useAppStore.getState().addToast('Project archive exported successfully', 'success');
-                        } catch (err) {
-                          console.error('Export failed', err);
-                          useAppStore.getState().addToast('Failed to export project ZIP', 'error');
-                        }
-                      }}
-                      onExportMarkdownClick={async () => {
-                        try {
-                          if (!activeProject) return;
-                          const { filename, blob } = await exportProjectAsMarkdown(activeProject.id);
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = filename;
-                          document.body.appendChild(a);
-                          a.click();
-                          document.body.removeChild(a);
-                          URL.revokeObjectURL(url);
-                          useAppStore.getState().addToast('Project exported as Markdown documentation', 'success');
-                        } catch (err) {
-                          console.error('Markdown export failed', err);
-                          useAppStore.getState().addToast('Failed to export project Markdown', 'error');
-                        }
-                      }}
-                      onCopyMarkdownClick={async () => {
-                        try {
-                          if (!activeProject) return;
-                          const markdown = await generateProjectMarkdown(activeProject.id);
-                          await navigator.clipboard.writeText(markdown);
-                          useAppStore.getState().addToast('Project markdown copied to clipboard', 'success');
-                        } catch (err) {
-                          console.error('Copy markdown failed', err);
-                          useAppStore.getState().addToast('Failed to copy project Markdown', 'error');
-                        }
-                      }}
-                      onDeleteClick={() => setProjectToDelete(activeProject)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Active Project Metadata & Language Distribution Charts Panel */}
-              {activeProject && (
-                <React.Suspense fallback={null}>
-                  <ProjectMetadataPanel
-                    project={activeProject}
-                    files={files}
-                    isOpen={showProjectStats}
-                    onClose={() => setShowProjectStats(false)}
-                  />
-                </React.Suspense>
-              )}
-              
-              <div 
-                className="flex-1 overflow-hidden flex flex-col relative"
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingFiles(true);
+          {/* Main Content Area */}
+          <main className="flex-1 overflow-hidden flex flex-col relative">
+            {activeTab === 'files' && (
+              <ProjectFilesPane
+                projects={projects}
+                activeProject={activeProject}
+                files={files}
+                breakpoint={breakpoint}
+                onSelectProjectId={setActiveProjectId}
+                onCreateBlankProject={handleCreateBlankProject}
+                onRefreshFiles={refreshFiles}
+                focusSearchTrigger={focusSearchTrigger}
+                onOpenProjectSearch={handleOpenProjectSearch}
+                onOpenDeploy={() => setShowDeployModal(true)}
+                onOpenGithubImport={handleOpenGithubImport}
+                onOpenGithubPush={handleOpenGithubPush}
+                onOpenBisect={handleOpenBisect}
+                onOpenTrustReport={() => {
+                  setTrustReportInitialFile(undefined);
+                  setShowTrustReportModal(true);
                 }}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingFiles(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-                  setIsDraggingFiles(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDraggingFiles(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    handleIncomingFiles(e.dataTransfer.files);
-                  }
-                }}
-              >
-                {/* Drag and Drop Visual Highlight Overlay */}
-                {isDraggingFiles && (
-                  <div className="absolute inset-0 z-50 bg-surface/95 backdrop-blur-xs border-2 border-dashed border-accent flex flex-col items-center justify-center p-6 text-center pointer-events-none">
-                    <div className="w-14 h-14 rounded-full bg-accent/15 border border-accent/40 flex items-center justify-center text-accent mb-3 shadow-lg animate-pulse">
-                      <Upload size={26} />
-                    </div>
-                    <p className="font-mono text-xs font-bold text-text uppercase tracking-wider mb-1">
-                      Drop Files or ZIP Archive
-                    </p>
-                    <p className="font-sans text-[11px] text-muted max-w-xs">
-                      Release to import immediately into your workspace
-                    </p>
-                  </div>
-                )}
-
-                {projects.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center p-6 text-center h-full canvas-grid-pattern">
-                    <div className="border border-border bg-surface/80 rounded-xl p-6 max-w-xs w-full flex flex-col items-center corner-ticks shadow-sm">
-                      <div className="w-12 h-12 rounded-lg bg-surface-elevated border border-accent/40 flex items-center justify-center text-accent mb-3 shadow-xs">
-                        <FolderPlus size={22} />
-                      </div>
-                      <div className="font-mono text-[10px] text-accent tracking-wider uppercase mb-1">
-                        WORKSPACE : UNBOUND
-                      </div>
-                      <h3 className="font-mono text-xs font-bold text-text mb-1">
-                        No Project Open
-                      </h3>
-                      <p className="font-sans text-[11px] text-muted mb-5 leading-relaxed">
-                        Select an action below to draft a workspace or load a codebase archive.
-                      </p>
-                      <div className="flex flex-col gap-2 w-full">
-                        <button
-                          onClick={handleCreateBlankProject}
-                          className="w-full py-2 px-3 bg-accent text-accent-text-on font-mono font-bold text-xs rounded hover:bg-accent/90 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <Plus size={14} /> Create Blank Project
-                        </button>
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full py-2 px-3 bg-surface border border-border text-text font-mono text-xs rounded hover:bg-accent/5 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Upload size={14} /> Upload ZIP or File
-                        </button>
-                        <button
-                          onClick={handleOpenGithubImport}
-                          className="w-full py-2 px-3 bg-surface border border-border text-text font-mono text-xs rounded hover:bg-accent/5 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <GithubIcon size={14} /> Import from GitHub
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <FileTree 
-                    files={files} 
-                    projectId={activeProject.id}
-                    onFilesChanged={refreshFiles}
-                    autoFocusSearch={focusSearchTrigger}
-                    onOpenProjectSearch={handleOpenProjectSearch}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-          {activeTab === 'chat' && (
-            <ChatPanel 
-              projectId={activeProject?.id || 'project-1'} 
-              onOpenEnsembleDashboard={() => setShowEnsembleDashboard(true)}
-            />
-          )}
-          {activeTab === 'preview' && (
-            <ErrorBoundary resetKey={activeProject?.id}>
-              <PreviewPanel 
-                files={files} 
-                onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
+                onOpenCreateProjectModal={() => setShowCreateProjectModal(true)}
+                onOpenRenameModal={() => setShowRenameModal(true)}
+                onArchiveProject={handleArchiveProject}
+                onPromptDeleteProject={setProjectToDelete}
+                onFileUpload={handleFileUpload}
+                onIncomingFiles={handleIncomingFiles}
+                activeProjectMetadata={activeProjectMetadata}
+                showProjectStats={showProjectStats}
+                setShowProjectStats={setShowProjectStats}
+                archivedCount={archivedProjects.length}
+                onOpenArchivedProjects={() => setShowArchivedModal(true)}
               />
-            </ErrorBoundary>
-          )}
-          {activeTab === 'terminal' && (
-            <TerminalPanel 
-              projectId={activeProject?.id} 
-              files={files} 
-              onFilesChanged={refreshFiles}
-              onOpenBisect={handleOpenBisect}
-            />
-          )}
-          {activeTab === 'settings' && (
-            <SettingsPanel onOpenShortcuts={() => setShowShortcutsModal(true)} />
-          )}
+            )}
+            {activeTab === 'chat' && (
+              <ChatPanel projectId={activeProject?.id || 'project-1'} breakpoint={breakpoint} />
+            )}
+            {activeTab === 'preview' && (
+              <ErrorBoundary resetKey={activeProject?.id}>
+                <PreviewPanel 
+                  files={files} 
+                  onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
+                />
+              </ErrorBoundary>
+            )}
+            {activeTab === 'terminal' && (
+              <TerminalPanel 
+                projectId={activeProject?.id} 
+                files={files} 
+                onFilesChanged={refreshFiles}
+                onOpenBisect={handleOpenBisect}
+              />
+            )}
+            {activeTab === 'settings' && (
+              <SettingsPanel onOpenShortcuts={() => setShowShortcutsModal(true)} />
+            )}
 
-          {/* Full-screen Editor View Overlay */}
-          {activeFile && (
-            <Editor 
-              file={activeFile} 
-              onContentChanged={(newContent) => {
-                setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: newContent } : f));
-              }}
-              onOpenBisect={handleOpenBisect}
-              onOpenTrustReport={(filePath) => {
-                setTrustReportInitialFile(filePath);
-                setShowTrustReportModal(true);
-              }}
-            />
-          )}
-        </main>
+            {/* Full-screen Editor View Overlay (Phone mode) */}
+            {activeFile && (
+              <Editor 
+                file={activeFile} 
+                onContentChanged={(newContent) => {
+                  setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: newContent } : f));
+                }}
+                onOpenBisect={handleOpenBisect}
+                onOpenTrustReport={(filePath) => {
+                  setTrustReportInitialFile(filePath);
+                  setShowTrustReportModal(true);
+                }}
+              />
+            )}
+          </main>
 
-        {/* Fixed Bottom Tab Bar with safe-area padding for home indicator - conditionally hidden when virtual keyboard opens to sit flush */}
-        {!isKeyboardOpen && (
+          {/* Fixed Bottom Tab Bar with safe-area padding for home indicator */}
           <nav 
             role="tablist" 
             aria-label="Workspace view tabs"
-            className="pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border flex relative transition-all duration-150 animate-in fade-in slide-in-from-bottom-2"
+            className="pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border flex relative"
           >
             <div className="h-[60px] w-full flex">
               <TabButton id="files" current={activeTab} onClick={setActiveTab} icon={<FileText size={19} />} label="Files" />
@@ -774,19 +578,204 @@ export default function App() {
               <TabButton id="settings" current={activeTab} onClick={setActiveTab} icon={<Settings size={19} />} label="Settings" />
             </div>
           </nav>
-        )}
-        
-        {/* Agent Patch Review */}
-        {activeProject && <PatchReviewSheet projectId={activeProject.id} />}
+        </div>
+      ) : (
+        /* Tablet & Desktop Layout (>= 700px): Persistent Rail + File Tree + Workspace */
+        <div className="w-full h-dvh bg-bg text-text flex flex-col relative overflow-hidden paper-grain-overlay">
+          {/* Top Strip */}
+          <TopStrip 
+            dbTested={dbTested} 
+            onOpenShortcuts={() => setShowShortcutsModal(true)} 
+            breakpoint={breakpoint}
+          />
+
+          {/* Main 3-Column Shell Area */}
+          <div className="flex-1 flex overflow-hidden relative">
+            {/* 1. Left Icon Rail (46px) */}
+            <ActivityRail activeTab={activeTab} onSelectTab={setActiveTab} />
+
+            {/* 2. Persistent Files Pane (~220px) */}
+            <aside 
+              aria-label="Project Explorer"
+              className="w-[220px] shrink-0 border-r border-border bg-surface/20 flex flex-col overflow-hidden"
+            >
+              <ProjectFilesPane
+                projects={projects}
+                activeProject={activeProject}
+                files={files}
+                breakpoint={breakpoint}
+                onSelectProjectId={setActiveProjectId}
+                onCreateBlankProject={handleCreateBlankProject}
+                onRefreshFiles={refreshFiles}
+                focusSearchTrigger={focusSearchTrigger}
+                onOpenProjectSearch={handleOpenProjectSearch}
+                onOpenDeploy={() => setShowDeployModal(true)}
+                onOpenGithubImport={handleOpenGithubImport}
+                onOpenGithubPush={handleOpenGithubPush}
+                onOpenBisect={handleOpenBisect}
+                onOpenTrustReport={() => {
+                  setTrustReportInitialFile(undefined);
+                  setShowTrustReportModal(true);
+                }}
+                onOpenCreateProjectModal={() => setShowCreateProjectModal(true)}
+                onOpenRenameModal={() => setShowRenameModal(true)}
+                onArchiveProject={handleArchiveProject}
+                onPromptDeleteProject={setProjectToDelete}
+                onFileUpload={handleFileUpload}
+                onIncomingFiles={handleIncomingFiles}
+                activeProjectMetadata={activeProjectMetadata}
+                showProjectStats={showProjectStats}
+                setShowProjectStats={setShowProjectStats}
+                archivedCount={archivedProjects.length}
+                onOpenArchivedProjects={() => setShowArchivedModal(true)}
+              />
+            </aside>
+
+            {/* 3. Primary Workspace Column with Editor, Docks & Terminal Drawer */}
+            <main className="flex-1 flex flex-col overflow-hidden relative bg-bg">
+              {activeTab === 'settings' ? (
+                <SettingsPanel onOpenShortcuts={() => setShowShortcutsModal(true)} />
+              ) : activeTab === 'terminal' ? (
+                <TerminalPanel 
+                  projectId={activeProject?.id} 
+                  files={files} 
+                  onFilesChanged={refreshFiles}
+                  onOpenBisect={handleOpenBisect}
+                />
+              ) : (
+                /* Primary Editor & Right-Side Dock Area */
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  {/* Multi-file Editor Tabs Bar */}
+                  <EditorTabs
+                    files={files}
+                    openFileIds={openFileIds}
+                    activeFileId={activeFileId}
+                    onSelectFile={(id) => setActiveFileId(id)}
+                    onCloseFile={(id) => closeFile(id)}
+                    onReorderTabs={(ids) => setOpenFileIds(ids)}
+                  />
+
+                  {/* Horizontal Split: Editor Center + Right Dock */}
+                  <div className="flex-1 flex overflow-hidden min-h-0">
+                    {/* Main Editor Center View */}
+                    <div className="flex-1 flex flex-col overflow-hidden min-w-0 border-r border-border/50">
+                      {activeFile ? (
+                        <Editor 
+                          file={activeFile} 
+                          onContentChanged={(newContent) => {
+                            setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: newContent } : f));
+                          }}
+                          onOpenBisect={handleOpenBisect}
+                          onOpenTrustReport={(filePath) => {
+                            setTrustReportInitialFile(filePath);
+                            setShowTrustReportModal(true);
+                          }}
+                        />
+                      ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center canvas-grid-pattern text-muted select-none">
+                          <div className="border border-border bg-surface/60 rounded-xl p-8 max-w-sm w-full flex flex-col items-center corner-ticks shadow-xs">
+                            <div className="w-12 h-12 rounded-lg bg-surface-elevated border border-accent/40 flex items-center justify-center text-accent mb-3 shadow-xs">
+                              <FileText size={22} />
+                            </div>
+                            <div className="font-mono text-[10px] text-accent tracking-wider uppercase mb-1">
+                              WORKSPACE EDITOR
+                            </div>
+                            <h3 className="font-mono text-sm font-bold text-text mb-1">
+                              No File Selected
+                            </h3>
+                            <p className="font-sans text-xs text-muted leading-relaxed">
+                              Select a file from the explorer pane on the left or press <kbd className="px-1.5 py-0.5 bg-surface border border-border rounded font-mono text-[10px] text-text">Ctrl+P</kbd> to quick-open.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right-Hand Dock: Tablet (Mutually exclusive activeTab 'chat'|'preview') / Desktop (Side-by-side or tabbed) */}
+                    {breakpoint === 'desktop' ? (
+                      <div className="w-[680px] shrink-0 border-l border-border flex overflow-hidden bg-surface/10">
+                        {/* Desktop Chat Dock */}
+                        <div className="w-[340px] shrink-0 border-r border-border flex flex-col overflow-hidden">
+                          <ChatPanel projectId={activeProject?.id || 'project-1'} breakpoint={breakpoint} />
+                        </div>
+                        {/* Desktop Preview Dock */}
+                        <div className="flex-1 flex flex-col overflow-hidden">
+                          <ErrorBoundary resetKey={activeProject?.id}>
+                            <PreviewPanel 
+                              files={files} 
+                              onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
+                            />
+                          </ErrorBoundary>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Tablet Viewport (700-1199px): Dock renders the active panel if 'chat' or 'preview' is selected */
+                      (activeTab === 'chat' || activeTab === 'preview') ? (
+                        <div className="w-[360px] shrink-0 border-l border-border flex flex-col overflow-hidden bg-surface/10">
+                          {activeTab === 'chat' ? (
+                            <ChatPanel projectId={activeProject?.id || 'project-1'} breakpoint={breakpoint} />
+                          ) : (
+                            <ErrorBoundary resetKey={activeProject?.id}>
+                              <PreviewPanel 
+                                files={files} 
+                                onOpenDeploy={activeProject ? () => setShowDeployModal(true) : undefined}
+                              />
+                            </ErrorBoundary>
+                          )}
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+
+                  {/* Collapsible Bottom Terminal Drawer */}
+                  <TerminalDrawer
+                    isOpen={isTerminalDrawerOpen}
+                    onToggle={toggleTerminalDrawer}
+                    onClose={() => setIsTerminalDrawerOpen(false)}
+                    projectId={activeProject?.id}
+                    files={files}
+                    onFilesChanged={refreshFiles}
+                    onOpenBisect={handleOpenBisect}
+                  />
+                </div>
+              )}
+            </main>
+          </div>
+        </div>
+      )}
+
+      {/* Shared Modals, Overlays & Toasts (Render once as siblings to both layout branches) */}
+      <Toaster />
+
+      {/* Active Project Metadata & Language Distribution Charts Panel */}
+      {activeProject && (
+        <React.Suspense fallback={null}>
+          <ProjectMetadataPanel
+            project={activeProject}
+            files={files}
+            isOpen={showProjectStats}
+            onClose={() => setShowProjectStats(false)}
+          />
+        </React.Suspense>
+      )}
+
+      {/* Agent Patch Review */}
+      {activeProject && <PatchReviewSheet projectId={activeProject.id} />}
 
         {/* GitHub Import Modal */}
-        {showGithubImport && activeProject && (
+        {showGithubImport && (
           <GithubImportModal 
-            projectId={activeProject.id} 
+            projectId={activeProject?.id} 
             onClose={() => setShowGithubImport(false)}
-            onSuccess={() => {
+            onSuccess={async (newProjId?: string) => {
               setShowGithubImport(false);
-              refreshFiles();
+              const allProjects = await db.projects.toArray();
+              setProjects(allProjects);
+              const targetId = newProjId || activeProject?.id || (allProjects.length > 0 ? allProjects[allProjects.length - 1].id : null);
+              if (targetId) {
+                setActiveProjectId(targetId);
+                setFiles(await listFiles(targetId));
+              }
             }}
           />
         )}
@@ -916,16 +905,14 @@ export default function App() {
           />
         )}
 
-        {/* Ensemble Mode Studio Dashboard Modal */}
-        {activeProject && (
-          <EnsembleDashboard
-            projectId={activeProject.id}
-            isOpen={showEnsembleDashboard}
-            onClose={() => setShowEnsembleDashboard(false)}
-            files={files}
-            onRefreshFiles={refreshFiles}
-          />
-        )}
+        {/* Archived Projects Modal */}
+        <ArchivedProjectsModal
+          isOpen={showArchivedModal}
+          onClose={() => setShowArchivedModal(false)}
+          archivedProjects={archivedProjects}
+          onRestoreProject={handleRestoreProject}
+          onDeleteArchivedProject={handleDeleteArchivedProject}
+        />
 
         {/* Create Project / Select Template Modal */}
         <CreateProjectModal
@@ -940,7 +927,6 @@ export default function App() {
 
         {/* Custom PWA Install Prompt */}
         <InstallPrompt />
-      </div>
     </div>
   );
 }

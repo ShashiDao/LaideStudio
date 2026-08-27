@@ -322,41 +322,5 @@ describe('PreviewPanel script injection sanitization', () => {
 
       unmount();
     });
-
-    it('swaps viewport scaling chips for mobile-native tools when breakpoint === "phone"', async () => {
-      const { unmount } = render(
-        <PreviewPanel files={sampleFiles as any} breakpoint="phone" onOpenDeploy={() => {}} />
-      );
-
-      await waitFor(() => {
-        expect(screen.getByTitle('Preview')).toBeDefined();
-      });
-
-      // Viewport scaling chips should NOT be present on phone breakpoint
-      expect(screen.queryByRole('button', { name: 'Phone viewport' })).toBeNull();
-      expect(screen.queryByRole('button', { name: 'Tablet viewport' })).toBeNull();
-      expect(screen.queryByRole('button', { name: 'Desktop viewport' })).toBeNull();
-
-      // Mobile native controls MUST be present
-      const logsBtn = screen.getByRole('button', { name: 'Toggle preview console' });
-      const inspectBtn = screen.getByRole('button', { name: 'Tap to inspect' });
-      const qrBtn = screen.getByRole('button', { name: 'Scan QR Code' });
-
-      expect(logsBtn).toBeDefined();
-      expect(inspectBtn).toBeDefined();
-      expect(qrBtn).toBeDefined();
-
-      // Test Logs drawer toggle
-      expect(screen.queryByRole('region', { name: 'Preview Console Logs' })).toBeNull();
-      fireEvent.click(logsBtn);
-      expect(screen.getByRole('region', { name: 'Preview Console Logs' })).toBeDefined();
-
-      // Test QR Modal open
-      expect(screen.queryByRole('dialog', { name: 'Open on Mobile Device' })).toBeNull();
-      fireEvent.click(qrBtn);
-      expect(screen.getByRole('dialog')).toBeDefined();
-
-      unmount();
-    });
   });
 });
