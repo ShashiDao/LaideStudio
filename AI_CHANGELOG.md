@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-68
-- Last verified working: Refactored top action toolbar controls in `PreviewPanel.tsx` with a space-aware scrollable container (`flex justify-between items-center gap-2 px-3 w-full overflow-x-auto sb-hidden`), high-density mobile "AI View" vision toggle with responsive text visibility below 640px, and proportional button padding across segmented viewport controls and Reload action. Vitest unit tests in `PreviewPanel.test.tsx` (11/11 passing), `compile_applet`, and `lint_applet` pass cleanly.
+- Phase: HOTFIX-70
+- Last verified working: Refactored vertical alignment of the "< Categories" back button in `SettingsPanel.tsx` using `flex items-center gap-1.5 h-full py-1` with text baseline matching the vector chevron, and formatted the theme "Palette" color swatches row into a cleanly padded group (`flex items-center gap-2 mt-2 px-1`). Vitest unit tests in `SettingsPanel.test.tsx` (11/11 passing), `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,34 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-70] Settings Header Back-Navigation Alignment & Theme Palette Swatch Padding — 2026-08-27
+Prompt: Refactor the alignment and button spacing layout within the Settings and Appearance panel views: wrap the "< Categories" button in flex items-center gap-1.5 h-full py-1 with matched baselines, and group the bottom theme "Palette" swatches in a cleanly padded flex items-center gap-2 mt-2 px-1 row.
+Files touched:
+- `src/components/SettingsPanel.tsx` (modified)
+- `src/components/SettingsPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Refactored "< Categories" back-navigation button in `SettingsPanel.tsx` to use `flex items-center gap-1.5 h-full py-1` with a `shrink-0` chevron icon and `leading-none` text for exact vertical baseline alignment.
+- Grouped the live theme "Palette" color swatches into a cleanly padded container: `flex items-center gap-2 mt-2 px-1` with `gap-1.5 px-1.5` inner swatch container, matching the outer theme cards grid geometry.
+- Added regression unit tests in `SettingsPanel.test.tsx` for the Palette swatches row and contrast controls.
+Decisions: Retained existing accessible aria-labels and tooltips across the category navigation and palette swatches.
+Deviations: none
+Verified: Vitest unit tests in `SettingsPanel.test.tsx` (11/11 passing) and `contrast.test.ts` (9/9 passing), `compile_applet`, and `lint_applet` passed with 0 errors.
+Open questions: none
+
+### [HOTFIX-69] Defensive Spacing & Safe-Area Padding for Terminal Input Container — 2026-08-27
+Prompt: Apply a final touch spacing cushion to the bottom of the Terminal command input layout to provide defensive spacing against mobile hardware keyboard popups and native OS bottom navigation slider lines.
+Files touched:
+- `src/components/TerminalPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated the command input prompt container in `TerminalPanel.tsx` with `p-2.5 pb-3.5 sm:pb-2.5 mb-2 sm:mb-0 pb-safe`.
+- Provides explicit mobile margin and safe area inset padding (`pb-safe`) ensuring hardware keyboard popups and OS navigation gestures don't obscure the command prompt.
+Decisions: Used responsive padding and margin classes that maintain standard spacing on desktop while providing touch cushion on mobile.
+Deviations: none
+Verified: Vitest unit tests in `TerminalPanel.test.tsx` (17/17 passing), `compile_applet`, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-68] Mobile Action Toolbar Layout & High-Density Vision Toggle in Preview Panel — 2026-08-27
 Prompt: Refactor the top action toolbar controls inside the Preview Tab panel view to resolve mobile truncation and button overlaps: update "Let AI See" text to compact "AI View" format on mobile, wrap the toolbar in a flexible space-aware container with `sb-hidden`, and apply proportional padding across viewport and reload controls.

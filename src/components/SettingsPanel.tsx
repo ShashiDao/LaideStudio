@@ -835,12 +835,12 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                   </div>
 
                   {/* Live Dynamic Swatch */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mt-2 px-1">
                     <span className="text-[10px] font-mono text-muted">Palette</span>
                     {(() => {
                       const liveVars = computeThemeVariables(theme, themeContrast ?? DEFAULT_CONTRAST);
                       return (
-                        <div className="flex items-center gap-1 bg-bg/60 p-1 rounded-md border border-border/60">
+                        <div className="flex items-center gap-1.5 bg-bg/60 p-1 px-1.5 rounded-md border border-border/60">
                           <div 
                             className="w-3 h-3 rounded-xs border border-black/10 transition-colors"
                             style={{ backgroundColor: liveVars['--bg'] }}
@@ -2012,11 +2012,11 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
             <button
               type="button"
               onClick={() => setMobileView('list')}
-              className="flex items-center gap-1 p-1 -ml-1 text-muted hover:text-text rounded-md hover:bg-surface transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 h-full py-1 text-muted hover:text-text rounded-md hover:bg-surface transition-colors cursor-pointer"
               aria-label="Back to Settings categories"
             >
-              <ChevronLeft size={18} />
-              <span className="text-xs font-semibold">Categories</span>
+              <ChevronLeft size={18} className="shrink-0" />
+              <span className="text-xs font-semibold leading-none">Categories</span>
             </button>
           ) : (
             <div className="flex items-center gap-2.5">

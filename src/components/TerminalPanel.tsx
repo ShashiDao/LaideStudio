@@ -1559,7 +1559,7 @@ Access: 0644/-rw-r--r--`;
 
       {/* Interactive Command Input Prompt */}
       <div 
-        className="p-2.5 bg-surface border-t border-border flex items-center gap-2 shrink-0"
+        className="p-2.5 pb-3.5 sm:pb-2.5 mb-2 sm:mb-0 pb-safe bg-surface border-t border-border flex items-center gap-2 shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-1 shrink-0 select-none text-xs">

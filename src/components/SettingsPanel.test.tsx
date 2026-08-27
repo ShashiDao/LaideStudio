@@ -226,6 +226,17 @@ describe('SettingsPanel', () => {
 
       expect(mockSetTheme).toHaveBeenCalledWith('paper');
     });
+
+    it('renders the live theme palette swatch row with clean padding', () => {
+      render(React.createElement(SettingsPanel));
+
+      expect(screen.getByText('Palette')).toBeTruthy();
+      expect(screen.getByTitle(/^Background:/i)).toBeTruthy();
+      expect(screen.getByTitle(/^Surface:/i)).toBeTruthy();
+      expect(screen.getByTitle(/^Border:/i)).toBeTruthy();
+      expect(screen.getByTitle(/^Ink:/i)).toBeTruthy();
+      expect(screen.getByTitle(/^Accent:/i)).toBeTruthy();
+    });
   });
 
   describe('Keyboard Shortcuts Collapsible Dropdown (in Advanced category)', () => {
