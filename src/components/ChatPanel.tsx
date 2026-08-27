@@ -43,6 +43,46 @@ import {
 import ReactMarkdown from 'react-markdown';
 import type { ShellBreakpoint } from '../hooks/useShellBreakpoint';
 
+export function formatPathMiddleEllipsis(path: string, maxLength: number = 42): string {
+  if (!path || path.length <= maxLength) return path;
+  
+  const lastSlash = path.lastIndexOf('/');
+  if (lastSlash === -1) {
+    const extIndex = path.lastIndexOf('.');
+    if (extIndex > 3 && extIndex < path.length - 1) {
+      const ext = path.slice(extIndex);
+      const base = path.slice(0, extIndex);
+      const avail = maxLength - ext.length - 3;
+      if (avail > 2) {
+        return `${base.slice(0, Math.ceil(avail / 2))}...${base.slice(-Math.floor(avail / 2))}${ext}`;
+      }
+    }
+    return `${path.slice(0, maxLength - 7)}...${path.slice(-4)}`;
+  }
+
+  const dir = path.slice(0, lastSlash);
+  const fileName = path.slice(lastSlash + 1);
+  
+  if (fileName.length >= maxLength - 4) {
+    const extIndex = fileName.lastIndexOf('.');
+    if (extIndex > 3 && extIndex < fileName.length - 1) {
+      const ext = fileName.slice(extIndex);
+      const base = fileName.slice(0, extIndex);
+      const avail = maxLength - ext.length - 7;
+      if (avail > 2) {
+        return `.../${base.slice(0, Math.ceil(avail / 2))}...${base.slice(-Math.floor(avail / 2))}${ext}`;
+      }
+    }
+    return `.../${fileName.slice(0, maxLength - 10)}...${fileName.slice(-6)}`;
+  }
+  
+  const availDir = maxLength - fileName.length - 4;
+  if (availDir < 3) {
+    return `.../${fileName}`;
+  }
+  return `${dir.slice(0, Math.ceil(availDir / 2))}...${dir.slice(-Math.floor(availDir / 2))}/${fileName}`;
+}
+
 export function ChatPanel({ 
   projectId,
   breakpoint = 'phone'
@@ -523,32 +563,44 @@ export function ChatPanel({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden relative">
       {/* Collapsible Context Files Row */}
-      <div className="shrink-0 border-b border-border bg-surface/40">
+      <div className="shrink-0 relative z-20 border-b border-border bg-surface shadow-xs">
         <button
           type="button"
           onClick={() => setContextExpanded(!contextExpanded)}
-          className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-black/5 transition-colors text-left font-sans text-xs cursor-pointer"
+          aria-expanded={contextExpanded}
+          aria-label={`${contextFiles.length} files in manifest, ${tokenUsage.codebase.toLocaleString()} manifest tokens`}
+          className="w-full flex items-center justify-between px-3.5 py-2 hover:bg-surface-elevated active:bg-surface-elevated/80 transition-colors text-left font-sans text-xs cursor-pointer"
         >
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
             <Files size={13} className="text-accent shrink-0" />
-            <span className="text-muted truncate font-medium">
+            <span className="text-text font-medium truncate">
               {contextFiles.length} {contextFiles.length === 1 ? 'file' : 'files'} in manifest
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted font-sans">
-            <span>{tokenUsage.codebase.toLocaleString()}{tokenUsage.isEstimate ? '*' : ''} manifest tokens</span>
-            {contextExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          <div className="flex items-center gap-2 shrink-0 text-[10px] sm:text-xs text-muted font-mono">
+            <span className="font-semibold text-text/80">{tokenUsage.codebase.toLocaleString()}{tokenUsage.isEstimate ? '*' : ''} manifest tokens</span>
+            {contextExpanded ? <ChevronUp size={14} className="text-muted" /> : <ChevronDown size={14} className="text-muted" />}
           </div>
         </button>
         {contextExpanded && (
-          <div className="max-h-36 overflow-y-auto border-t border-border bg-bg/70 p-2 space-y-1">
+          <div 
+            role="region"
+            aria-label="Manifest files list"
+            className="max-h-48 overflow-y-auto border-t border-b border-border bg-surface shadow-2xl p-2 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150"
+          >
             {contextFiles.length === 0 ? (
-              <div className="text-[11px] font-mono text-muted px-2 py-1">No files in project yet</div>
+              <div className="text-xs font-mono text-muted px-2 py-1.5">No files in project yet</div>
             ) : (
               contextFiles.map(f => (
-                <div key={f.path} className="flex items-center justify-between text-[11px] font-mono px-2 py-0.5 rounded hover:bg-black/5">
-                  <span className="text-muted truncate">{f.path}</span>
-                  <span className="text-muted text-[10px] shrink-0 ml-2">
+                <div 
+                  key={f.path} 
+                  title={f.path}
+                  className="flex items-center justify-between text-xs font-mono px-2 py-1 rounded hover:bg-surface-elevated transition-colors group"
+                >
+                  <span className="text-muted group-hover:text-text truncate mr-2">
+                    {formatPathMiddleEllipsis(f.path, 44)}
+                  </span>
+                  <span className="text-muted/80 text-[10px] sm:text-[10.5px] font-mono shrink-0 ml-2 bg-surface-elevated px-1.5 py-0.5 rounded border border-border/50">
                     {new TextEncoder().encode(f.content).length.toLocaleString()} B
                   </span>
                 </div>
@@ -733,184 +785,185 @@ export function ChatPanel({
             </div>
           )}
 
-          {/* Tappable Profile / Settings Status Row & Collapsed Summary Chip */}
-          <div className="flex items-center justify-between px-1 flex-wrap gap-2">
-            <div className="flex items-center gap-3">
-              {activeProfileId ? (
-                <div className="relative inline-block" ref={detailsRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsDetailsOpen(prev => !prev)}
-                    aria-expanded={isDetailsOpen}
-                    aria-label="Model and session details"
-                    title="Click to view and adjust model, vision, ensemble, and cost settings"
-                    className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-sans border transition-all cursor-pointer shadow-xs active:scale-95 ${
-                      isDetailsOpen 
-                        ? 'bg-surface-elevated border-accent text-accent font-medium' 
-                        : 'bg-surface border-border text-muted hover:text-text hover:border-accent/40'
-                    }`}
-                  >
-                    {ensembleModeEnabled && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" title="Ensemble mode active" />
-                    )}
-                    <Cpu size={11} className="text-accent shrink-0" />
-                    <span className={`truncate font-mono text-[10.5px] ${isWide ? 'max-w-md' : 'max-w-[280px]'}`}>
-                      {summaryText}
-                    </span>
-                    {isDetailsOpen ? <ChevronDown size={11} className="shrink-0 text-muted" /> : <ChevronUp size={11} className="shrink-0 text-muted" />}
-                  </button>
-
-                  {/* Expanded Detail Panel */}
-                  {isDetailsOpen && (
-                    <div 
-                      className={`absolute bottom-full mb-1.5 left-0 z-30 p-2 rounded-lg bg-surface border border-border shadow-xl flex items-center flex-wrap gap-2 animate-in fade-in zoom-in-95 duration-100 font-sans ${
-                        isWide ? 'min-w-[340px]' : 'min-w-[280px]'
+            {/* Tappable Profile / Settings Status Row & Collapsed Summary Chip (when profile is active) */}
+            {activeProfileId && (
+              <div className="flex items-center justify-between px-1 flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="relative inline-block" ref={detailsRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsDetailsOpen(prev => !prev)}
+                      aria-expanded={isDetailsOpen}
+                      aria-label="Model and session details"
+                      title="Click to view and adjust model, vision, ensemble, and cost settings"
+                      className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-sans border transition-all cursor-pointer shadow-xs active:scale-95 ${
+                        isDetailsOpen 
+                          ? 'bg-surface-elevated border-accent text-accent font-medium' 
+                          : 'bg-surface border-border text-muted hover:text-text hover:border-accent/40'
                       }`}
-                      role="region"
-                      aria-label="Session control details"
                     >
-                      {/* Profile switch button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('settings');
-                          setIsDetailsOpen(false);
-                        }}
-                        aria-label="Manage connection profile in Settings"
-                        className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-elevated border border-border hover:border-accent/40 text-left group cursor-pointer transition-colors"
-                        title="Manage connection profile in Settings"
-                      >
-                        <Cpu size={12} className="text-accent shrink-0" />
-                        <span className="text-[10px] font-sans text-muted group-hover:text-accent transition-colors truncate max-w-[180px]">
-                          {profileName}
-                        </span>
-                      </button>
-
-                      {/* Vision Toggle Button / Badge */}
-                      {lastPreviewScreenshot ? (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setAttachPreviewVision(!attachPreviewVision)}
-                            className={`px-2 py-1 rounded text-[10px] font-sans flex items-center gap-1.5 transition-colors cursor-pointer border ${
-                              attachPreviewVision 
-                                ? 'bg-accent/15 border-accent/40 text-accent font-medium' 
-                                : 'bg-surface-elevated border-border text-muted hover:text-text'
-                            }`}
-                            title={attachPreviewVision ? 'Vision enabled: Preview screenshot attached to prompt' : 'Vision disabled: Click to attach preview screenshot'}
-                          >
-                            <Eye size={11} className={attachPreviewVision ? 'text-accent' : 'text-muted'} />
-                            <span>{attachPreviewVision ? 'Vision Attached' : 'Attach Preview'}</span>
-                            {lastPreviewScreenshot.dataUrl && attachPreviewVision && (
-                              <img
-                                src={lastPreviewScreenshot.dataUrl}
-                                alt="Preview snapshot"
-                                className="w-3.5 h-3.5 object-cover rounded border border-accent/40 ml-0.5"
-                              />
-                            )}
-                          </button>
-                          {attachPreviewVision && (
-                            <button
-                              type="button"
-                              onClick={() => setAttachPreviewVision(false)}
-                              className="p-1 text-muted hover:text-oxide rounded transition-colors cursor-pointer"
-                              title="Detach preview screenshot"
-                            >
-                              <X size={11} />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveTab('preview');
-                            setIsDetailsOpen(false);
-                          }}
-                          className="px-2 py-1 rounded text-[10px] font-sans flex items-center gap-1 bg-surface-elevated border border-border text-muted hover:text-accent hover:border-accent/40 transition-colors cursor-pointer"
-                          title="Open Preview panel to capture screenshot for vision feedback"
-                        >
-                          <Eye size={11} />
-                          <span>Preview Vision</span>
-                        </button>
-                      )}
-
-                      {/* Ensemble Mode Indicator */}
                       {ensembleModeEnabled && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0" title="Ensemble mode active" />
+                      )}
+                      <Cpu size={11} className="text-accent shrink-0" />
+                      <span className={`truncate font-mono text-[10.5px] ${isWide ? 'max-w-md' : 'max-w-[280px]'}`}>
+                        {summaryText}
+                      </span>
+                      {isDetailsOpen ? <ChevronDown size={11} className="shrink-0 text-muted" /> : <ChevronUp size={11} className="shrink-0 text-muted" />}
+                    </button>
+
+                    {/* Expanded Detail Panel */}
+                    {isDetailsOpen && (
+                      <div 
+                        className={`absolute bottom-full mb-1.5 left-0 z-30 p-2 rounded-lg bg-surface border border-border shadow-xl flex items-center flex-wrap gap-2 animate-in fade-in zoom-in-95 duration-100 font-sans ${
+                          isWide ? 'min-w-[340px]' : 'min-w-[280px]'
+                        }`}
+                        role="region"
+                        aria-label="Session control details"
+                      >
+                        {/* Profile switch button */}
                         <button
                           type="button"
                           onClick={() => {
                             setActiveTab('settings');
                             setIsDetailsOpen(false);
                           }}
-                          className="flex items-center gap-1 px-2 py-1 rounded bg-accent/15 border border-accent/30 text-accent text-[10px] font-sans font-semibold cursor-pointer hover:bg-accent/25 transition-colors"
-                          title="Dual-LLM Ensemble Mode Active: coding requests are sent to two models in parallel and verified with sandboxed tests"
+                          aria-label="Manage connection profile in Settings"
+                          className="flex items-center gap-1.5 px-2 py-1 rounded bg-surface-elevated border border-border hover:border-accent/40 text-left group cursor-pointer transition-colors"
+                          title="Manage connection profile in Settings"
                         >
-                          <GitMerge size={11} />
-                          <span>Ensemble Mode</span>
+                          <Cpu size={12} className="text-accent shrink-0" />
+                          <span className="text-[10px] font-sans text-muted group-hover:text-accent transition-colors truncate max-w-[180px]">
+                            {profileName}
+                          </span>
                         </button>
-                      )}
 
-                      {/* Session Token Spend & Cost Badge */}
-                      {sessionSummary.totalCostUsd > 0 && (
-                        <div
-                          className="flex items-center gap-1 px-2 py-1 rounded bg-surface-elevated border border-border text-muted text-[10px] font-mono shadow-xs"
-                          title={`Session API Spend: ${formatUsdCost(sessionSummary.totalCostUsd)} (${formatTokenCount(sessionSummary.totalTokens)} total tokens across ${sessionSummary.recordsCount} run${sessionSummary.recordsCount === 1 ? '' : 's'})`}
-                        >
-                          <Coins size={11} className="text-accent" />
-                          <span className="font-semibold text-text">{formatUsdCost(sessionSummary.totalCostUsd)}</span>
-                          <span className="opacity-60">• {formatTokenCount(sessionSummary.totalTokens)}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        {/* Vision Toggle Button / Badge */}
+                        {lastPreviewScreenshot ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setAttachPreviewVision(!attachPreviewVision)}
+                              className={`px-2 py-1 rounded text-[10px] font-sans flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                                attachPreviewVision 
+                                  ? 'bg-accent/15 border-accent/40 text-accent font-medium' 
+                                  : 'bg-surface-elevated border-border text-muted hover:text-text'
+                              }`}
+                              title={attachPreviewVision ? 'Vision enabled: Preview screenshot attached to prompt' : 'Vision disabled: Click to attach preview screenshot'}
+                            >
+                              <Eye size={11} className={attachPreviewVision ? 'text-accent' : 'text-muted'} />
+                              <span>{attachPreviewVision ? 'Vision Attached' : 'Attach Preview'}</span>
+                              {lastPreviewScreenshot.dataUrl && attachPreviewVision && (
+                                <img
+                                  src={lastPreviewScreenshot.dataUrl}
+                                  alt="Preview snapshot"
+                                  className="w-3.5 h-3.5 object-cover rounded border border-accent/40 ml-0.5"
+                                />
+                              )}
+                            </button>
+                            {attachPreviewVision && (
+                              <button
+                                type="button"
+                                onClick={() => setAttachPreviewVision(false)}
+                                className="p-1 text-muted hover:text-oxide rounded transition-colors cursor-pointer"
+                                title="Detach preview screenshot"
+                              >
+                                <X size={11} />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('preview');
+                              setIsDetailsOpen(false);
+                            }}
+                            className="px-2 py-1 rounded text-[10px] font-sans flex items-center gap-1 bg-surface-elevated border border-border text-muted hover:text-accent hover:border-accent/40 transition-colors cursor-pointer"
+                            title="Open Preview panel to capture screenshot for vision feedback"
+                          >
+                            <Eye size={11} />
+                            <span>Preview Vision</span>
+                          </button>
+                        )}
+
+                        {/* Ensemble Mode Indicator */}
+                        {ensembleModeEnabled && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab('settings');
+                              setIsDetailsOpen(false);
+                            }}
+                            className="flex items-center gap-1 px-2 py-1 rounded bg-accent/15 border border-accent/30 text-accent text-[10px] font-sans font-semibold cursor-pointer hover:bg-accent/25 transition-colors"
+                            title="Dual-LLM Ensemble Mode Active: coding requests are sent to two models in parallel and verified with sandboxed tests"
+                          >
+                            <GitMerge size={11} />
+                            <span>Ensemble Mode</span>
+                          </button>
+                        )}
+
+                        {/* Session Token Spend & Cost Badge */}
+                        {sessionSummary.totalCostUsd > 0 && (
+                          <div
+                            className="flex items-center gap-1 px-2 py-1 rounded bg-surface-elevated border border-border text-muted text-[10px] font-mono shadow-xs"
+                            title={`Session API Spend: ${formatUsdCost(sessionSummary.totalCostUsd)} (${formatTokenCount(sessionSummary.totalTokens)} total tokens across ${sessionSummary.recordsCount} run${sessionSummary.recordsCount === 1 ? '' : 's'})`}
+                          >
+                            <Coins size={11} className="text-accent" />
+                            <span className="font-semibold text-text">{formatUsdCost(sessionSummary.totalCostUsd)}</span>
+                            <span className="opacity-60">• {formatTokenCount(sessionSummary.totalTokens)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('settings')}
-                  className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-oxide/15 border border-oxide/30 text-left group cursor-pointer hover:bg-oxide/25 transition-colors"
-                  title="Open Settings to choose or add a profile"
-                >
-                  <AlertCircle size={12} className="text-oxide shrink-0" />
-                  <span className="text-[10px] font-sans text-oxide font-bold group-hover:underline">
-                    No profile selected — Tap to configure
-                  </span>
-                </button>
-              )}
-            </div>
 
-            {loading && (
-              <span className="text-[10px] font-sans text-accent animate-pulse">
-                {statusMessage || 'Agent working...'}
-              </span>
+                {loading && (
+                  <span className="text-[10px] font-sans text-accent animate-pulse">
+                    {statusMessage || 'Agent working...'}
+                  </span>
+                )}
+              </div>
             )}
-          </div>
           
           {/* Textarea and Send / Stop Controls */}
           <div className="flex items-end gap-2">
-            <textarea
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={!activeProfileId || loading}
-              placeholder={
-                !activeProfileId 
-                  ? "Select a profile in Settings to start chatting..." 
-                  : "Describe what to build or change..."
-              }
-              className="flex-1 bg-surface border border-border rounded-lg p-3 min-h-[44px] max-h-[200px] text-sm text-text placeholder-text/40 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed resize-none"
-              rows={1}
-              style={{
-                height: input ? 'auto' : '44px',
-              }}
-            />
+            {!activeProfileId ? (
+              <button
+                type="button"
+                onClick={() => setActiveTab('settings')}
+                aria-label="Tap here to configure a provider profile in Settings..."
+                className="flex-1 bg-surface border border-rose-500/30 hover:border-rose-500/50 rounded-lg px-3.5 py-3 min-h-[48px] text-left text-xs sm:text-sm text-rose-400/80 hover:text-rose-300 transition-colors flex items-center justify-between gap-2 cursor-pointer group shadow-xs active:scale-[0.99]"
+                title="Tap here to configure a provider profile in Settings"
+              >
+                <span className="font-sans truncate">
+                  Tap here to configure a provider profile in Settings...
+                </span>
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-400 shrink-0 group-hover:bg-rose-500/20 transition-colors">
+                  Settings
+                </span>
+              </button>
+            ) : (
+              <textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={loading}
+                placeholder="Describe what to build or change..."
+                className="flex-1 bg-surface border border-border rounded-lg p-3 min-h-[48px] max-h-[200px] text-sm text-text placeholder-text/40 focus:outline-none focus:border-accent disabled:opacity-50 disabled:cursor-not-allowed resize-none leading-relaxed"
+                rows={1}
+                style={{
+                  height: input ? 'auto' : '48px',
+                }}
+              />
+            )}
 
             {loading ? (
               <button
                 type="button"
                 onClick={handleStop}
-                className="h-[44px] px-3 bg-oxide/20 border border-oxide/50 text-oxide hover:bg-oxide/30 rounded-lg flex items-center justify-center gap-1.5 font-sans text-xs font-bold transition-colors cursor-pointer shrink-0"
+                className="h-[48px] px-3 bg-oxide/20 border border-oxide/50 text-oxide hover:bg-oxide/30 rounded-lg flex items-center justify-center gap-1.5 font-sans text-xs font-bold transition-colors cursor-pointer shrink-0"
                 title="Cancel response"
                 aria-label="Cancel response"
               >
@@ -922,7 +975,7 @@ export function ChatPanel({
                 type="button"
                 onClick={() => handleSend()}
                 disabled={!input.trim() || !activeProfileId || loading}
-                className="h-[44px] w-[44px] shrink-0 bg-accent text-surface rounded-lg flex items-center justify-center hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="h-[48px] w-[48px] shrink-0 bg-accent text-surface rounded-lg flex items-center justify-center hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 title="Send message"
                 aria-label="Send message"
               >

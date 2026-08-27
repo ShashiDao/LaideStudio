@@ -2,7 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
-import { ChatPanel } from './ChatPanel';
+import { ChatPanel, formatPathMiddleEllipsis } from './ChatPanel';
+import { listFiles } from '../services/fs/vfs';
 
 const mockSetActiveTab = vi.fn();
 const mockSetChatHistory = vi.fn();
@@ -86,16 +87,16 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
     cleanup();
   });
 
-  it('renders prominent uncollapsed warning banner when no profile is selected', () => {
+  it('renders locked input container that routes to settings when no profile is selected', () => {
     mockStoreState.activeProfileId = null;
 
     render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
 
-    const warningBtn = screen.getByRole('button', { name: /No profile selected/i });
-    expect(warningBtn).toBeDefined();
-    expect(warningBtn.textContent).toContain('No profile selected — Tap to configure');
+    const settingsBtn = screen.getByRole('button', { name: /Tap here to configure a provider profile in Settings.../i });
+    expect(settingsBtn).toBeDefined();
+    expect(settingsBtn.textContent).toContain('Tap here to configure a provider profile in Settings...');
 
-    fireEvent.click(warningBtn);
+    fireEvent.click(settingsBtn);
     expect(mockSetActiveTab).toHaveBeenCalledWith('settings');
 
     // Detail popup should not be present
@@ -197,5 +198,53 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
     // Click outside
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole('region', { name: 'Session control details' })).toBeNull();
+  });
+
+  describe('formatPathMiddleEllipsis', () => {
+    it('returns short path unchanged', () => {
+      expect(formatPathMiddleEllipsis('src/App.tsx', 40)).toBe('src/App.tsx');
+    });
+
+    it('truncates long directories while preserving the filename and extension', () => {
+      const formatted = formatPathMiddleEllipsis('src/components/modals/inspection/FindWhatBrokeModal.test.tsx', 36);
+      expect(formatted.endsWith('FindWhatBrokeModal.test.tsx')).toBe(true);
+      expect(formatted).toContain('...');
+    });
+
+    it('preserves extension when filename itself is very long', () => {
+      const formatted = formatPathMiddleEllipsis('VeryLongComponentNameWithExtensiveDetailsInItsName.test.tsx', 30);
+      expect(formatted.endsWith('.test.tsx')).toBe(true);
+      expect(formatted).toContain('...');
+    });
+  });
+
+  it('expands and renders manifest files with solid opaque container and byte sizes', async () => {
+    vi.mocked(listFiles).mockResolvedValueOnce([
+      { path: 'src/App.tsx', content: 'console.log("hello")', updatedAt: 1 },
+      { path: 'src/components/FindWhatBrokeModal.test.tsx', content: 'test code', updatedAt: 2 }
+    ] as any);
+
+    mockStoreState.tokenUsage = { system: 100, codebase: 1971, chat: 50, max: 32000, isEstimate: false };
+
+    render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
+
+    const toggleBtn = await screen.findByRole('button', { name: /manifest tokens/i });
+    expect(toggleBtn.textContent).toContain('1,971 manifest tokens');
+
+    // List is collapsed initially
+    expect(screen.queryByRole('region', { name: 'Manifest files list' })).toBeNull();
+
+    // Expand dropdown
+    fireEvent.click(toggleBtn);
+
+    const manifestList = screen.getByRole('region', { name: 'Manifest files list' });
+    expect(manifestList).toBeDefined();
+    expect(manifestList.className).toContain('bg-surface');
+    expect(manifestList.className).toContain('shadow-2xl');
+    expect(manifestList.className).toContain('max-h-48');
+
+    // File items rendered
+    expect(screen.getByText('src/App.tsx')).toBeDefined();
+    expect(screen.getByTitle('src/components/FindWhatBrokeModal.test.tsx')).toBeDefined();
   });
 });

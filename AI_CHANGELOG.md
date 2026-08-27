@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-61
-- Last verified working: Applied touch states polish to Workspace Actions row buttons (added `first:active:rounded-t-lg last:active:rounded-b-lg` and hover/active corner matching to prevent square highlight leaks). Refactored AI Blame & Trust inspector into a floating slide-up bottom sheet with backdrop on mobile to prevent horizontal squeezing of CodeMirror lines, and dynamically collapsed the adjacent Insights button in the editor header rail when active to allocate 100% of top space to the file path. Vitest tests (68 test files, 480 tests passing), `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-63
+- Last verified working: Refactored expanded Manifest Tokens dropdown overlay in ChatPanel. Applied 100% solid opaque background (`bg-surface`), strong depth drop-shadow (`shadow-2xl`), crisp bounding borders (`border-t border-b border-border`), max height constraint (`max-h-48 overflow-y-auto`), and middle-ellipsis path formatting (`formatPathMiddleEllipsis`) ensuring file extensions are never clipped. Vitest unit tests in `ChatPanel.test.tsx` (9/9 passing), `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,39 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-63] Refactor Manifest Token Dropdown Depth Layering, Solid Theme Background, and Middle-Ellipsis Path Truncation — 2026-08-27
+Prompt: Refactor the styling and depth-layering properties of the expanded Manifest Token file dropdown menu wrapper: apply solid 100% opaque background fill to eliminate visual blending with background cards, add shadow-2xl drop shadow and border dividers, constrain height to max-h-48 with overflow scrolling, and implement middle-ellipsis path truncation to preserve file extensions.
+Files touched:
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/ChatPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Applied 100% solid opaque `bg-surface` background to the collapsible context files header row and its expanded dropdown container, eliminating transparency bleed-through into background session cards.
+- Added `shadow-2xl`, `border-t border-b border-border`, and `relative z-20` layering so the expanded menu floats above the chat canvas.
+- Configured dropdown list container with `max-h-48 overflow-y-auto` to prevent excessive vertical expansion on large projects.
+- Implemented and exported `formatPathMiddleEllipsis` helper function to intelligently truncate deeply nested parent directories while keeping the filename and its extension fully intact.
+- Added comprehensive unit tests in `ChatPanel.test.tsx` for `formatPathMiddleEllipsis` and the expanded manifest dropdown behavior.
+Decisions: Kept the full path in the `title` attribute for native tooltip inspection while displaying formatted paths at `text-xs font-mono`.
+Deviations: none
+Verified: Vitest unit tests in `ChatPanel.test.tsx` (9/9 passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
+
+### [HOTFIX-62] Refactor Chat Input Toolbar, Remove Error Banner, and Add Clickable Settings Input Container — 2026-08-27
+Prompt: Refactor the input area, warning banners, and prompt chip layouts inside the main Chat Tab panel view: remove the standalone red error banner block, style the locked chat input container directly with soft crimson borders and an un-truncated clickable route message to Settings, and ensure adequate line height and container height.
+Files touched:
+- `src/components/ChatPanel.tsx` (modified)
+- `src/components/ChatPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Removed the separate red `AlertCircle` "No profile selected — Tap to configure" error banner block above the text area, opening up vertical breathing room for prompt chips and editor space.
+- Replaced the disabled `<textarea>` when `!activeProfileId` with a full-width clickable button container styled with a soft crimson border (`border-rose-500/30 hover:border-rose-500/50`), rose accent text, a dedicated "Settings" badge, and clean text: "Tap here to configure a provider profile in Settings...".
+- Increased container height to 48px (`min-h-[48px]` across textarea, button, and send controls) with `leading-relaxed` typography to prevent any text wrapping, awkward breaking, or baseline clipping.
+- Updated `ChatPanel.test.tsx` to verify the interactive settings route button behavior when no profile is active.
+Decisions: Kept the collapsible model and cost summary chip exclusively when a profile is active, simplifying empty-state layout hierarchy.
+Deviations: none
+Verified: Vitest unit tests in `ChatPanel.test.tsx` (5/5 passing), full test suite (68 test files, 480 tests passing), `compile_applet` passed, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-61] Polish Workspace Actions Touch State Radii & Mobile AI Blame Sheet Overlay — 2026-08-27
 Prompt: Apply touch states corner polish to the row items inside the Workspace Actions bottom sheet to prevent square highlight leaks on tapped cards. Refactor the AI Blame & Trust inspector from a side-squeezing drawer to a floating slide-up bottom sheet on mobile viewports so CodeMirror lines preserve full width, and programmatically shrink the Insights button in the header rail when blame is active to allocate maximum space to the full file path.
