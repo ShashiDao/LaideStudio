@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-73
-- Last verified working: Cleaned up redundant files (deleted placeholder `/index.ts`), removed manual chunk fragmentation in `vite.config.ts` for unified high-speed delivery, added `touch-action: manipulation`, `-webkit-tap-highlight-color: transparent`, and `text-rendering: optimizeLegibility` in `src/index.css` for instant 0ms tap reaction and smooth UI interactions. All tests, `compile_applet`, and `lint_applet` pass with 0 errors.
+- Phase: HOTFIX-74
+- Last verified working: Eliminated subtitle text clipping across all Settings menu categories by replacing single-line ellipsis truncation with clean multi-line wrapping (`leading-snug break-words`) and concise category descriptors ("Themes & Contrast", "LLM Profiles & Ensembles", "GitHub, Deploys & MCP", "Vault Lock & Backups", "Diagnostics, Cache & Keys"). Removed redundant duplicate "Lock Vault" button in the Settings sub-header to preserve vertical screen space (relying on the persistent TopStrip quick Lock button and dedicated in-depth Vault Security controls). All tests (11/11 in SettingsPanel.test.tsx), `compile_applet`, and `lint_applet` pass with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -10,6 +10,20 @@
 - Ad-hoc fix work, audits, or maintenance outside the sequential blueprint sequence must use a distinct prefix like `[REVIEW-FIX]`, `[HOTFIX]`, or `[AUDIT]` (with an incremental counter if multiple are needed) instead of borrowing a blueprint number.
 
 ## Log
+
+### [HOTFIX-74] Settings Subtitle Truncation Fix & Redundant Lock Trigger Elimination — 2026-08-27
+Prompt: Settings Subtitle Truncation & Redundant Lock Triggers: Fix Card Text Clipping in Settings menu (remove truncate/whitespace-nowrap and allow wrapping across 2 clean lines or use shorter descriptions) and eliminate duplicate Lock Vault actions in Settings header.
+Files touched:
+- `src/components/SettingsPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Refined category descriptors in `SETTINGS_CATEGORIES` to concise high-contrast phrasing: "Themes & Contrast", "LLM Profiles & Ensembles", "GitHub, Deploys & MCP", "Vault Lock & Backups", and "Diagnostics, Cache & Keys".
+- Removed `truncate` class on the category card subtitle paragraph, adding `min-w-0 flex-1` and `leading-snug break-words` to support fluid, multi-line wrapping without awkward ellipsis truncation on all screen widths.
+- Removed the duplicate "Lock Vault" button in the Settings sub-header immediately below the persistent top app bar to eliminate vertical space waste.
+Decisions: Kept the primary quick Lock Vault action in the persistent `TopStrip` and the dedicated `Lock Local Vault` action within the `Security & Vault` category settings pane.
+Deviations: none
+Verified: `SettingsPanel.test.tsx` (11/11 passed), `compile_applet` succeeded, and `lint_applet` passed with 0 errors.
+Open questions: none
 
 ### [HOTFIX-73] Bundle Cleanup, Chunk Streamlining & Snappy UI Optimization — 2026-08-27
 Prompt: Remove all chunks and useless files and make app ui feel snappy fast.
