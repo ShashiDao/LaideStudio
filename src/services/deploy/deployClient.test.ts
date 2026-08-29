@@ -190,7 +190,7 @@ describe('deployClient service', () => {
         hmacKey: {} as CryptoKey, 
         masterKeyBytes: new Uint8Array(32) 
       };
-      const cryptoMock = await import('../crypto');
+      const cryptoMock = await import('../security/crypto');
       vi.spyOn(cryptoMock, 'encryptData').mockResolvedValue('encrypted_tok_val');
       vi.spyOn(cryptoMock, 'decryptData').mockResolvedValue('raw_tok_val');
 

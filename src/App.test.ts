@@ -6,7 +6,7 @@ import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/re
 import App from './App';
 import { db } from './db';
 import { useAppStore } from './store';
-import { deriveKeys } from './services/crypto';
+import { deriveKeys } from './services/security/crypto';
 import { createFile } from './services/fs/vfs';
 
 describe('App Files-tab Header Layout on narrow widths', () => {

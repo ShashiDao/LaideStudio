@@ -1,5 +1,5 @@
 import { create, StateCreator } from 'zustand';
-import type { KeyMaterial } from './services/crypto';
+import type { KeyMaterial } from './services/security/crypto';
 import type { PatchDefinition } from './services/agent/patchSchema';
 import type { LLMMessage } from './services/llm/llmAdapter';
 import type { BeforeInstallPromptEvent } from './types';
@@ -270,7 +270,7 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   editorNavigationTarget: null,
   setEditorNavigationTarget: (editorNavigationTarget) => set({ editorNavigationTarget }),
   lockVault: () => {
-    import('./services/session').then(({ clearPersistentSession }) => {
+    import('./services/security/session').then(({ clearPersistentSession }) => {
       clearPersistentSession().catch(err => console.error('Failed to clear persistent session', err));
     }).catch(err => console.error('Failed to import session service', err));
     set({ keys: null, chatHistory: [] });
