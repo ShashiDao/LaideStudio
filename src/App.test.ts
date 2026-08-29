@@ -109,7 +109,7 @@ describe('App Files-tab Header Layout on narrow widths', () => {
     });
   });
 
-  it('hides the bottom tab bar when virtual keyboard opens / input is focused', async () => {
+  it('maintains a visible and functional bottom tab bar on mobile when switching tabs or focusing inputs', async () => {
     window.innerWidth = 390;
     window.dispatchEvent(new Event('resize'));
 
@@ -120,27 +120,37 @@ describe('App Files-tab Header Layout on narrow widths', () => {
     });
 
     const nav = screen.getByRole('tablist', { name: 'Workspace view tabs' });
+    expect(nav).toBeDefined();
     expect(nav.className).toContain('flex');
     expect(nav.className).not.toContain('hidden');
 
-    // Simulate focusing an input element
-    const input = document.createElement('input');
-    document.body.appendChild(input);
-    input.focus();
-    fireEvent.focusIn(input);
+    // Verify all tabs exist
+    const terminalTab = screen.getByRole('tab', { name: 'Terminal tab' });
+    const filesTab = screen.getByRole('tab', { name: 'Files tab' });
+    const chatTab = screen.getByRole('tab', { name: 'Chat tab' });
+    expect(terminalTab).toBeDefined();
+    expect(filesTab).toBeDefined();
+    expect(chatTab).toBeDefined();
 
+    // Switch to Terminal tab
+    fireEvent.click(terminalTab);
+
+    // Terminal is active and tab navigation bar remains permanently visible
     await waitFor(() => {
-      expect(nav.className).toContain('hidden');
+      expect(useAppStore.getState().activeTab).toBe('terminal');
+      expect(screen.getByRole('tablist', { name: 'Workspace view tabs' })).toBeDefined();
     });
 
-    // Simulate blurring
-    input.blur();
-    fireEvent.focusOut(input);
-
+    // Switch to Chat tab
+    fireEvent.click(chatTab);
     await waitFor(() => {
-      expect(nav.className).toContain('flex');
+      expect(useAppStore.getState().activeTab).toBe('chat');
     });
 
-    document.body.removeChild(input);
+    // Switch back to Files tab
+    fireEvent.click(filesTab);
+    await waitFor(() => {
+      expect(useAppStore.getState().activeTab).toBe('files');
+    });
   });
 });

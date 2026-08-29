@@ -1560,7 +1560,6 @@ Access: 0644/-rw-r--r--`;
       role="region" 
       aria-label="Sandbox Terminal"
       className="flex-1 flex flex-col h-full bg-bg text-text overflow-hidden font-mono select-text"
-      onClick={() => inputRef.current?.focus()}
     >
       {/* Top Terminal Strip Header */}
       <div 
@@ -1700,7 +1699,6 @@ Access: 0644/-rw-r--r--`;
               placeholder={isRunning ? 'Executing command...' : 'Type a command (e.g. "help", "npm test", "ls -la")...'}
               aria-label="Terminal command input"
               className="flex-1 bg-transparent text-text font-mono text-xs focus:outline-none placeholder:text-muted/50"
-              autoFocus
               autoComplete="off"
               spellCheck={false}
             />

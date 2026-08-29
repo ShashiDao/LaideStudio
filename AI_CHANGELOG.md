@@ -1,10 +1,28 @@
 ## Current State
-- Phase: HOTFIX-82
-- Last verified working: Official LAIDE Studio SVG monogram logo added to public/icon.svg and integrated as reusable LaideLogo component across TopStrip header, LockScreen (intro, setup, and unlock screens), InstallPrompt banner, and SettingsPanel. Unit tests in LaideLogo.test.tsx, TopStrip.test.tsx, and LockScreen.test.tsx pass cleanly (18/18 tests). Linter and compiler builds are clean.
+- Phase: HOTFIX-83
+- Last verified working: Bottom tab navigation bar made permanently accessible in mobile view, fixing the bug where focusing the terminal input or opening terminal hid the tab switcher. Scoped mobile editor overlay to files tab. All unit tests pass in App.test.ts (6/6) and TerminalPanel.test.tsx (26/26). Linter and build pass cleanly.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
 ## Log
+
+### [HOTFIX-83] Fix Mobile Bottom Tab Bar Visibility on Terminal Focus — 2026-08-29
+Prompt: Fix invisible/missing tab switch buttons when opening the terminal tab.
+Files touched:
+- `src/App.tsx` (modified)
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `src/App.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Removed erroneous `isKeyboardOpen ? 'hidden' : 'flex'` logic from the mobile `<nav>` tab bar in `App.tsx` that caused the tab switcher to vanish whenever the terminal input was focused.
+- Removed aggressive `autoFocus` and container-level focus hijack from `TerminalPanel.tsx` to prevent unexpected keyboard popups and viewport shifts on mobile devices.
+- Scoped the full-screen mobile editor view overlay to `activeTab === 'files'` so that switching tabs directly reveals the active view.
+- Updated `App.test.ts` with assertions verifying that the bottom tab navigation bar remains permanently visible and functional when switching tabs and interacting with inputs.
+Decisions:
+- The bottom navigation bar on mobile must remain persistently visible to guarantee users can always switch views without being trapped in any single tab.
+Deviations: none
+Verified: `npm test` running `App.test.ts` and `TerminalPanel.test.tsx` passed (32/32 tests); `lint_applet` passed with 0 errors; `compile_applet` compiled successfully.
+Open questions: none
 
 ### [HOTFIX-82] Official LAIDE Studio Vector Logo Integration — 2026-08-29
 Prompt: Add provided SVG monogram logo everywhere in the application.

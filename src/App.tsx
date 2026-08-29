@@ -151,60 +151,8 @@ export default function App() {
     handleGithubImportSuccess,
   } = project;
 
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const breakpoint = useShellBreakpoint(shellRef);
-
-  useEffect(() => {
-    const isInputElement = (el: Element | null): boolean => {
-      if (!el) return false;
-      const tag = el.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
-      if ((el as HTMLElement).isContentEditable) return true;
-      if (el.getAttribute('role') === 'textbox') return true;
-      return false;
-    };
-
-    const handleFocusIn = (e: FocusEvent) => {
-      if (isInputElement(e.target as Element)) {
-        setIsKeyboardOpen(true);
-      }
-    };
-
-    const handleFocusOut = () => {
-      setTimeout(() => {
-        if (!isInputElement(document.activeElement)) {
-          setIsKeyboardOpen(false);
-        }
-      }, 50);
-    };
-
-    window.addEventListener('focusin', handleFocusIn);
-    window.addEventListener('focusout', handleFocusOut);
-
-    const vv = window.visualViewport;
-    const handleViewportResize = () => {
-      if (!vv) return;
-      const heightDrop = window.innerHeight - vv.height;
-      if (heightDrop > 120) {
-        setIsKeyboardOpen(true);
-      } else if (!isInputElement(document.activeElement)) {
-        setIsKeyboardOpen(false);
-      }
-    };
-
-    if (vv) {
-      vv.addEventListener('resize', handleViewportResize);
-    }
-
-    return () => {
-      window.removeEventListener('focusin', handleFocusIn);
-      window.removeEventListener('focusout', handleFocusOut);
-      if (vv) {
-        vv.removeEventListener('resize', handleViewportResize);
-      }
-    };
-  }, []);
 
   // PWA "Add to Home Screen" prompt capture (unrelated to project/file state,
   // so it stays local rather than living inside useProjectActions).
@@ -310,8 +258,8 @@ export default function App() {
               <SettingsPanel onOpenShortcuts={() => setShowShortcutsModal(true)} />
             )}
 
-            {/* Full-screen Editor View Overlay (Phone mode) */}
-            {activeFile && (
+            {/* Full-screen Editor View Overlay (Phone mode - scoped to files tab) */}
+            {activeTab === 'files' && activeFile && (
               <Editor 
                 file={activeFile} 
                 onContentChanged={(newContent) => {
@@ -326,13 +274,11 @@ export default function App() {
             )}
           </main>
 
-          {/* Fixed Bottom Tab Bar with safe-area padding for home indicator - Hides when keyboard is open */}
+          {/* Fixed Bottom Tab Bar with safe-area padding for home indicator */}
           <nav 
             role="tablist" 
             aria-label="Workspace view tabs"
-            className={`pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border relative ${
-              isKeyboardOpen ? 'hidden' : 'flex'
-            }`}
+            className="pb-safe pl-safe pr-safe shrink-0 bg-surface border-t border-border relative flex"
           >
             <div className="h-[60px] w-full flex">
               <TabButton id="files" current={activeTab} onClick={setActiveTab} icon={<FileText size={19} />} label="Files" />
