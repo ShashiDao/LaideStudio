@@ -3,7 +3,7 @@ import { createLLMAdapter } from './factory';
 import { OpenAICompatibleProvider } from './providers/openaiCompatible';
 import { ConnectionProfile } from '../../db';
 
-vi.mock('../crypto', () => ({
+vi.mock('../security/crypto', () => ({
   decryptData: vi.fn(async (key, encrypted) => {
     if (encrypted === 'bad') return null;
     return 'decrypted-key-' + encrypted;

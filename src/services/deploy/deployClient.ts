@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import type { FileItem } from '../../db';
-import type { KeyMaterial } from '../crypto';
+import type { KeyMaterial } from '../security/crypto';
 import { binaryExtensions } from '../fs/zipExport';
 import { detectBundledProject } from '../bundler/entryDetection';
 
@@ -61,7 +61,7 @@ export async function buildDeployPackage(
     const indexFile = files.find(f => f.path === '/index.html' || f.path === '/public/index.html');
     
     // Import helper from PreviewPanel
-    const { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } = await import('../../components/PreviewPanel');
+    const { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } = await import('../../components/preview/PreviewPanel');
     let finalHtml = buildBundledHtml(bundledCode, indexFile?.content);
     
     const tailwindVersion = detectProjectTailwindVersion(files);
@@ -353,7 +353,7 @@ export async function saveDeployToken(
   provider: 'netlify' | 'vercel',
   token: string
 ): Promise<void> {
-  const { encryptData } = await import('../crypto');
+  const { encryptData } = await import('../security/crypto');
   const key = provider === 'netlify' ? 'xiom_netlify_token' : 'xiom_vercel_token';
   if (!token.trim()) {
     localStorage.removeItem(key);
@@ -372,7 +372,7 @@ export async function getDeployToken(
   const enc = localStorage.getItem(key);
   if (!enc) return null;
   try {
-    const { decryptData } = await import('../crypto');
+    const { decryptData } = await import('../security/crypto');
     return await decryptData(keys.aesKey, enc);
   } catch {
     return null;

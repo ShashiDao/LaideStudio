@@ -2,52 +2,48 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FileText, MessageSquare, MonitorPlay, Upload, FolderPlus, Plus, Settings, ChevronDown, Trash2, AlertTriangle, X, Terminal, BarChart3 } from 'lucide-react';
 import { useAppStore, type TabId } from './store';
 import type { BeforeInstallPromptEvent } from './types';
-import { testDatabaseReadback } from './seed';
-import { db, type FileItem, type Project, type ArchivedProject } from './db';
 import { exportZip } from './services/fs/zipExport';
-import { importZip, isText } from './services/fs/zipImport';
 import { exportProjectAsMarkdown, generateProjectMarkdown } from './services/fs/markdownExport';
-import { listFiles, deleteProject, renameProject, bulkCreateOrUpdateFiles, archiveProject, restoreProject, listArchivedProjects, deleteArchivedProject } from './services/fs/vfs';
-import { calculateProjectMetadata } from './utils/projectStats';
-import { FileTree } from './components/FileTree';
-import { Editor } from './components/Editor';
-import { LockScreen } from './components/LockScreen';
+import { FileTree } from './components/shared/FileTree';
+import { Editor } from './components/editor/Editor';
+import { LockScreen } from './components/shared/LockScreen';
 
-import { SettingsPanel } from './components/SettingsPanel';
-import { PatchReviewSheet } from './components/PatchReviewSheet';
-import { ChatPanel } from './components/ChatPanel';
-import { TerminalPanel } from './components/TerminalPanel';
-import { TopStrip } from './components/TopStrip';
-import { ErrorBoundary } from './components/ErrorBoundary';
-import { PreviewPanel } from './components/PreviewPanel';
-import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
-import { RenameProjectModal } from './components/RenameProjectModal';
-import { ProjectActionsMenu } from './components/ProjectActionsMenu';
-import { ProjectFilesPane } from './components/ProjectFilesPane';
-import { ActivityRail } from './components/ActivityRail';
-import { EditorTabs } from './components/EditorTabs';
-import { TerminalDrawer } from './components/TerminalDrawer';
+import { SettingsPanel } from './components/shared/SettingsPanel';
+import { PatchReviewSheet } from './components/chat/PatchReviewSheet';
+import { ChatPanel } from './components/chat/ChatPanel';
+import { TerminalPanel } from './components/terminal/TerminalPanel';
+import { TopStrip } from './components/shared/TopStrip';
+import { ErrorBoundary } from './components/shared/ErrorBoundary';
+import { PreviewPanel } from './components/preview/PreviewPanel';
+import { KeyboardShortcutsModal } from './components/modals/KeyboardShortcutsModal';
+import { RenameProjectModal } from './components/project/RenameProjectModal';
+import { ProjectActionsMenu } from './components/project/ProjectActionsMenu';
+import { ProjectFilesPane } from './components/project/ProjectFilesPane';
+import { ActivityRail } from './components/shared/ActivityRail';
+import { EditorTabs } from './components/editor/EditorTabs';
+import { TerminalDrawer } from './components/terminal/TerminalDrawer';
 const ProjectMetadataPanel = React.lazy(() =>
-  import('./components/ProjectMetadataPanel').then((m) => ({ default: m.ProjectMetadataPanel }))
+  import('./components/project/ProjectMetadataPanel').then((m) => ({ default: m.ProjectMetadataPanel }))
 );
-import { GithubImportModal } from './components/GithubImportModal';
-import { GithubPushModal } from './components/GithubPushModal';
-import { DeployModal } from './components/DeployModal';
-import { FindWhatBrokeModal } from './components/FindWhatBrokeModal';
-import { TrustReportModal } from './components/TrustReportModal';
-import { CreateProjectModal } from './components/CreateProjectModal';
-import { ProjectSearchModal } from './components/ProjectSearchModal';
-import { ArchivedProjectsModal } from './components/ArchivedProjectsModal';
-import { createProjectFromTemplate, type TemplateId } from './services/templates/projectTemplates';
-import { ReloadPrompt } from './components/ReloadPrompt';
-import { InstallPrompt } from './components/InstallPrompt';
-import { Toaster } from './components/Toaster';
+import { GithubImportModal } from './components/modals/GithubImportModal';
+import { GithubPushModal } from './components/modals/GithubPushModal';
+import { DeployModal } from './components/modals/DeployModal';
+import { FindWhatBrokeModal } from './components/modals/FindWhatBrokeModal';
+import { TrustReportModal } from './components/modals/TrustReportModal';
+import { CreateProjectModal } from './components/project/CreateProjectModal';
+import { ProjectSearchModal } from './components/project/ProjectSearchModal';
+import { ArchivedProjectsModal } from './components/project/ArchivedProjectsModal';
+import { ReloadPrompt } from './components/shared/ReloadPrompt';
+import { InstallPrompt } from './components/shared/InstallPrompt';
+import { Toaster } from './components/shared/Toaster';
 import { useGlobalKeyboardShortcuts } from './hooks/useGlobalKeyboardShortcuts';
 import { useShellBreakpoint } from './hooks/useShellBreakpoint';
+import { useModalState } from './hooks/useModalState';
+import { useProjectActions } from './hooks/useProjectActions';
 
 function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
   return (
@@ -81,7 +77,6 @@ export default function App() {
     isTerminalDrawerOpen,
     setIsTerminalDrawerOpen,
     toggleTerminalDrawer,
-    activeProjectId,
     setActiveProjectId,
     keys,
     setDeferredInstallPrompt,
@@ -94,7 +89,7 @@ export default function App() {
     if (keys) {
       const enc = localStorage.getItem('xiom_mcp_servers');
       if (enc) {
-        import('./services/crypto').then(({ decryptData }) => {
+        import('./services/security/crypto').then(({ decryptData }) => {
           decryptData(keys.aesKey, enc).then(str => {
             try {
               setMcpServers(JSON.parse(str));
@@ -107,29 +102,54 @@ export default function App() {
     }
   }, [keys, setMcpServers]);
 
-  const [dbTested, setDbTested] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [archivedProjects, setArchivedProjects] = useState<ArchivedProject[]>([]);
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [showGithubImport, setShowGithubImport] = useState(false);
-  const [showGithubPush, setShowGithubPush] = useState(false);
-  const [showDeployModal, setShowDeployModal] = useState(false);
-  const [showProjectSearchModal, setShowProjectSearchModal] = useState(false);
-  const [projectSearchInitialQuery, setProjectSearchInitialQuery] = useState('');
-  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
-  const [focusSearchTrigger, setFocusSearchTrigger] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
-  const [showArchivedModal, setShowArchivedModal] = useState(false);
-  const [showProjectStats, setShowProjectStats] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
-  const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
-  const [showTrustReportModal, setShowTrustReportModal] = useState(false);
-  const [trustReportInitialFile, setTrustReportInitialFile] = useState<string | undefined>(undefined);
-  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
-  const [bisectInitialTestName, setBisectInitialTestName] = useState<string | undefined>(undefined);
+  const modal = useModalState();
+  const {
+    showGithubImport, setShowGithubImport,
+    showGithubPush, setShowGithubPush,
+    showDeployModal, setShowDeployModal,
+    showProjectSearchModal, setShowProjectSearchModal,
+    projectSearchInitialQuery,
+    showShortcutsModal, setShowShortcutsModal,
+    focusSearchTrigger, setFocusSearchTrigger,
+    projectToDelete, setProjectToDelete,
+    showArchivedModal, setShowArchivedModal,
+    showProjectStats, setShowProjectStats,
+    showRenameModal, setShowRenameModal,
+    showFindWhatBrokeModal, setShowFindWhatBrokeModal,
+    showTrustReportModal, setShowTrustReportModal,
+    trustReportInitialFile, setTrustReportInitialFile,
+    showCreateProjectModal, setShowCreateProjectModal,
+    bisectInitialTestName,
+    handleOpenProjectSearch,
+    handleOpenBisect,
+    handleOpenGithubImport,
+    handleOpenGithubPush,
+    handleCreateBlankProject,
+  } = modal;
+
+  const project = useProjectActions({ activeFileId, setActiveFileId });
+  const {
+    dbTested,
+    projects,
+    archivedProjects,
+    activeProject,
+    files,
+    setFiles,
+    activeFile,
+    activeProjectMetadata,
+    refreshFiles,
+    handleIncomingFiles,
+    handleFileUpload,
+    handleRenameProject,
+    handleDeleteProject,
+    handleArchiveProject,
+    handleRestoreProject,
+    handleDeleteArchivedProject,
+    handleCreateProjectFromTemplate,
+    handleGithubImportSuccess,
+  } = project;
+
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const breakpoint = useShellBreakpoint(shellRef);
 
@@ -184,307 +204,9 @@ export default function App() {
     };
   }, []);
 
-  const handleOpenProjectSearch = (initialQuery?: string) => {
-    setProjectSearchInitialQuery(initialQuery || '');
-    setShowProjectSearchModal(true);
-  };
-
-  const activeProject = useMemo(() => {
-    if (projects.length === 0) return null;
-    if (activeProjectId) {
-      const found = projects.find(p => p.id === activeProjectId);
-      if (found) return found;
-    }
-    return projects[0] || null;
-  }, [projects, activeProjectId]);
-
-  const handleOpenBisect = (testName?: string) => {
-    setBisectInitialTestName(testName);
-    setShowFindWhatBrokeModal(true);
-  };
-
-  const activeProjectMetadata = useMemo(() => {
-    return calculateProjectMetadata(files);
-  }, [files]);
-
-  const refreshFiles = async () => {
-    if (activeProject) {
-      setFiles(await listFiles(activeProject.id));
-    }
-  };
-
-  const handleRenameProject = async (projId: string, newName: string) => {
-    try {
-      const updated = await renameProject(projId, newName);
-      const allProjects = await db.projects.toArray();
-      setProjects(allProjects);
-      useAppStore.getState().addToast(`Workspace renamed to "${updated.name}"`, 'success');
-    } catch (err) {
-      console.error('Failed to rename project', err);
-      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to rename workspace', 'error');
-      throw err;
-    }
-  };
-
-  const handleDeleteProject = async (projId: string) => {
-    try {
-      await deleteProject(projId);
-      const remainingProjects = await db.projects.toArray();
-      setProjects(remainingProjects);
-      setProjectToDelete(null);
-
-      const nextActive = remainingProjects.find(p => p.id === activeProjectId && p.id !== projId) || remainingProjects[0] || null;
-      if (nextActive) {
-        setActiveProjectId(nextActive.id);
-        setFiles(await listFiles(nextActive.id));
-      } else {
-        setActiveProjectId(null);
-        setFiles([]);
-      }
-    } catch (err) {
-      console.error('Failed to delete project', err);
-    }
-  };
-
-  const handleArchiveProject = async (project: Project) => {
-    try {
-      await archiveProject(project.id);
-      const remainingProjects = await db.projects.toArray();
-      const updatedArchived = await listArchivedProjects();
-      setProjects(remainingProjects);
-      setArchivedProjects(updatedArchived);
-
-      const nextActive = remainingProjects.find(p => p.id !== project.id) || null;
-      if (nextActive) {
-        setActiveProjectId(nextActive.id);
-        setFiles(await listFiles(nextActive.id));
-      } else {
-        setActiveProjectId(null);
-        setFiles([]);
-      }
-
-      useAppStore.getState().addToast(`Archived "${project.name}" to separate collection`, 'success');
-    } catch (err) {
-      console.error('Failed to archive project', err);
-      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to archive project', 'error');
-    }
-  };
-
-  const handleRestoreProject = async (projectId: string) => {
-    try {
-      const restored = await restoreProject(projectId);
-      const allProjects = await db.projects.toArray();
-      const updatedArchived = await listArchivedProjects();
-      setProjects(allProjects);
-      setArchivedProjects(updatedArchived);
-      setActiveProjectId(restored.id);
-      setFiles(await listFiles(restored.id));
-      useAppStore.getState().addToast(`Restored "${restored.name}" to workspace`, 'success');
-    } catch (err) {
-      console.error('Failed to restore project', err);
-      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to restore project', 'error');
-    }
-  };
-
-  const handleDeleteArchivedProject = async (projectId: string) => {
-    try {
-      await deleteArchivedProject(projectId);
-      const updatedArchived = await listArchivedProjects();
-      setArchivedProjects(updatedArchived);
-      useAppStore.getState().addToast('Archived project permanently deleted', 'success');
-    } catch (err) {
-      console.error('Failed to delete archived project', err);
-      useAppStore.getState().addToast('Failed to delete archived project', 'error');
-    }
-  };
-
-  const handleOpenGithubImport = () => {
-    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
-    if (!enc) {
-      setActiveTab('settings');
-      useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to import repositories', 'info');
-      return;
-    }
-    setShowGithubImport(true);
-  };
-
-  const handleOpenGithubPush = () => {
-    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
-    if (!enc) {
-      setActiveTab('settings');
-      useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to push repositories', 'info');
-      return;
-    }
-    setShowGithubPush(true);
-  };
-
-  const handleCreateProjectFromTemplate = async (name: string, templateId: TemplateId) => {
-    try {
-      const { project: newProj, files: createdFiles } = await createProjectFromTemplate(name, templateId);
-      const allProjects = await db.projects.toArray();
-      setProjects(allProjects);
-      setActiveProjectId(newProj.id);
-      setFiles(createdFiles);
-      if (createdFiles.length > 0) {
-        const preferredFile = createdFiles.find(
-          f => f.path === '/src/App.tsx' || f.path === '/src/main.tsx' || f.path === '/src/main.ts' || f.path === '/index.html' || f.path === '/README.md'
-        ) || createdFiles[0];
-        if (preferredFile) {
-          setActiveFileId(preferredFile.id);
-        }
-      }
-      useAppStore.getState().addToast(`Created project "${newProj.name}"`, 'success');
-    } catch (err) {
-      console.error('Failed to create project from template', err);
-      if (err instanceof Error && err.name === 'QuotaExceededError') {
-        useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
-      } else {
-        useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to create project', 'error');
-      }
-      throw err;
-    }
-  };
-
-  const handleCreateBlankProject = async () => {
-    setShowCreateProjectModal(true);
-  };
-
-  const readFileAsContent = async (file: File): Promise<{ path: string; content: string }> => {
-    const buffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    let content: string;
-    if (isText(bytes)) {
-      content = new TextDecoder('utf-8').decode(bytes);
-    } else {
-      let binary = '';
-      const len = bytes.byteLength;
-      const chunkSize = 0x8000;
-      for (let i = 0; i < len; i += chunkSize) {
-        const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-        binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
-      }
-      content = btoa(binary);
-    }
-    const relPath = file.webkitRelativePath || file.name;
-    const path = relPath.startsWith('/') ? relPath : `/${relPath}`;
-    return { path, content };
-  };
-
-  const handleIncomingFiles = async (fileList: FileList | File[]) => {
-    const fileArray = Array.from(fileList);
-    if (fileArray.length === 0) return;
-
-    try {
-      let targetProjectId = activeProject?.id;
-      let targetProjectName = activeProject?.name;
-
-      // Automatically initialize new project if none is currently active
-      if (!targetProjectId) {
-        const newProjId = crypto.randomUUID();
-        const zipFile = fileArray.find(f => f.name.toLowerCase().endsWith('.zip'));
-        const defaultName = zipFile
-          ? zipFile.name.replace(/\.zip$/i, '')
-          : fileArray.length === 1
-            ? fileArray[0].name.replace(/\.[^/.]+$/, '')
-            : (projects.length > 0 ? `Imported Workspace ${projects.length + 1}` : 'Imported Workspace');
-
-        const newProj: Project = {
-          id: newProjId,
-          name: defaultName,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
-        await db.projects.put(newProj);
-        targetProjectId = newProjId;
-        targetProjectName = defaultName;
-        const allProjects = await db.projects.toArray();
-        setProjects(allProjects);
-        setActiveProjectId(newProjId);
-      }
-
-      const zipFiles = fileArray.filter(f => f.name.toLowerCase().endsWith('.zip'));
-      const regularFiles = fileArray.filter(f => !f.name.toLowerCase().endsWith('.zip'));
-
-      let totalImported = 0;
-
-      // Extract ZIP archives fast
-      for (const zipFile of zipFiles) {
-        const { count } = await importZip(zipFile, targetProjectId, { autoRestructure: true });
-        totalImported += count;
-      }
-
-      // Process and write regular files in parallel
-      if (regularFiles.length > 0) {
-        const entries = await Promise.all(regularFiles.map(readFileAsContent));
-        await bulkCreateOrUpdateFiles(targetProjectId, entries);
-        totalImported += entries.length;
-      }
-
-      const updatedFiles = await listFiles(targetProjectId);
-      setFiles(updatedFiles);
-
-      if (updatedFiles.length > 0 && !activeFileId) {
-        const preferred = updatedFiles.find(
-          f => f.path === '/src/App.tsx' || f.path === '/src/main.tsx' || f.path === '/src/main.ts' || f.path === '/index.html' || f.path === '/README.md'
-        ) || updatedFiles[0];
-        if (preferred) {
-          setActiveFileId(preferred.id);
-        }
-      }
-
-      useAppStore.getState().addToast(
-        `Successfully loaded ${totalImported} file${totalImported !== 1 ? 's' : ''} into "${targetProjectName}"`,
-        'success'
-      );
-    } catch (err) {
-      console.error('Failed to process uploaded files', err);
-      if (err instanceof Error && err.name === 'QuotaExceededError') {
-        useAppStore.getState().addToast('Storage is full. Free up space and try again.', 'error');
-      } else {
-        useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to upload files', 'error');
-      }
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      await handleIncomingFiles(e.target.files);
-    }
-  };
-
+  // PWA "Add to Home Screen" prompt capture (unrelated to project/file state,
+  // so it stays local rather than living inside useProjectActions).
   useEffect(() => {
-    testDatabaseReadback().then(async (res) => {
-      setDbTested(res.success);
-      const loadedProjects = res.projects;
-      setProjects(loadedProjects);
-      try {
-        const loadedArchived = await listArchivedProjects();
-        setArchivedProjects(loadedArchived);
-      } catch (e) {
-        console.error('Failed to load archived projects', e);
-      }
-
-      if (loadedProjects.length > 0) {
-        // Existing user with project data: restore saved project or most recently updated
-        const savedId = useAppStore.getState().activeProjectId;
-        const matched = loadedProjects.find(p => p.id === savedId);
-        if (matched) {
-          setActiveProjectId(matched.id);
-        } else {
-          const sorted = [...loadedProjects].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
-          setActiveProjectId(sorted[0].id);
-        }
-      } else {
-        // New user with no projects: default page is "No Project Open"
-        setActiveProjectId(null);
-        setFiles([]);
-      }
-    }).catch(err => {
-      console.error('[DB Test Error]', err);
-    });
-
     const handleBeforeInstallPrompt = (e: Event) => {
       // Prevent the browser's default install banner
       e.preventDefault();
@@ -495,7 +217,7 @@ export default function App() {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [setActiveProjectId, setDeferredInstallPrompt]);
+  }, [setDeferredInstallPrompt]);
 
   useGlobalKeyboardShortcuts({
     activeFileId,
@@ -510,22 +232,6 @@ export default function App() {
     toggleTheme,
     lockVault,
   });
-
-  useEffect(() => {
-    let ignore = false;
-    if (activeProject) {
-      listFiles(activeProject.id).then(fileList => {
-        if (!ignore) {
-          setFiles(fileList);
-        }
-      });
-    }
-    return () => {
-      ignore = true;
-    };
-  }, [activeProject?.id]);
-
-  const activeFile = useMemo(() => files.find(f => f.id === activeFileId), [files, activeFileId]);
 
   if (!keys) {
     return <LockScreen />;
@@ -826,13 +532,7 @@ export default function App() {
             onClose={() => setShowGithubImport(false)}
             onSuccess={async (newProjId?: string) => {
               setShowGithubImport(false);
-              const allProjects = await db.projects.toArray();
-              setProjects(allProjects);
-              const targetId = newProjId || activeProject?.id || (allProjects.length > 0 ? allProjects[allProjects.length - 1].id : null);
-              if (targetId) {
-                setActiveProjectId(targetId);
-                setFiles(await listFiles(targetId));
-              }
+              await handleGithubImportSuccess(newProjId);
             }}
           />
         )}
