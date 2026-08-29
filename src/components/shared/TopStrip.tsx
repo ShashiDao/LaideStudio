@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Lock, X, Moon, Sun, Terminal, CircleHelp } from 'lucide-react';
+import { Lock, X, Moon, Sun, CircleHelp } from 'lucide-react';
 import { useAppStore } from '../../store';
+import { LaideLogo } from './LaideLogo';
 import type { ShellBreakpoint } from '../../hooks/useShellBreakpoint';
 
 export function TopStrip({ 
@@ -42,9 +43,7 @@ export function TopStrip({
       <div className="h-[34px] flex items-center justify-between px-3">
         {/* Left: Professional Brand Logo & Name */}
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-5 h-5 rounded bg-accent/15 border border-accent/40 flex items-center justify-center text-accent shrink-0 shadow-xs">
-            <Terminal size={12} strokeWidth={2.5} />
-          </div>
+          <LaideLogo size={18} className="shrink-0 rounded-xs shadow-xs" />
           
           <div className="flex items-center gap-1.5 truncate">
             <span className={`font-mono font-bold tracking-tight text-text ${isWide ? 'text-sm' : 'text-xs'}`}>

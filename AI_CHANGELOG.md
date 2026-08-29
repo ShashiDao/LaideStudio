@@ -1,10 +1,33 @@
 ## Current State
-- Phase: HOTFIX-81
-- Last verified working: Snapshot restore and Version History modal (SnapshotsModal.tsx) integrated with ProjectActionsMenu, App.tsx, and FindWhatBrokeModal. Deploy token deletion wired in DeployModal.tsx. All unit tests passed (23/23 in modified suites), linter has 0 errors, and applet builds cleanly.
+- Phase: HOTFIX-82
+- Last verified working: Official LAIDE Studio SVG monogram logo added to public/icon.svg and integrated as reusable LaideLogo component across TopStrip header, LockScreen (intro, setup, and unlock screens), InstallPrompt banner, and SettingsPanel. Unit tests in LaideLogo.test.tsx, TopStrip.test.tsx, and LockScreen.test.tsx pass cleanly (18/18 tests). Linter and compiler builds are clean.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
 ## Log
+
+### [HOTFIX-82] Official LAIDE Studio Vector Logo Integration — 2026-08-29
+Prompt: Add provided SVG monogram logo everywhere in the application.
+Files touched:
+- `public/icon.svg` (modified)
+- `src/components/shared/LaideLogo.tsx` (new)
+- `src/components/shared/LaideLogo.test.tsx` (new)
+- `src/components/shared/TopStrip.tsx` (modified)
+- `src/components/shared/LockScreen.tsx` (modified)
+- `src/components/shared/InstallPrompt.tsx` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Replaced `public/icon.svg` with the user-provided vector monogram logo (dark rounded canvas, gold inner shield, and stylized geometric "LS" strokes).
+- Created reusable `<LaideLogo />` React component in `src/components/shared/LaideLogo.tsx` supporting custom sizing, optional background, accessibility labels, and standard SVG props.
+- Integrated the new logo into `TopStrip.tsx` (top application header), replacing the placeholder terminal square.
+- Added the logo to `LockScreen.tsx` (intro onboarding screen, passphrase initialization, and unlock vault headers).
+- Updated `InstallPrompt.tsx` (PWA install card) and `SettingsPanel.tsx` (settings header & sidebar brand footer).
+Decisions:
+- Encapsulated SVG vectors in a shared component for crisp rendering across all screen densities and themes without pixel distortion or external asset fetch delays.
+Deviations: none
+Verified: Unit tests in `LaideLogo.test.tsx`, `TopStrip.test.tsx`, and `LockScreen.test.tsx` passed (18/18); `lint_applet` passed with 0 errors; `compile_applet` compiled cleanly.
+Open questions: none
 
 ### [HOTFIX-81] Snapshot Restore UI, Version History Modal & Deploy Token Deletion — 2026-08-29
 Prompt: Expose Snapshot restore / "Undo AI changes" via UI modal and wire deploy token deletion in DeployModal.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  Settings, Plus, Save, Trash2, ShieldCheck, ShieldAlert, Activity, CheckCircle2, 
+  Plus, Save, Trash2, ShieldCheck, ShieldAlert, Activity, CheckCircle2, 
   ChevronDown, ChevronLeft, ChevronRight, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
   Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
   Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight,
@@ -25,6 +25,7 @@ import { OpenAIProvider } from '../../services/llm/providers/openai';
 import { GoogleProvider } from '../../services/llm/providers/google';
 import { OpenAICompatibleProvider } from '../../services/llm/providers/openaiCompatible';
 import type { LLMAdapter } from '../../services/llm/llmAdapter';
+import { LaideLogo } from './LaideLogo';
 import { 
   fetchAvailableModels, 
   type DiscoveredModel,
@@ -2003,7 +2004,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
             </button>
           ) : (
             <div className="flex items-center gap-2.5">
-              <Settings size={18} className="text-accent" />
+              <LaideLogo size={18} className="shrink-0 rounded-xs shadow-xs" />
               <h2 className="text-sm font-semibold text-text">Settings</h2>
             </div>
           )}
@@ -2016,30 +2017,41 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
           /* Persistent Two-Column Layout (>= 700px) */
           <div className="flex w-full h-full divide-x divide-border/60" data-testid="settings-wide-layout">
             {/* Left Rail (~200px) */}
-            <div className="w-52 shrink-0 overflow-y-auto p-3 flex flex-col gap-1 bg-surface/20" data-testid="settings-category-rail">
-              <span className="px-2.5 py-1 text-[10px] font-mono text-muted uppercase tracking-wider">
-                Categories
-              </span>
-              {SETTINGS_CATEGORIES.map((cat) => {
-                const Icon = cat.icon;
-                const isActive = activeCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setActiveCategory(cat.id)}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`w-full px-3 py-2.5 rounded-lg text-left flex items-center gap-2.5 transition-all cursor-pointer ${
-                      isActive
-                        ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
-                        : 'text-muted hover:text-text hover:bg-surface/50 border border-transparent'
-                    }`}
-                  >
-                    <Icon size={16} className={isActive ? 'text-accent' : 'text-muted'} />
-                    <span className="text-xs truncate">{cat.label}</span>
-                  </button>
-                );
-              })}
+            <div className="w-52 shrink-0 overflow-y-auto p-3 flex flex-col justify-between bg-surface/20" data-testid="settings-category-rail">
+              <div className="flex flex-col gap-1">
+                <span className="px-2.5 py-1 text-[10px] font-mono text-muted uppercase tracking-wider">
+                  Categories
+                </span>
+                {SETTINGS_CATEGORIES.map((cat) => {
+                  const Icon = cat.icon;
+                  const isActive = activeCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setActiveCategory(cat.id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`w-full px-3 py-2.5 rounded-lg text-left flex items-center gap-2.5 transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                          : 'text-muted hover:text-text hover:bg-surface/50 border border-transparent'
+                      }`}
+                    >
+                      <Icon size={16} className={isActive ? 'text-accent' : 'text-muted'} />
+                      <span className="text-xs truncate">{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Brand Footer in Sidebar */}
+              <div className="mt-4 pt-3 border-t border-border/50 px-1 flex items-center gap-2">
+                <LaideLogo size={16} className="rounded-xs shrink-0" />
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-mono font-bold text-text">LAIDE Studio</span>
+                  <span className="text-[9px] font-mono text-muted">Local-First Sandbox</span>
+                </div>
+              </div>
             </div>
 
             {/* Right Main Pane */}

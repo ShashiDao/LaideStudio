@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../store';
 import { Download, Sparkles, X } from 'lucide-react';
+import { LaideLogo } from './LaideLogo';
 
 export function InstallPrompt() {
   const {
@@ -45,9 +46,7 @@ export function InstallPrompt() {
 
         <div className="flex items-start justify-between gap-2 pt-0.5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-bg border border-accent/40 flex items-center justify-center text-accent shrink-0 shadow-inner">
-              <Download size={16} />
-            </div>
+            <LaideLogo size={32} className="rounded-md shrink-0 shadow-xs" />
             <div>
               <div className="flex items-center gap-1.5">
                 <h4 className="text-xs font-sans font-bold  text-text ">

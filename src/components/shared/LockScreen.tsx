@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Lock, Key, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, Copy, Check, LifeBuoy, ArrowLeft, Eye, EyeOff, Terminal } from 'lucide-react';
+import { Lock, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, LifeBuoy, ArrowLeft, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { LaideLogo } from './LaideLogo';
 import { getLockConfig, saveLockConfig, type LockConfig } from '../../services/security/lockConfig';
 import type { KeyMaterial } from '../../services/security/crypto';
 import { isPasskeyPrfSupported, enrollPasskey, unlockWithPasskey, type PasskeyData } from '../../services/security/passkeyCrypto';
@@ -313,9 +314,7 @@ export function LockScreen() {
         <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
           <div className="bg-surface border border-border rounded-lg p-6 sm:p-8 w-full max-w-md shadow-2xl corner-ticks flex flex-col">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-accent/15 border border-accent/40 flex items-center justify-center text-accent shrink-0 shadow-xs">
-                <Terminal size={22} strokeWidth={2.5} />
-              </div>
+              <LaideLogo size={40} className="rounded-lg shrink-0 shadow-sm" />
               <div>
                 <h1 className="text-xl font-sans text-text font-bold">LAIDE Studio</h1>
                 <p className="text-xs font-mono text-muted tracking-wide">Local-First AI Coding Environment</p>
@@ -688,8 +687,11 @@ export function LockScreen() {
     <div className="min-h-screen bg-bg flex items-center justify-center p-4 pt-safe pb-safe pl-safe pr-safe">
       <div className="bg-surface border border-border rounded-lg p-6 sm:p-8 w-full max-w-md shadow-2xl corner-ticks">
         <div className="flex items-center gap-3 mb-6">
-          <Key className="text-accent" size={28} />
-          <h2 className="text-xl font-sans text-text font-bold">Unlock Vault</h2>
+          <LaideLogo size={32} className="rounded-md shrink-0 shadow-xs" />
+          <div>
+            <h2 className="text-xl font-sans text-text font-bold">Unlock Vault</h2>
+            <p className="text-[11px] font-mono text-muted">LAIDE Studio Workspace</p>
+          </div>
         </div>
         
         <form onSubmit={handleUnlock} className="space-y-4">
