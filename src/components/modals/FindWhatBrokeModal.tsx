@@ -13,28 +13,36 @@ import {
   Play, 
   RotateCcw,
   ArrowRight,
-  ShieldAlert
+  ShieldAlert,
+  History,
+  Bookmark
 } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { bisectBrokenTest, type BisectProgress, type BisectResult } from '../../services/provenance/bisect';
 import { formatTimestamp } from '../editor/EditorAiBlame';
 import { listFiles } from '../../services/fs/vfs';
 import { runProjectTestsDetailed } from '../../services/bundler/testRunner';
+import { listSnapshots, restoreSnapshot } from '../../services/fs/snapshot';
+import type { Snapshot } from '../../db';
 
 export interface FindWhatBrokeModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId: string;
   initialTestName?: string;
+  onRestore?: () => void;
+  onOpenSnapshots?: () => void;
 }
 
 export function FindWhatBrokeModal({
   isOpen,
   onClose,
   projectId,
-  initialTestName
+  initialTestName,
+  onRestore,
+  onOpenSnapshots
 }: FindWhatBrokeModalProps) {
-  const { setQueuedPrompt, setActiveTab, theme } = useAppStore();
+  const { setQueuedPrompt, setActiveTab, theme, addToast } = useAppStore();
   const isLight = theme === 'paper';
 
   const [testName, setTestName] = useState(initialTestName || '');
@@ -44,6 +52,11 @@ export function FindWhatBrokeModal({
   const [progress, setProgress] = useState<BisectProgress | null>(null);
   const [result, setResult] = useState<BisectResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Snapshots for quick revert
+  const [availableSnapshots, setAvailableSnapshots] = useState<Snapshot[]>([]);
+  const [confirmingRevertSnapshot, setConfirmingRevertSnapshot] = useState<Snapshot | null>(null);
+  const [isReverting, setIsReverting] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -118,6 +131,13 @@ export function FindWhatBrokeModal({
       });
 
       setResult(bisectRes);
+      if (bisectRes.found && bisectRes.offendingEntry) {
+        listSnapshots(projectId).then(snaps => {
+          setAvailableSnapshots(snaps);
+        }).catch(err => {
+          console.error('Failed to load snapshots for bisection', err);
+        });
+      }
     } catch (err) {
       if ((err instanceof Error && err.name === 'AbortError') || abortController.signal.aborted) {
         setError('Bisection search was cancelled.');
@@ -168,6 +188,24 @@ Please diagnose why this patch broke the test and propose a fix for \`${entry.fi
     setQueuedPrompt(promptMessage);
     setActiveTab('chat');
     onClose();
+  };
+
+  const handleExecuteRevert = async (snapshot: Snapshot) => {
+    setIsReverting(true);
+    try {
+      await restoreSnapshot(snapshot.id);
+      addToast(`Workspace reverted to snapshot: "${snapshot.label}"`, 'success');
+      if (onRestore) {
+        onRestore();
+      }
+      onClose();
+    } catch (err) {
+      console.error('Failed to revert snapshot', err);
+      addToast(err instanceof Error ? err.message : 'Failed to revert snapshot', 'error');
+    } finally {
+      setIsReverting(false);
+      setConfirmingRevertSnapshot(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -448,6 +486,77 @@ Please diagnose why this patch broke the test and propose a fix for \`${entry.fi
                       </div>
                     )}
                   </div>
+
+                  {/* Safe Snapshot Revert Option */}
+                  {(() => {
+                    const matchedSnapshot = availableSnapshots.find(
+                      s => s.createdAt <= (result.offendingEntry?.timestamp || Infinity)
+                    ) || availableSnapshots[0];
+
+                    if (!matchedSnapshot) return null;
+
+                    return (
+                      <div className="p-3.5 rounded-lg border border-amber-500/40 bg-amber-500/10 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+                            <History size={15} className="shrink-0" />
+                            <span>Safe Snapshot Available</span>
+                          </div>
+                          {onOpenSnapshots && (
+                            <button
+                              type="button"
+                              onClick={onOpenSnapshots}
+                              className="text-[10px] text-accent hover:underline flex items-center gap-1 cursor-pointer font-sans"
+                            >
+                              <Bookmark size={11} />
+                              <span>View All Snapshots</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <p className="text-[11px] text-amber-200 font-sans leading-relaxed">
+                          You have a recorded snapshot taken before this regression: <strong>"{matchedSnapshot.label}"</strong> ({new Date(matchedSnapshot.createdAt).toLocaleTimeString()}).
+                        </p>
+
+                        {confirmingRevertSnapshot?.id === matchedSnapshot.id ? (
+                          <div className="p-2.5 bg-bg/80 border border-amber-500/50 rounded-lg space-y-2 animate-in fade-in duration-150">
+                            <p className="text-[10px] text-muted font-sans">
+                              Confirm reverting project files to this snapshot? Current unsaved changes will be overwritten.
+                            </p>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingRevertSnapshot(null)}
+                                disabled={isReverting}
+                                className="px-2.5 py-1 bg-surface text-muted hover:text-text rounded border border-border text-xs cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleExecuteRevert(matchedSnapshot)}
+                                disabled={isReverting}
+                                className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                              >
+                                {isReverting ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                                <span>Revert Workspace to Snapshot</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmingRevertSnapshot(matchedSnapshot)}
+                            disabled={isReverting}
+                            className="w-full py-2 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg font-mono text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                          >
+                            <RotateCcw size={13} />
+                            <span>Revert Workspace to Snapshot Before Patch</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Primary CTA: Send to Agent to Fix */}
                   <div className="pt-2 flex flex-col sm:flex-row gap-2">

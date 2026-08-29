@@ -16,7 +16,8 @@ import {
   Rocket,
   Search,
   ShieldCheck,
-  Archive
+  Archive,
+  History
 } from 'lucide-react';
 import { GithubIcon } from '../shared/GithubIcons';
 import type { Project } from '../../db';
@@ -26,6 +27,7 @@ export interface ProjectActionsMenuProps {
   fileCount: number;
   onOpenDeploy?: () => void;
   onOpenProjectSearch?: () => void;
+  onOpenSnapshots?: () => void;
   onOpenGithubImport: () => void;
   onOpenGithubPush: () => void;
   onUploadClick: () => void;
@@ -47,6 +49,7 @@ export function ProjectActionsMenu({
   fileCount,
   onOpenDeploy,
   onOpenProjectSearch,
+  onOpenSnapshots,
   onOpenGithubImport,
   onOpenGithubPush,
   onUploadClick,
@@ -246,6 +249,26 @@ export function ProjectActionsMenu({
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-medium leading-tight">Project Analytics</div>
                           <div className="text-[9px] text-muted truncate">Lines of code & languages</div>
+                        </div>
+                      </button>
+                    )}
+
+                    {onOpenSnapshots && (
+                      <button
+                        type="button"
+                        onClick={() => handleAction(onOpenSnapshots)}
+                        className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 text-text hover:text-accent hover:bg-accent/10 active:bg-accent/20 first:rounded-t-lg last:rounded-b-lg first:active:rounded-t-lg last:active:rounded-b-lg first:hover:rounded-t-lg last:hover:rounded-b-lg transition-colors cursor-pointer"
+                        role="menuitem"
+                      >
+                        <div className="p-1 rounded bg-surface-elevated text-accent border border-border shrink-0">
+                          <History size={13} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-medium leading-tight text-accent flex items-center gap-1.5">
+                            <span>Snapshots & Version History</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent/20 text-accent font-semibold border border-accent/30">Undo</span>
+                          </div>
+                          <div className="text-[9px] text-muted truncate">Restore AI changes or bookmark state</div>
                         </div>
                       </button>
                     )}

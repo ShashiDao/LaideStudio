@@ -33,6 +33,7 @@ import { GithubImportModal } from './components/modals/GithubImportModal';
 import { GithubPushModal } from './components/modals/GithubPushModal';
 import { DeployModal } from './components/modals/DeployModal';
 import { FindWhatBrokeModal } from './components/modals/FindWhatBrokeModal';
+import { SnapshotsModal } from './components/modals/SnapshotsModal';
 import { TrustReportModal } from './components/modals/TrustReportModal';
 import { CreateProjectModal } from './components/project/CreateProjectModal';
 import { ProjectSearchModal } from './components/project/ProjectSearchModal';
@@ -116,6 +117,7 @@ export default function App() {
     showProjectStats, setShowProjectStats,
     showRenameModal, setShowRenameModal,
     showFindWhatBrokeModal, setShowFindWhatBrokeModal,
+    showSnapshotsModal, setShowSnapshotsModal,
     showTrustReportModal, setShowTrustReportModal,
     trustReportInitialFile, setTrustReportInitialFile,
     showCreateProjectModal, setShowCreateProjectModal,
@@ -263,6 +265,7 @@ export default function App() {
                 focusSearchTrigger={focusSearchTrigger}
                 onOpenProjectSearch={handleOpenProjectSearch}
                 onOpenDeploy={() => setShowDeployModal(true)}
+                onOpenSnapshots={() => setShowSnapshotsModal(true)}
                 onOpenGithubImport={handleOpenGithubImport}
                 onOpenGithubPush={handleOpenGithubPush}
                 onOpenBisect={handleOpenBisect}
@@ -371,6 +374,7 @@ export default function App() {
                 focusSearchTrigger={focusSearchTrigger}
                 onOpenProjectSearch={handleOpenProjectSearch}
                 onOpenDeploy={() => setShowDeployModal(true)}
+                onOpenSnapshots={() => setShowSnapshotsModal(true)}
                 onOpenGithubImport={handleOpenGithubImport}
                 onOpenGithubPush={handleOpenGithubPush}
                 onOpenBisect={handleOpenBisect}
@@ -638,6 +642,21 @@ export default function App() {
             isOpen={showFindWhatBrokeModal}
             onClose={() => setShowFindWhatBrokeModal(false)}
             initialTestName={bisectInitialTestName}
+            onRestore={refreshFiles}
+            onOpenSnapshots={() => {
+              setShowFindWhatBrokeModal(false);
+              setShowSnapshotsModal(true);
+            }}
+          />
+        )}
+
+        {/* Snapshots & Version History (Undo AI Changes) Modal */}
+        {activeProject && (
+          <SnapshotsModal
+            project={activeProject}
+            isOpen={showSnapshotsModal}
+            onClose={() => setShowSnapshotsModal(false)}
+            onRestore={refreshFiles}
           />
         )}
 

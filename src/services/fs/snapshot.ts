@@ -62,3 +62,30 @@ export async function restoreSnapshot(snapshotId: string): Promise<void> {
     );
   }
 }
+
+export async function listSnapshots(projectId: string): Promise<Snapshot[]> {
+  const snapshots = await db.snapshots.where('projectId').equals(projectId).toArray();
+  return snapshots.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function getSnapshot(snapshotId: string): Promise<Snapshot | undefined> {
+  return await db.snapshots.get(snapshotId);
+}
+
+export async function getLatestSnapshot(projectId: string): Promise<Snapshot | undefined> {
+  const snapshots = await listSnapshots(projectId);
+  return snapshots[0];
+}
+
+export async function deleteSnapshot(snapshotId: string): Promise<void> {
+  await db.snapshots.delete(snapshotId);
+}
+
+export async function clearSnapshots(projectId: string): Promise<void> {
+  const snapshots = await db.snapshots.where('projectId').equals(projectId).toArray();
+  const ids = snapshots.map(s => s.id);
+  if (ids.length > 0) {
+    await db.snapshots.bulkDelete(ids);
+  }
+}
+

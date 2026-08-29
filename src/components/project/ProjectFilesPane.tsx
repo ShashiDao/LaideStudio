@@ -39,6 +39,7 @@ interface ProjectFilesPaneProps {
   focusSearchTrigger?: boolean;
   onOpenProjectSearch: (initialQuery?: string) => void;
   onOpenDeploy: () => void;
+  onOpenSnapshots?: () => void;
   onOpenGithubImport: () => void;
   onOpenGithubPush: () => void;
   onOpenBisect: (testName?: string) => void;
@@ -67,6 +68,7 @@ export function ProjectFilesPane({
   focusSearchTrigger,
   onOpenProjectSearch,
   onOpenDeploy,
+  onOpenSnapshots,
   onOpenGithubImport,
   onOpenGithubPush,
   onOpenBisect,
@@ -169,6 +171,7 @@ export function ProjectFilesPane({
               fileCount={files.length}
               onOpenDeploy={onOpenDeploy}
               onOpenProjectSearch={onOpenProjectSearch}
+              onOpenSnapshots={onOpenSnapshots}
               onOpenGithubImport={onOpenGithubImport}
               onOpenGithubPush={onOpenGithubPush}
               onOpenAnalytics={() => setShowProjectStats(true)}

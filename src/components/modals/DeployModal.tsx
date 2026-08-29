@@ -21,6 +21,7 @@ import {
   deployToVercel, 
   getDeployToken, 
   saveDeployToken, 
+  deleteDeployToken,
   getDeployHistory, 
   clearDeployHistory, 
   type DeployResult 
@@ -207,6 +208,14 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
     clearDeployHistory(project.id);
     setHistoryItems([]);
     addToast('Deployment history cleared', 'info');
+  };
+
+  const handleDeleteToken = () => {
+    const provider = activeTab === 'netlify' ? 'netlify' : 'vercel';
+    deleteDeployToken(provider);
+    setTokenInput('');
+    setHasSavedToken(false);
+    addToast(`${activeTab === 'netlify' ? 'Netlify' : 'Vercel'} token removed from vault`, 'info');
   };
 
   return (
@@ -558,11 +567,28 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                     </span>
                   )}
                 </div>
-                {activeTab === 'netlify' && (
+                {hasSavedToken ? (
+                  <div className="flex items-center justify-between text-[10px] font-sans pt-0.5">
+                    <span className="text-moss flex items-center gap-1">
+                      <ShieldCheck size={11} />
+                      <span>Token securely stored in local encrypted vault</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleDeleteToken}
+                      disabled={isDeploying}
+                      className="text-error hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                      title="Remove token from vault"
+                    >
+                      <Trash2 size={11} />
+                      <span>Revoke / Delete Token</span>
+                    </button>
+                  </div>
+                ) : activeTab === 'netlify' ? (
                   <p className="text-[10px] text-muted font-sans">
                     Providing a token links the site directly to your personal Netlify account.
                   </p>
-                )}
+                ) : null}
               </div>
 
               {/* Save token checkbox */}

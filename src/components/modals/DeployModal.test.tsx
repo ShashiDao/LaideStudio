@@ -127,4 +127,24 @@ describe('DeployModal', () => {
       expect(screen.getByText('https://historic-app.netlify.app')).toBeDefined();
     });
   });
+
+  it('allows revoking and deleting saved deploy token from vault', async () => {
+    vi.spyOn(deployClient, 'getDeployToken').mockResolvedValue('nfp_saved_test_token');
+    const deleteSpy = vi.spyOn(deployClient, 'deleteDeployToken');
+
+    render(<DeployModal project={dummyProject} onClose={() => {}} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Vault Saved')).toBeDefined();
+      expect(screen.getByText('Revoke / Delete Token')).toBeDefined();
+    });
+
+    const revokeBtn = screen.getByRole('button', { name: /Revoke \/ Delete Token/i });
+    fireEvent.click(revokeBtn);
+
+    expect(deleteSpy).toHaveBeenCalledWith('netlify');
+    await waitFor(() => {
+      expect(screen.queryByText('Vault Saved')).toBeNull();
+    });
+  });
 });

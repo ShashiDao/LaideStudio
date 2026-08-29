@@ -24,6 +24,7 @@ export function useModalState() {
   const [showProjectStats, setShowProjectStats] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [showFindWhatBrokeModal, setShowFindWhatBrokeModal] = useState(false);
+  const [showSnapshotsModal, setShowSnapshotsModal] = useState(false);
   const [showTrustReportModal, setShowTrustReportModal] = useState(false);
   const [trustReportInitialFile, setTrustReportInitialFile] = useState<string | undefined>(undefined);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
@@ -77,6 +78,7 @@ export function useModalState() {
     showProjectStats, setShowProjectStats,
     showRenameModal, setShowRenameModal,
     showFindWhatBrokeModal, setShowFindWhatBrokeModal,
+    showSnapshotsModal, setShowSnapshotsModal,
     showTrustReportModal, setShowTrustReportModal,
     trustReportInitialFile, setTrustReportInitialFile,
     showCreateProjectModal, setShowCreateProjectModal,
