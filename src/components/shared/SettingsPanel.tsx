@@ -420,7 +420,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     let active = true;
     async function loadTokens() {
       const { decryptData } = await import('../../services/security/crypto');
-      const { db } = await import('../../db');
       if (!keys) return;
       
       const githubRecord = await db.secureTokens.get('github_pat');
@@ -1377,7 +1376,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const { encryptData } = await import('../../services/security/crypto');
-                const { db } = await import('../../db');
                 if (!keys) return;
                 try {
                   const enc = await encryptData(keys.aesKey, githubPatInput);
@@ -1430,7 +1428,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const { encryptData } = await import('../../services/security/crypto');
-                const { db } = await import('../../db');
                 if (!keys) return;
                 try {
                   if (!netlifyTokenInput.trim()) {
@@ -1479,7 +1476,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const { encryptData } = await import('../../services/security/crypto');
-                const { db } = await import('../../db');
                 if (!keys) return;
                 try {
                   if (!vercelTokenInput.trim()) {

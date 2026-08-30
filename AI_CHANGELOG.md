@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-91
-- Last verified working: Migrated encrypted API tokens (GitHub PAT, Netlify, Vercel) from localStorage to IndexedDB `secureTokens` table, closing discrepancy with architecture docs.
+- Phase: HOTFIX-92
+- Last verified working: Removed 'unsafe-inline' from script-src in index.html CSP and implemented parsed CSP validation test in src/services/security/csp.test.ts (all 75 test suites / 546 tests pass).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -429,3 +429,22 @@ Decisions:
 Deviations: none
 Verified: All 74 test suites pass, fixing documentation discrepancy where API keys were claimed to be in IndexedDB but were in localStorage.
 Open questions: none
+
+### [HOTFIX-92] Remove Unsafe-Inline from CSP Script-Src & Add CSP Suite — 2026-08-30
+Prompt: remove unnecessary 'unsafe-inline' from index.html CSP script-src directive after verifying codebase needs, rewrite test-csp.js into a proper Vitest test checking CSP structure.
+Files touched:
+- `index.html` (modified)
+- `test-csp.js` (deleted)
+- `src/services/security/csp.test.ts` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Audited repository for dynamic script tags or inline handlers that could require `script-src 'unsafe-inline'`; confirmed none exist in the outer application document.
+- Removed `'unsafe-inline'` from `script-src` in `index.html`'s `Content-Security-Policy` meta tag, hardening against XSS/DOM injection while retaining `'self' 'unsafe-eval' blob:`.
+- Replaced root `test-csp.js` with structured Vitest test suite in `src/services/security/csp.test.ts` parsing directives and verifying `default-src 'none'`, `script-src` restrictions, `connect-src` origins, and asset sandbox controls.
+Decisions:
+- Placed the CSP test under `src/services/security/csp.test.ts` to adhere to repository conventions for security tests.
+- Verified that preview iframe bundling and worker executions operate inside isolated iframe blob documents/Workers and do not affect the main window's CSP policy.
+Deviations: none
+Verified: All 75 test suites (546 tests) pass via `npx vitest run`; linter passes with 0 errors; `compile_applet` builds cleanly.
+Open questions: none
+
