@@ -20,7 +20,7 @@ export function InstallPrompt() {
       await deferredInstallPrompt.prompt();
       const choiceResult = await deferredInstallPrompt.userChoice;
       if (choiceResult.outcome === 'accepted') {
-        localStorage.setItem('xiom_pwa_install_dismissed', 'true');
+        localStorage.setItem('laide_pwa_install_dismissed', 'true');
       }
     } catch (err) {
       console.warn('Error during install prompt:', err);
@@ -31,7 +31,7 @@ export function InstallPrompt() {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem('xiom_pwa_install_dismissed', 'true');
+    localStorage.setItem('laide_pwa_install_dismissed', 'true');
     setShowInstallPrompt(false);
   };
 

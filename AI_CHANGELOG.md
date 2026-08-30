@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-88
-- Last verified working: Evaluated `node`/`eval`/`run` commands via Web Worker sandbox instead of direct main-thread `new Function()`, preserving exact output parsing and test UX while closing security loophole.
+- Phase: HOTFIX-91
+- Last verified working: Migrated encrypted API tokens (GitHub PAT, Netlify, Vercel) from localStorage to IndexedDB `secureTokens` table, closing discrepancy with architecture docs.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -351,4 +351,81 @@ Decisions:
 - Applied exact same 30-second execution timeout guard and cleanup behavior as `runProjectTests` worker to prevent infinite loops in terminal.
 Deviations: none
 Verified: `TerminalPanel.test.tsx` and `sandboxRunner.test.ts` unit tests pass cleanly. `npm run lint` and `npm run build` succeed with 0 errors.
+Open questions: none
+
+### [HOTFIX-89] Add Strict Content-Security-Policy to index.html — 2026-08-30
+Prompt: Add a strict CSP meta tag to index.html, auditing and allowing all external network destinations, and denying everything else by default.
+Files touched:
+- `index.html` (modified)
+Changed:
+- Added `<meta http-equiv="Content-Security-Policy">` with `default-src 'none'`.
+- Allowed external LLM endpoints (Google, Anthropic, OpenAI, OpenRouter, Groq), GitHub API, Deploy endpoints (Netlify, Vercel), and bundler CDN dependencies (esm.sh, jsdelivr, tailwindcss) in `connect-src`.
+- Allowed `blob:` and `data:` for workers, iframes, and image sources as required by the bundler/preview.
+Decisions:
+- Restricting `connect-src` exactly to the audited list means custom user-configured OpenAI-compatible endpoints or custom MCP servers (other than localhost/127.0.0.1) will be blocked.
+- Required adding `'unsafe-eval'` to `script-src` because `esbuild-wasm` needs it to compile and instantiate WebAssembly, and `sandboxRunner.ts` evaluates code via `new Function` in workers.
+- Required adding `'unsafe-inline'` to `script-src` because the `PreviewPanel` injects user-authored application code via `srcDoc`, generating inline scripts that cannot run otherwise.
+Deviations: none
+Verified: `npm run build` succeeds, `npm run lint` succeeds.
+Open questions: The strict `connect-src` inheritance on the un-sandboxed `srcDoc` iframe prevents user-authored preview apps from fetching from external APIs (e.g., `https://pokeapi.co`). To fix this, either `connect-src` needs `https:` or the preview iframe must be sandboxed.
+
+### [HOTFIX-90] Standardize on "laide_" Storage Prefix & Clean Legacy Fallbacks — 2026-08-30
+Prompt: Standardize on "laide_" prefix across all localStorage/sessionStorage keys, add one-time on-boot migration copying old keys byte-for-byte and deleting old keys, update all read/write sites, and remove dead fallback branches.
+Files touched:
+- `src/utils/storageMigration.ts` (new)
+- `src/utils/storageMigration.test.ts` (new)
+- `src/db.ts` (modified)
+- `src/store.ts` (modified)
+- `src/App.tsx` (modified)
+- `src/hooks/useModalState.ts` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `src/components/shared/InstallPrompt.tsx` (modified)
+- `src/components/modals/GithubImportModal.tsx` (modified)
+- `src/components/modals/GithubImportModal.test.ts` (modified)
+- `src/components/modals/GithubPushModal.tsx` (modified)
+- `src/components/modals/GithubPushModal.test.ts` (modified)
+- `src/services/security/lockConfig.ts` (modified)
+- `src/services/security/backup.ts` (modified)
+- `src/services/security/backup.test.ts` (modified)
+- `src/services/github/githubClient.ts` (modified)
+- `src/services/deploy/deployClient.ts` (modified)
+- `src/services/deploy/deployClient.test.ts` (modified)
+- `src/services/bundler/previewCapture.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Created `migrateLocalStorage()` utility in `src/utils/storageMigration.ts` that iterates `localStorage` and `sessionStorage`, copies any `xiom_` prefixed keys to `laide_` byte-for-byte without altering encryption payloads, and removes the old keys.
+- Wired `migrateLocalStorage()` into `migrateXiomToLaide()` in `src/db.ts` to run automatically before app rendering.
+- Migrated all read and write calls across Zustand store, settings panel, modals, GitHub client, deploy client, backup service, lock config, and preview capture scripts to use `laide_` exclusively.
+- Removed legacy fallback read chains (e.g., `localStorage.getItem('laide_...') || localStorage.getItem('xiom_...')`).
+Decisions:
+- Preserved existing ciphertext as-is without re-encryption during key rename since the payload data is identical.
+- Maintained fallback protection in migration utility so existing `laide_` values are not overwritten if already set.
+Deviations: none
+Verified: All 74 test suites (541 unit and integration tests) pass; `lint_applet` reports 0 errors; `compile_applet` compiles cleanly.
+Open questions: none
+
+
+### [HOTFIX-91] Migrate Encrypted Tokens from localStorage to IndexedDB — 2026-08-30
+Prompt: examine the existing Dexie/IndexedDB vault schema and crypto module (src/services/security/crypto.ts and related) and decide whether to (a) migrate these specific ciphertext values into the existing IndexedDB vault store for consistency with the documented model.
+Files touched:
+- `src/db.ts` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `src/hooks/useModalState.ts` (modified)
+- `src/components/modals/DeployModal.tsx` (modified)
+- `src/components/modals/GithubImportModal.test.ts` (modified)
+- `src/components/modals/GithubPushModal.test.ts` (modified)
+- `src/services/github/githubClient.ts` (modified)
+- `src/services/deploy/deployClient.ts` (modified)
+- `src/services/deploy/deployClient.test.ts` (modified)
+- `src/services/security/backup.ts` (modified)
+- `src/services/security/backup.test.ts` (modified)
+Changed:
+- Added `SecureToken` interface and `secureTokens` table to `LaideDatabase` schema (bumped version to 5).
+- Expanded `migrateXiomToLaide()` to dynamically move `laide_github_pat`, `laide_netlify_token`, and `laide_vercel_token` from `localStorage` to `db.secureTokens` and delete old localStorage keys automatically on startup.
+- Refactored `githubClient`, `deployClient`, `SettingsPanel`, `backup` service, and relevant modals to read/write from `db.secureTokens` via Dexie asynchronously.
+Decisions:
+- Persisted tokens as strings in IndexedDB in their exact AES-GCM encrypted format (without decrypting and re-encrypting), avoiding any user re-auth or key re-derivation.
+- Avoided mutating `localStorage` keys for settings that are not sensitive (like `laide_custom_instructions` or `laide_active_profile_id`).
+Deviations: none
+Verified: All 74 test suites pass, fixing documentation discrepancy where API keys were claimed to be in IndexedDB but were in localStorage.
 Open questions: none

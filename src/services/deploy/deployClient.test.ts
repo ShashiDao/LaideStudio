@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { 
   buildDeployPackage, 
@@ -195,7 +196,8 @@ describe('deployClient service', () => {
       vi.spyOn(cryptoMock, 'decryptData').mockResolvedValue('raw_tok_val');
 
       await saveDeployToken(mockKeys, 'netlify', 'raw_tok_val');
-      expect(localStorage.getItem('xiom_netlify_token')).toBe('encrypted_tok_val');
+      const { db } = await import('../../db');
+      expect((await db.secureTokens.get('netlify_token'))?.encryptedValue).toBe('encrypted_tok_val');
 
       const retrieved = await getDeployToken(mockKeys, 'netlify');
       expect(retrieved).toBe('raw_tok_val');
@@ -220,16 +222,17 @@ describe('deployClient service', () => {
       expect(getDeployHistory('project-history')).toHaveLength(0);
     });
 
-    it('deletes deploy tokens correctly from localStorage', () => {
-      localStorage.setItem('xiom_netlify_token', 'sample');
-      localStorage.setItem('xiom_vercel_token', 'sample');
+    it('deletes deploy tokens correctly from IndexedDB', async () => {
+      const { db } = await import('../../db');
+      await db.secureTokens.put({ key: 'netlify_token', encryptedValue: 'sample' });
+      await db.secureTokens.put({ key: 'vercel_token', encryptedValue: 'sample' });
 
-      deleteDeployToken('netlify');
-      expect(localStorage.getItem('xiom_netlify_token')).toBeNull();
-      expect(localStorage.getItem('xiom_vercel_token')).toBe('sample');
+      await deleteDeployToken('netlify');
+      expect(await db.secureTokens.get('netlify_token')).toBeUndefined();
+      expect((await db.secureTokens.get('vercel_token'))?.encryptedValue).toBe('sample');
 
-      deleteDeployToken('vercel');
-      expect(localStorage.getItem('xiom_vercel_token')).toBeNull();
+      await deleteDeployToken('vercel');
+      expect(await db.secureTokens.get('vercel_token')).toBeUndefined();
     });
   });
 });

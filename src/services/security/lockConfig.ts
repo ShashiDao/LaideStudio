@@ -8,7 +8,7 @@ export interface LockConfig {
   passkeyData: PasskeyData | null;
 }
 
-const STORAGE_KEY = 'xiom_lock_config';
+const STORAGE_KEY = 'laide_lock_config';
 
 export function getLockConfig(): LockConfig | null {
   const data = localStorage.getItem(STORAGE_KEY);

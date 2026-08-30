@@ -88,7 +88,7 @@ export default function App() {
 
   useEffect(() => {
     if (keys) {
-      const enc = localStorage.getItem('xiom_mcp_servers');
+      const enc = localStorage.getItem('laide_mcp_servers');
       if (enc) {
         import('./services/security/crypto').then(({ decryptData }) => {
           decryptData(keys.aesKey, enc).then(str => {

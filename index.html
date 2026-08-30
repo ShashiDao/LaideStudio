@@ -6,6 +6,9 @@
     <title>LAIDE Studio</title>
     <meta name="description" content="LAIDE Studio - Client-side workspace" />
     <meta name="theme-color" content="#0e0f12" />
+    
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://generativelanguage.googleapis.com https://api.anthropic.com https://api.openai.com https://openrouter.ai https://api.groq.com https://api.netlify.com https://api.vercel.com https://api.github.com https://esm.sh https://cdn.jsdelivr.net https://cdn.tailwindcss.com http://localhost:* http://127.0.0.1:* ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*; worker-src 'self' blob:; frame-src 'self' blob: data:; manifest-src 'self';">
+
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <meta property="og:title" content="LAIDE Studio" />
     <meta property="og:description" content="LAIDE Studio - Client-side workspace" />
@@ -17,7 +20,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>  
   </body>
 </html>
-

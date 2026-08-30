@@ -140,7 +140,7 @@ describe('Encrypted Backup & Restore Engine', () => {
     expect(loadedFiles.length).toBe(1);
     expect(loadedFiles[0].path).toBe('src/App.tsx');
 
-    expect(localStorage.getItem('xiom_custom_instructions')).toBe('Always write TypeScript');
-    expect(localStorage.getItem('xiom_github_pat')).toBe('enc.v1.pat.token');
+    expect(localStorage.getItem('laide_custom_instructions')).toBe('Always write TypeScript');
+    expect((await db.secureTokens.get('github_pat'))?.encryptedValue).toBe('enc.v1.pat.token');
   });
 });

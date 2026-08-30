@@ -48,9 +48,10 @@ export async function createEncryptedBackup(): Promise<EncryptedBackupPayload> {
   ]);
 
   const lockConfig = getLockConfig();
-  const githubPatEncrypted = typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_github_pat') : null;
-  const customInstructions = typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_custom_instructions') : null;
-  const activeProfileId = typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_active_profile_id') : null;
+  const githubTokenRec = await db.secureTokens.get('github_pat');
+  const githubPatEncrypted = githubTokenRec?.encryptedValue || null;
+  const customInstructions = typeof localStorage !== 'undefined' ? localStorage.getItem('laide_custom_instructions') : null;
+  const activeProfileId = typeof localStorage !== 'undefined' ? localStorage.getItem('laide_active_profile_id') : null;
 
   const payload: EncryptedBackupPayload = {
     version: 'xiom-backup-v1',
@@ -165,13 +166,13 @@ export async function restoreBackup(backup: EncryptedBackupPayload): Promise<{
   }
 
   if (backup.customInstructions && typeof localStorage !== 'undefined') {
-    localStorage.setItem('xiom_custom_instructions', backup.customInstructions);
+    localStorage.setItem('laide_custom_instructions', backup.customInstructions);
   }
   if (backup.activeProfileId && typeof localStorage !== 'undefined') {
-    localStorage.setItem('xiom_active_profile_id', backup.activeProfileId);
+    localStorage.setItem('laide_active_profile_id', backup.activeProfileId);
   }
-  if (backup.githubPatEncrypted && typeof localStorage !== 'undefined') {
-    localStorage.setItem('xiom_github_pat', backup.githubPatEncrypted);
+  if (backup.githubPatEncrypted) {
+    await db.secureTokens.put({ key: 'github_pat', encryptedValue: backup.githubPatEncrypted });
   }
   if (backup.lockConfig) {
     const existing = getLockConfig();

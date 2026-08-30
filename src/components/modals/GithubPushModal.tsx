@@ -107,9 +107,9 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   useEffect(() => {
     let active = true;
     const syncData = 
-      localStorage.getItem(`xiom_github_sync_${projectId}`) || 
-      sessionStorage.getItem('xiom_last_imported_repo') ||
-      localStorage.getItem('xiom_last_github_repo');
+      localStorage.getItem(`laide_github_sync_${projectId}`) || 
+      sessionStorage.getItem('laide_last_imported_repo') ||
+      localStorage.getItem('laide_last_github_repo');
 
     if (syncData) {
       try {
@@ -272,7 +272,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       }
       
       // Save sync info for future pushes
-      localStorage.setItem(`xiom_github_sync_${projectId}`, JSON.stringify({
+      localStorage.setItem(`laide_github_sync_${projectId}`, JSON.stringify({
         owner,
         repo,
         branch: baseBranch

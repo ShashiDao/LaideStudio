@@ -47,7 +47,7 @@ describe('GithubPushModal', () => {
     useAppStore.getState().setKeys(keys);
 
     const encryptedPat = await encryptData(keys.aesKey, 'ghp_mock_token_push_123');
-    localStorage.setItem('xiom_github_pat', encryptedPat);
+    await db.secureTokens.put({ key: 'github_pat', encryptedValue: encryptedPat });
   });
 
   afterEach(() => {

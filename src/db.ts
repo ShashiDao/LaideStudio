@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { migrateLocalStorage } from './utils/storageMigration';
 
 export interface Project {
   id: string;
@@ -78,6 +79,11 @@ export interface ArchivedProject {
   fileCount?: number;
 }
 
+export interface SecureToken {
+  key: string;
+  encryptedValue: string;
+}
+
 export class LaideDatabase extends Dexie {
   projects!: Table<Project, string>;
   files!: Table<FileItem, string>;
@@ -87,6 +93,7 @@ export class LaideDatabase extends Dexie {
   vaultSessions!: Table<VaultSession, string>;
   archivedProjects!: Table<ArchivedProject, string>;
   archivedFiles!: Table<FileItem, string>;
+  secureTokens!: Table<SecureToken, string>;
 
   constructor() {
     super('LaideDatabase');
@@ -121,12 +128,39 @@ export class LaideDatabase extends Dexie {
       archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
       archivedFiles: 'id, projectId, path, updatedAt',
     });
+    this.version(5).stores({
+      projects: 'id, name, createdAt, updatedAt',
+      files: 'id, projectId, path, updatedAt',
+      snapshots: 'id, projectId, createdAt',
+      connectionProfiles: 'id, provider, label',
+      provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+      vaultSessions: 'id, keyHash, createdAt, expiresAt',
+      archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
+      archivedFiles: 'id, projectId, path, updatedAt',
+      secureTokens: 'key',
+    });
   }
 }
 
 export const db = new LaideDatabase();
 
 export async function migrateXiomToLaide(): Promise<void> {
+  migrateLocalStorage();
+
+  // Migrate tokens to IndexedDB
+  const tokensToMigrate = [
+    { lsKey: 'laide_github_pat', dbKey: 'github_pat' },
+    { lsKey: 'laide_netlify_token', dbKey: 'netlify_token' },
+    { lsKey: 'laide_vercel_token', dbKey: 'vercel_token' }
+  ];
+  for (const token of tokensToMigrate) {
+    const val = localStorage.getItem(token.lsKey);
+    if (val) {
+      await db.secureTokens.put({ key: token.dbKey, encryptedValue: val });
+      localStorage.removeItem(token.lsKey);
+    }
+  }
+
   const exists = await Dexie.exists('XiomDatabase');
   if (!exists) return;
 

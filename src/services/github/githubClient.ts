@@ -152,7 +152,9 @@ export class GithubClient {
 
 export async function createGithubClient(keys: KeyMaterial): Promise<GithubClient> {
   const { decryptData } = await import('../security/crypto');
-  const enc = localStorage.getItem('xiom_github_pat');
+  const { db } = await import('../../db');
+  const record = await db.secureTokens.get('github_pat');
+  const enc = record?.encryptedValue;
   if (!enc) {
     throw new Error('GitHub PAT not configured');
   }

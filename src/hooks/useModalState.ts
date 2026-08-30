@@ -41,9 +41,10 @@ export function useModalState() {
     setShowFindWhatBrokeModal(true);
   };
 
-  const handleOpenGithubImport = () => {
-    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
-    if (!enc) {
+  const handleOpenGithubImport = async () => {
+    const { db } = await import('../db');
+    const encRecord = await db.secureTokens.get('github_pat');
+    if (!encRecord) {
       useAppStore.getState().setActiveTab('settings');
       useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to import repositories', 'info');
       return;
@@ -51,9 +52,10 @@ export function useModalState() {
     setShowGithubImport(true);
   };
 
-  const handleOpenGithubPush = () => {
-    const enc = localStorage.getItem('laide_github_pat') || localStorage.getItem('xiom_github_pat');
-    if (!enc) {
+  const handleOpenGithubPush = async () => {
+    const { db } = await import('../db');
+    const encRecord = await db.secureTokens.get('github_pat');
+    if (!encRecord) {
       useAppStore.getState().setActiveTab('settings');
       useAppStore.getState().addToast('Please enter your GitHub Personal Access Token in Settings to push repositories', 'info');
       return;

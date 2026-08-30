@@ -243,7 +243,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       setMcpServers(newServers);
       setMcpServerUrlInput('');
       const enc = await encryptData(keys.aesKey, JSON.stringify(newServers));
-      localStorage.setItem('xiom_mcp_servers', enc);
+      localStorage.setItem('laide_mcp_servers', enc);
       setMcpServersSaved(true);
       setTimeout(() => setMcpServersSaved(false), 2000);
     } catch (err) {
@@ -257,11 +257,11 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       const newServers = mcpServers.filter(s => s.id !== id);
       setMcpServers(newServers);
       if (newServers.length === 0) {
-        localStorage.removeItem('xiom_mcp_servers');
+        localStorage.removeItem('laide_mcp_servers');
       } else {
         const { encryptData } = await import('../../services/security/crypto');
         const enc = await encryptData(keys.aesKey, JSON.stringify(newServers));
-        localStorage.setItem('xiom_mcp_servers', enc);
+        localStorage.setItem('laide_mcp_servers', enc);
       }
     } catch (err) {
       console.error('Failed to remove MCP server', err);
@@ -420,9 +420,11 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     let active = true;
     async function loadTokens() {
       const { decryptData } = await import('../../services/security/crypto');
+      const { db } = await import('../../db');
       if (!keys) return;
       
-      const enc = localStorage.getItem('xiom_github_pat');
+      const githubRecord = await db.secureTokens.get('github_pat');
+      const enc = githubRecord?.encryptedValue;
       if (enc) {
         try {
           const dec = await decryptData(keys.aesKey, enc);
@@ -432,7 +434,8 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         }
       }
 
-      const netlifyEnc = localStorage.getItem('xiom_netlify_token');
+      const netlifyRecord = await db.secureTokens.get('netlify_token');
+      const netlifyEnc = netlifyRecord?.encryptedValue;
       if (netlifyEnc) {
         try {
           const dec = await decryptData(keys.aesKey, netlifyEnc);
@@ -442,7 +445,8 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         }
       }
 
-      const vercelEnc = localStorage.getItem('xiom_vercel_token');
+      const vercelRecord = await db.secureTokens.get('vercel_token');
+      const vercelEnc = vercelRecord?.encryptedValue;
       if (vercelEnc) {
         try {
           const dec = await decryptData(keys.aesKey, vercelEnc);
@@ -541,7 +545,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   const handleDelete = async (id: string) => {
     await db.connectionProfiles.delete(id);
     if (activeProfileId === id) {
-      localStorage.removeItem('xiom_active_profile_id');
+      localStorage.removeItem('laide_active_profile_id');
       setActiveProfileId('');
     }
     loadProfiles();
@@ -1373,10 +1377,11 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const { encryptData } = await import('../../services/security/crypto');
+                const { db } = await import('../../db');
                 if (!keys) return;
                 try {
                   const enc = await encryptData(keys.aesKey, githubPatInput);
-                  localStorage.setItem('xiom_github_pat', enc);
+                  await db.secureTokens.put({ key: 'github_pat', encryptedValue: enc });
                   setGithubPatSaved(true);
                   setTimeout(() => setGithubPatSaved(false), 2000);
                 } catch (err) {
@@ -1425,13 +1430,14 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const { encryptData } = await import('../../services/security/crypto');
+                const { db } = await import('../../db');
                 if (!keys) return;
                 try {
                   if (!netlifyTokenInput.trim()) {
-                    localStorage.removeItem('xiom_netlify_token');
+                    await db.secureTokens.delete('netlify_token');
                   } else {
                     const enc = await encryptData(keys.aesKey, netlifyTokenInput.trim());
-                    localStorage.setItem('xiom_netlify_token', enc);
+                    await db.secureTokens.put({ key: 'netlify_token', encryptedValue: enc });
                   }
                   setNetlifyTokenSaved(true);
                   setTimeout(() => setNetlifyTokenSaved(false), 2000);
@@ -1473,13 +1479,14 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
               <form onSubmit={async (e) => {
                 e.preventDefault();
                 const { encryptData } = await import('../../services/security/crypto');
+                const { db } = await import('../../db');
                 if (!keys) return;
                 try {
                   if (!vercelTokenInput.trim()) {
-                    localStorage.removeItem('xiom_vercel_token');
+                    await db.secureTokens.delete('vercel_token');
                   } else {
                     const enc = await encryptData(keys.aesKey, vercelTokenInput.trim());
-                    localStorage.setItem('xiom_vercel_token', enc);
+                    await db.secureTokens.put({ key: 'vercel_token', encryptedValue: enc });
                   }
                   setVercelTokenSaved(true);
                   setTimeout(() => setVercelTokenSaved(false), 2000);

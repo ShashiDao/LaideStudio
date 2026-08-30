@@ -121,9 +121,9 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         repo,
         branch
       });
-      localStorage.setItem(`xiom_github_sync_${targetProjectId}`, syncPayload);
-      localStorage.setItem('xiom_last_github_repo', syncPayload);
-      sessionStorage.setItem('xiom_last_imported_repo', syncPayload);
+      localStorage.setItem(`laide_github_sync_${targetProjectId}`, syncPayload);
+      localStorage.setItem('laide_last_github_repo', syncPayload);
+      sessionStorage.setItem('laide_last_imported_repo', syncPayload);
 
       useAppStore.getState().addToast(`Imported ${completed} files from GitHub (${owner}/${repo})`, 'success');
       onSuccess(targetProjectId);

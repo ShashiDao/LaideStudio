@@ -4,7 +4,7 @@ export const INJECTED_PREVIEW_CAPTURE_SCRIPT = `
 (function installStorageShim(name) {
   try {
     var probe = window[name];
-    var testKey = '__xiom_probe__';
+    var testKey = '__laide_probe__';
     probe.setItem(testKey, '1');
     probe.removeItem(testKey);
     return; // real storage works fine, leave it alone
@@ -27,7 +27,7 @@ export const INJECTED_PREVIEW_CAPTURE_SCRIPT = `
 (function installStorageShim(name) {
   try {
     var probe = window[name];
-    var testKey = '__xiom_probe__';
+    var testKey = '__laide_probe__';
     probe.setItem(testKey, '1');
     probe.removeItem(testKey);
     return; // real storage works fine, leave it alone
@@ -133,10 +133,10 @@ window.addEventListener('unhandledrejection', function(e) {
   function createOverlay() {
     if (highlightOverlay) return highlightOverlay;
     highlightOverlay = document.createElement('div');
-    highlightOverlay.id = '__xiom_inspect_overlay__';
+    highlightOverlay.id = '__laide_inspect_overlay__';
     highlightOverlay.style.cssText = 'position:fixed;pointer-events:none;z-index:9999999;border:2px solid #3b82f6;background:rgba(59,130,246,0.15);transition:all 0.05s ease;display:none;box-sizing:border-box;border-radius:4px;';
     var badge = document.createElement('div');
-    badge.id = '__xiom_inspect_badge__';
+    badge.id = '__laide_inspect_badge__';
     badge.style.cssText = 'position:absolute;top:-22px;left:0;background:#3b82f6;color:#ffffff;font-size:10px;font-family:monospace;padding:2px 6px;border-radius:3px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);';
     highlightOverlay.appendChild(badge);
     document.documentElement.appendChild(highlightOverlay);
@@ -146,7 +146,7 @@ window.addEventListener('unhandledrejection', function(e) {
   function handlePointerMove(e) {
     if (!inspectEnabled) return;
     var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el === highlightOverlay || el.id === '__xiom_inspect_overlay__' || el.id === '__xiom_inspect_badge__') return;
+    if (!el || el === highlightOverlay || el.id === '__laide_inspect_overlay__' || el.id === '__laide_inspect_badge__') return;
 
     var rect = el.getBoundingClientRect();
     var overlay = createOverlay();
@@ -160,7 +160,7 @@ window.addEventListener('unhandledrejection', function(e) {
     var idStr = el.id ? '#' + el.id : '';
     var classStr = el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/)[0] : '';
     var dims = Math.round(rect.width) + 'x' + Math.round(rect.height);
-    var badge = overlay.querySelector('#__xiom_inspect_badge__');
+    var badge = overlay.querySelector('#__laide_inspect_badge__');
     if (badge) {
       badge.textContent = '<' + tagName + idStr + classStr + '> ' + dims;
     }
@@ -172,7 +172,7 @@ window.addEventListener('unhandledrejection', function(e) {
     e.stopPropagation();
 
     var el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el.id === '__xiom_inspect_overlay__' || el.id === '__xiom_inspect_badge__') return;
+    if (!el || el.id === '__laide_inspect_overlay__' || el.id === '__laide_inspect_badge__') return;
 
     var tagName = el.tagName.toLowerCase();
     var id = el.id || null;

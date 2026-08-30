@@ -210,9 +210,9 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
     addToast('Deployment history cleared', 'info');
   };
 
-  const handleDeleteToken = () => {
+  const handleDeleteToken = async () => {
     const provider = activeTab === 'netlify' ? 'netlify' : 'vercel';
-    deleteDeployToken(provider);
+    await deleteDeployToken(provider);
     setTokenInput('');
     setHasSavedToken(false);
     addToast(`${activeTab === 'netlify' ? 'Netlify' : 'Vercel'} token removed from vault`, 'info');

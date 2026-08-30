@@ -4,6 +4,9 @@ import type { PatchDefinition } from './services/agent/patchSchema';
 import type { LLMMessage } from './services/llm/llmAdapter';
 import type { BeforeInstallPromptEvent } from './types';
 import { DEFAULT_MANIFEST_EXCLUDE_PATTERNS } from './services/agent/prompts';
+import { migrateLocalStorage } from './utils/storageMigration';
+
+migrateLocalStorage();
 
 export interface TokenUsage {
   system: number;
@@ -230,31 +233,27 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   expandedFolderPaths: [],
   setExpandedFolderPaths: (paths) => set({ expandedFolderPaths: paths }),
   activeProfileId: typeof localStorage !== 'undefined' 
-    ? (localStorage.getItem('laide_active_profile_id') || localStorage.getItem('xiom_active_profile_id')) 
+    ? localStorage.getItem('laide_active_profile_id') 
     : null,
   setActiveProfileId: (id) => {
     if (typeof localStorage !== 'undefined') {
       if (id) {
         localStorage.setItem('laide_active_profile_id', id);
-        localStorage.setItem('xiom_active_profile_id', id);
       } else {
         localStorage.removeItem('laide_active_profile_id');
-        localStorage.removeItem('xiom_active_profile_id');
       }
     }
     set({ activeProfileId: id });
   },
   activeProjectId: typeof localStorage !== 'undefined' 
-    ? (localStorage.getItem('laide_active_project_id') || localStorage.getItem('xiom_active_project_id')) 
+    ? localStorage.getItem('laide_active_project_id') 
     : null,
   setActiveProjectId: (id) => {
     if (typeof localStorage !== 'undefined') {
       if (id) {
         localStorage.setItem('laide_active_project_id', id);
-        localStorage.setItem('xiom_active_project_id', id);
       } else {
         localStorage.removeItem('laide_active_project_id');
-        localStorage.removeItem('xiom_active_project_id');
       }
     }
     set({ activeProjectId: id });
@@ -305,7 +304,7 @@ const createPatchSlice: StateCreator<AppState, [], [], PatchSlice> = (set) => ({
 
 const getInitialTemperature = (): number | undefined => {
   if (typeof localStorage === 'undefined') return undefined;
-  const val = localStorage.getItem('xiom_temperature');
+  const val = localStorage.getItem('laide_temperature');
   if (val === null || val === '') return undefined;
   const num = Number(val);
   return Number.isFinite(num) ? num : undefined;
@@ -313,7 +312,7 @@ const getInitialTemperature = (): number | undefined => {
 
 const getInitialMaxOutputTokens = (): number | undefined => {
   if (typeof localStorage === 'undefined') return undefined;
-  const val = localStorage.getItem('xiom_max_output_tokens');
+  const val = localStorage.getItem('laide_max_output_tokens');
   if (val === null || val === '') return undefined;
   const num = Number(val);
   return Number.isFinite(num) ? num : undefined;
@@ -321,7 +320,7 @@ const getInitialMaxOutputTokens = (): number | undefined => {
 
 const getInitialMaxAgentSteps = (): number => {
   if (typeof localStorage === 'undefined') return 25;
-  const val = localStorage.getItem('xiom_max_agent_steps');
+  const val = localStorage.getItem('laide_max_agent_steps');
   if (val === null || val === '') return 25;
   const num = Number(val);
   return Number.isFinite(num) && num > 0 ? num : 25;
@@ -329,7 +328,7 @@ const getInitialMaxAgentSteps = (): number => {
 
 const getInitialManifestExcludePatterns = (): string[] => {
   if (typeof localStorage === 'undefined') return DEFAULT_MANIFEST_EXCLUDE_PATTERNS;
-  const val = localStorage.getItem('xiom_manifest_exclude_patterns');
+  const val = localStorage.getItem('laide_manifest_exclude_patterns');
   if (!val) return DEFAULT_MANIFEST_EXCLUDE_PATTERNS;
   try {
     const parsed = JSON.parse(val);
@@ -349,10 +348,10 @@ const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set) => ({
   setTokenUsage: (tokenUsage) => set({ tokenUsage }),
   queuedPrompt: null,
   setQueuedPrompt: (queuedPrompt) => set({ queuedPrompt }),
-  customInstructions: typeof localStorage !== 'undefined' ? (localStorage.getItem('xiom_custom_instructions') || '') : '',
+  customInstructions: typeof localStorage !== 'undefined' ? (localStorage.getItem('laide_custom_instructions') || '') : '',
   setCustomInstructions: (customInstructions) => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('xiom_custom_instructions', customInstructions);
+      localStorage.setItem('laide_custom_instructions', customInstructions);
     }
     set({ customInstructions });
   },
@@ -360,9 +359,9 @@ const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set) => ({
   setTemperature: (temperature) => {
     if (typeof localStorage !== 'undefined') {
       if (temperature !== undefined) {
-        localStorage.setItem('xiom_temperature', String(temperature));
+        localStorage.setItem('laide_temperature', String(temperature));
       } else {
-        localStorage.removeItem('xiom_temperature');
+        localStorage.removeItem('laide_temperature');
       }
     }
     set({ temperature });
@@ -371,9 +370,9 @@ const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set) => ({
   setMaxOutputTokens: (maxOutputTokens) => {
     if (typeof localStorage !== 'undefined') {
       if (maxOutputTokens !== undefined) {
-        localStorage.setItem('xiom_max_output_tokens', String(maxOutputTokens));
+        localStorage.setItem('laide_max_output_tokens', String(maxOutputTokens));
       } else {
-        localStorage.removeItem('xiom_max_output_tokens');
+        localStorage.removeItem('laide_max_output_tokens');
       }
     }
     set({ maxOutputTokens });
@@ -381,45 +380,45 @@ const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set) => ({
   maxAgentSteps: getInitialMaxAgentSteps(),
   setMaxAgentSteps: (maxAgentSteps) => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('xiom_max_agent_steps', String(maxAgentSteps));
+      localStorage.setItem('laide_max_agent_steps', String(maxAgentSteps));
     }
     set({ maxAgentSteps });
   },
   manifestExcludePatterns: getInitialManifestExcludePatterns(),
   setManifestExcludePatterns: (manifestExcludePatterns) => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('xiom_manifest_exclude_patterns', JSON.stringify(manifestExcludePatterns));
+      localStorage.setItem('laide_manifest_exclude_patterns', JSON.stringify(manifestExcludePatterns));
     }
     set({ manifestExcludePatterns });
   },
-  attachPreviewVision: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_attach_preview_vision') === 'true' : false,
+  attachPreviewVision: typeof localStorage !== 'undefined' ? localStorage.getItem('laide_attach_preview_vision') === 'true' : false,
   setAttachPreviewVision: (attachPreviewVision) => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('xiom_attach_preview_vision', String(attachPreviewVision));
+      localStorage.setItem('laide_attach_preview_vision', String(attachPreviewVision));
     }
     set({ attachPreviewVision });
   },
-  autoVisionOnPatch: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_auto_vision_on_patch') !== 'false' : true,
+  autoVisionOnPatch: typeof localStorage !== 'undefined' ? localStorage.getItem('laide_auto_vision_on_patch') !== 'false' : true,
   setAutoVisionOnPatch: (autoVisionOnPatch) => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('xiom_auto_vision_on_patch', String(autoVisionOnPatch));
+      localStorage.setItem('laide_auto_vision_on_patch', String(autoVisionOnPatch));
     }
     set({ autoVisionOnPatch });
   },
-  ensembleModeEnabled: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_ensemble_mode') === 'true' : false,
+  ensembleModeEnabled: typeof localStorage !== 'undefined' ? localStorage.getItem('laide_ensemble_mode') === 'true' : false,
   setEnsembleModeEnabled: (ensembleModeEnabled) => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('xiom_ensemble_mode', String(ensembleModeEnabled));
+      localStorage.setItem('laide_ensemble_mode', String(ensembleModeEnabled));
     }
     set({ ensembleModeEnabled });
   },
-  ensembleCandidateBProfileId: typeof localStorage !== 'undefined' ? localStorage.getItem('xiom_ensemble_candidate_b_id') : null,
+  ensembleCandidateBProfileId: typeof localStorage !== 'undefined' ? localStorage.getItem('laide_ensemble_candidate_b_id') : null,
   setEnsembleCandidateBProfileId: (ensembleCandidateBProfileId) => {
     if (typeof localStorage !== 'undefined') {
       if (ensembleCandidateBProfileId) {
-        localStorage.setItem('xiom_ensemble_candidate_b_id', ensembleCandidateBProfileId);
+        localStorage.setItem('laide_ensemble_candidate_b_id', ensembleCandidateBProfileId);
       } else {
-        localStorage.removeItem('xiom_ensemble_candidate_b_id');
+        localStorage.removeItem('laide_ensemble_candidate_b_id');
       }
     }
     set({ ensembleCandidateBProfileId });
@@ -432,7 +431,7 @@ const createPWASlice: StateCreator<AppState, [], [], PWASlice> = (set, get) => (
   showInstallPrompt: false,
   setShowInstallPrompt: (showInstallPrompt) => set({ showInstallPrompt }),
   triggerInstallEngagement: () => {
-    const isDismissed = typeof localStorage !== 'undefined' && localStorage.getItem('xiom_pwa_install_dismissed') === 'true';
+    const isDismissed = typeof localStorage !== 'undefined' && localStorage.getItem('laide_pwa_install_dismissed') === 'true';
     const isInstalled = typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches;
     const { deferredInstallPrompt } = get();
 

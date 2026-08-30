@@ -35,7 +35,7 @@ describe('GithubImportModal', () => {
     useAppStore.getState().setKeys(keys);
 
     const encryptedPat = await encryptData(keys.aesKey, 'ghp_mock_token_123');
-    localStorage.setItem('xiom_github_pat', encryptedPat);
+    await db.secureTokens.put({ key: 'github_pat', encryptedValue: encryptedPat });
   });
 
   afterEach(() => {
@@ -134,7 +134,7 @@ describe('GithubImportModal', () => {
     expect(readmeFile).toBeDefined();
     expect(readmeFile?.content).toBe('# Hello World');
 
-    const syncInfo = JSON.parse(localStorage.getItem(`xiom_github_sync_${projectId}`) || '{}');
+    const syncInfo = JSON.parse(localStorage.getItem(`laide_github_sync_${projectId}`) || '{}');
     expect(syncInfo.owner).toBe('octocat');
     expect(syncInfo.repo).toBe('hello-world');
     expect(syncInfo.branch).toBe('main');

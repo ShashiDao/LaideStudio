@@ -353,13 +353,14 @@ export async function saveDeployToken(
   token: string
 ): Promise<void> {
   const { encryptData } = await import('../security/crypto');
-  const key = provider === 'netlify' ? 'xiom_netlify_token' : 'xiom_vercel_token';
+  const { db } = await import('../../db');
+  const dbKey = provider === 'netlify' ? 'netlify_token' : 'vercel_token';
   if (!token.trim()) {
-    localStorage.removeItem(key);
+    await db.secureTokens.delete(dbKey);
     return;
   }
   const enc = await encryptData(keys.aesKey, token.trim());
-  localStorage.setItem(key, enc);
+  await db.secureTokens.put({ key: dbKey, encryptedValue: enc });
 }
 
 export async function getDeployToken(
@@ -367,8 +368,10 @@ export async function getDeployToken(
   provider: 'netlify' | 'vercel'
 ): Promise<string | null> {
   if (!keys) return null;
-  const key = provider === 'netlify' ? 'xiom_netlify_token' : 'xiom_vercel_token';
-  const enc = localStorage.getItem(key);
+  const { db } = await import('../../db');
+  const dbKey = provider === 'netlify' ? 'netlify_token' : 'vercel_token';
+  const record = await db.secureTokens.get(dbKey);
+  const enc = record?.encryptedValue;
   if (!enc) return null;
   try {
     const { decryptData } = await import('../security/crypto');
@@ -378,15 +381,16 @@ export async function getDeployToken(
   }
 }
 
-export function deleteDeployToken(provider: 'netlify' | 'vercel'): void {
-  const key = provider === 'netlify' ? 'xiom_netlify_token' : 'xiom_vercel_token';
-  localStorage.removeItem(key);
+export async function deleteDeployToken(provider: 'netlify' | 'vercel'): Promise<void> {
+  const { db } = await import('../../db');
+  const dbKey = provider === 'netlify' ? 'netlify_token' : 'vercel_token';
+  await db.secureTokens.delete(dbKey);
 }
 
 // Deploy History helpers
 export function getDeployHistory(projectId: string): DeployResult[] {
   try {
-    const raw = localStorage.getItem(`xiom_deploy_history_${projectId}`);
+    const raw = localStorage.getItem(`laide_deploy_history_${projectId}`);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -397,12 +401,12 @@ export function saveDeployHistory(projectId: string, result: DeployResult): void
   try {
     const existing = getDeployHistory(projectId);
     const updated = [result, ...existing.filter(i => i.id !== result.id)].slice(0, 10);
-    localStorage.setItem(`xiom_deploy_history_${projectId}`, JSON.stringify(updated));
+    localStorage.setItem(`laide_deploy_history_${projectId}`, JSON.stringify(updated));
   } catch {
     // Ignore localStorage write error
   }
 }
 
 export function clearDeployHistory(projectId: string): void {
-  localStorage.removeItem(`xiom_deploy_history_${projectId}`);
+  localStorage.removeItem(`laide_deploy_history_${projectId}`);
 }

@@ -37,6 +37,11 @@ vi.mock('../../store', () => ({
 
 vi.mock('../../db', () => ({
   db: {
+    secureTokens: {
+      get: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+    },
     connectionProfiles: {
       toArray: vi.fn().mockResolvedValue([]),
       put: vi.fn().mockResolvedValue('1'),
