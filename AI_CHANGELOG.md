@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-86
-- Last verified working: Centralized friendly LLM error translation with collapsible technical details and direct action links (OpenRouter data policy/privacy, 429 rate limits, 401 authentication, 404 models); added visual 'Experimental' badge for `-exp`/`exp-` models in ModelPickerModal. All 72 test suites (532 tests) pass; lint and production build compile cleanly with 0 errors.
+- Phase: HOTFIX-88
+- Last verified working: Evaluated `node`/`eval`/`run` commands via Web Worker sandbox instead of direct main-thread `new Function()`, preserving exact output parsing and test UX while closing security loophole.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -196,6 +196,23 @@
 
 ## Log
 
+### [HOTFIX-87] Escape Interpolated HTML in Editor AI Blame Popover & XSS Audit — 2026-08-30
+Prompt: Fix XSS risk in EditorAiBlame.tsx by HTML-escaping all interpolated fields, and audit editor and chat directories for other innerHTML instances.
+Files touched:
+- `src/components/editor/EditorAiBlame.tsx` (modified)
+- `src/components/editor/EditorAiBlame.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented and exported `escapeHtml` utility in `src/components/editor/EditorAiBlame.tsx` escaping `&`, `<`, `>`, `"`, and `'` characters.
+- Applied `escapeHtml` to all interpolated variables in CodeMirror 6 hover tooltip popover DOM creation: `entry.model`, `entry.provider`, formatted timestamp `timeStr`, `entry.rationale`, `shortHash`, `testInfo.label`, and `testInfo.details`.
+- Audited `src/components/editor/` and `src/components/chat/` for any other `innerHTML`, `outerHTML`, or raw HTML insertions; verified that no other unescaped `innerHTML` instances exist.
+- Added comprehensive unit tests in `EditorAiBlame.test.tsx` validating `escapeHtml` correctness and ensuring adversarial XSS payloads (e.g., `<script>`, `<img onerror>`, `"><svg onload>`) in provenance metadata are neutralized.
+Decisions:
+- Preserved identical visual styling and layout in the AI blame popover while guaranteeing zero unescaped strings reach the privileged DOM tree.
+Deviations: none
+Verified: All 72 test suites (535 tests) pass cleanly with 0 failures; `lint_applet` reports 0 errors; `compile_applet` build succeeded.
+Open questions: none
+
 ### [HOTFIX-86] Friendly LLM Error Normalization & Model Picker Experimental Badges — 2026-08-30
 Prompt: Translate raw provider error messages into friendly UI summaries with collapsible details and add experimental badges to the model picker.
 Files touched:
@@ -315,4 +332,23 @@ Decisions:
 - Managed modal open state cleanly through React state and callbacks to comply with React 19 linting standards.
 Deviations: none
 Verified: Unit test suites in `SnapshotsModal.test.tsx`, `DeployModal.test.tsx`, `FindWhatBrokeModal.test.tsx`, and `ProjectActionsMenu.test.tsx` (23 tests total) all passed; `lint_applet` passed with 0 errors; `compile_applet` compiled successfully.
+Open questions: none
+
+### [HOTFIX-88] Secure Terminal node/eval with Web Worker Sandbox — 2026-08-30
+Prompt: Route terminal node/eval/run commands through isolated Web Worker sandbox instead of direct main-thread execution.
+Files touched:
+- `src/services/bundler/sandboxRunner.ts` (new)
+- `src/services/bundler/sandboxRunner.test.ts` (new)
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `src/components/terminal/TerminalPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Extracted terminal code evaluation into a dedicated Web Worker sandbox via Blob URL (`src/services/bundler/sandboxRunner.ts`), closing the main-thread `new Function` escape hatch that allowed access to `window` and `document`.
+- Mocked out `sandboxRunner` in `TerminalPanel.test.tsx` to maintain existing tests without depending on happy-dom Web Worker polyfills, preserving exact UX logic tests.
+- Formatted output formatting identical to previous behavior by serializing `fakeConsole` streams in Web Worker and mapping `FileItem` payloads safely over `postMessage`.
+Decisions:
+- Stripped non-transferable data (like methods or extraneous fields) from `files` array inside `TerminalPanel` before passing via `postMessage` to guarantee fast, safe serialization to the worker.
+- Applied exact same 30-second execution timeout guard and cleanup behavior as `runProjectTests` worker to prevent infinite loops in terminal.
+Deviations: none
+Verified: `TerminalPanel.test.tsx` and `sandboxRunner.test.ts` unit tests pass cleanly. `npm run lint` and `npm run build` succeed with 0 errors.
 Open questions: none

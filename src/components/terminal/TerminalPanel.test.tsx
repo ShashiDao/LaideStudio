@@ -16,6 +16,15 @@ vi.mock('../../services/bundler/bundler', () => ({
   escapeScriptClosingTags: (s: string) => s
 }));
 
+vi.mock('../../services/bundler/sandboxRunner', () => ({
+  runNodeCodeSandbox: vi.fn().mockImplementation(async (code) => {
+    if (code.includes('21 * 2')) {
+      return { outputType: 'stdout', outputText: 'Eval Works: 42' };
+    }
+    return { outputType: 'stdout', outputText: '[Process completed with exit code 0]' };
+  })
+}));
+
 describe('TerminalPanel Component', () => {
   const projectId = 'test-term-proj';
   const mockFiles: FileItem[] = [

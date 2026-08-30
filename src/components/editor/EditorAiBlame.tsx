@@ -71,6 +71,18 @@ export function formatTestStatus(result?: ProvenanceTestResult): {
 }
 
 /**
+ * Safely escapes HTML special characters to prevent XSS injection in interpolated HTML strings.
+ */
+export function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
  * Creates a CodeMirror 6 hover tooltip extension for displaying AI blame popovers.
  */
 export function createAiBlameHoverTooltip(
@@ -99,29 +111,32 @@ export function createAiBlameHoverTooltip(
             : 'bg-[#131316] text-[#F2F0EA] border-[#2A2A2E] shadow-black/80'
         }`;
 
-        const modelStr = entry.model || 'AI Assistant';
-        const providerStr = entry.provider ? `(${entry.provider})` : '';
-        const timeStr = formatTimestamp(entry.timestamp);
-        const rationaleStr = entry.rationale || 'AI generated code modification';
-        const shortHash = entry.entryHash ? entry.entryHash.slice(0, 10) + '...' : 'genesis';
+        const modelStr = escapeHtml(entry.model || 'AI Assistant');
+        const providerStr = entry.provider ? `(${escapeHtml(entry.provider)})` : '';
+        const timeStr = escapeHtml(formatTimestamp(entry.timestamp));
+        const rationaleStr = escapeHtml(entry.rationale || 'AI generated code modification');
+        const shortHash = escapeHtml(entry.entryHash ? entry.entryHash.slice(0, 10) + '...' : 'genesis');
+
+        const testLabel = escapeHtml(testInfo.label);
+        const testDetails = testInfo.details ? ` - ${escapeHtml(testInfo.details)}` : '';
 
         let testBadgeHtml: string;
         if (testInfo.icon === 'passed') {
           testBadgeHtml = `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
             isLight ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/80'
-          }">✅ ${testInfo.label}</span>`;
+          }">✅ ${testLabel}</span>`;
         } else if (testInfo.icon === 'failed') {
           testBadgeHtml = `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
             isLight ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-rose-950/80 text-rose-300 border border-rose-800/80'
-          }">❌ ${testInfo.label}${testInfo.details ? ` - ${testInfo.details}` : ''}</span>`;
+          }">❌ ${testLabel}${testDetails}</span>`;
         } else if (testInfo.icon === 'error') {
           testBadgeHtml = `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
             isLight ? 'bg-amber-100 text-amber-800 border border-amber-300' : 'bg-amber-950/80 text-amber-300 border border-amber-800/80'
-          }">⚠️ ${testInfo.label}</span>`;
+          }">⚠️ ${testLabel}</span>`;
         } else {
           testBadgeHtml = `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
             isLight ? 'bg-slate-100 text-slate-600 border border-slate-300' : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
-          }">⚪ ${testInfo.label}</span>`;
+          }">⚪ ${testLabel}</span>`;
         }
 
         dom.innerHTML = `
@@ -133,7 +148,7 @@ export function createAiBlameHoverTooltip(
             <span class="text-[10px] opacity-60 font-mono">${timeStr}</span>
           </div>
           <div class="mb-2 text-[11px] leading-relaxed italic ${isLight ? 'text-slate-700' : 'text-zinc-300'}">
-            "${rationaleStr.replace(/"/g, '&quot;')}"
+            "${rationaleStr}"
           </div>
           <div class="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t ${isLight ? 'border-slate-200' : 'border-[#232326]'}">
             ${testBadgeHtml}

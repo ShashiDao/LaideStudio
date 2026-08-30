@@ -1345,28 +1345,19 @@ Access: 0644/-rw-r--r--`;
             break;
           }
 
-          const capturedLogs: string[] = [];
-          const fakeConsole = {
-            log: (...msgs: any[]) => capturedLogs.push(msgs.map(m => typeof m === 'object' ? JSON.stringify(m, null, 2) : String(m)).join(' ')),
-            warn: (...msgs: any[]) => capturedLogs.push('[warn] ' + msgs.join(' ')),
-            error: (...msgs: any[]) => capturedLogs.push('[error] ' + msgs.join(' ')),
-            info: (...msgs: any[]) => capturedLogs.push('[info] ' + msgs.join(' '))
-          };
+          // Strip non-transferable data from files for worker serialization
+          const serializableFiles = files.map(f => ({
+            id: f.id,
+            projectId: f.projectId,
+            path: f.path,
+            content: f.content,
+            updatedAt: f.updatedAt
+          }));
 
-          try {
-            const runner = new Function('console', 'env', 'files', `
-              "use strict";
-              ${codeToRun}
-            `);
-            const evalResult = runner(fakeConsole, env, files);
-            if (evalResult !== undefined) {
-              capturedLogs.push(typeof evalResult === 'object' ? JSON.stringify(evalResult, null, 2) : String(evalResult));
-            }
-            outputText = capturedLogs.join('\n') || '[Process completed with exit code 0]';
-          } catch (err: any) {
-            outputType = 'stderr';
-            outputText = `${capturedLogs.join('\n') ? capturedLogs.join('\n') + '\n' : ''}Error: ${err.message || String(err)}`;
-          }
+          const { runNodeCodeSandbox } = await import('../../services/bundler/sandboxRunner');
+          const result = await runNodeCodeSandbox(codeToRun, env, serializableFiles as any);
+          outputType = result.outputType === 'stderr' ? 'stderr' : 'success';
+          outputText = result.outputText;
           break;
         }
 
