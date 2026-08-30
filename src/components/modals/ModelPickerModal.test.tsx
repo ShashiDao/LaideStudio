@@ -2,7 +2,7 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { ModelPickerModal, formatContextWindow } from './ModelPickerModal';
+import { ModelPickerModal, formatContextWindow, isExperimentalModel } from './ModelPickerModal';
 import type { DiscoveredModel } from '../../services/llm/modelDiscovery';
 
 const mockModels: DiscoveredModel[] = [
@@ -19,9 +19,9 @@ const mockModels: DiscoveredModel[] = [
     contextWindow: 128000
   },
   {
-    id: 'google/gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    description: 'Next gen multimodal',
+    id: 'google/gemini-2.0-flash-exp',
+    name: 'Gemini 2.0 Flash Exp',
+    description: 'Experimental multimodal model',
     contextWindow: 1000000
   },
   {
@@ -29,6 +29,12 @@ const mockModels: DiscoveredModel[] = [
     name: 'Llama 3.3 70B',
     description: 'Open weights powerhouse',
     contextWindow: 131072
+  },
+  {
+    id: 'exp-1206-deepseek',
+    name: 'DeepSeek Experimental',
+    description: 'Test preview',
+    contextWindow: 64000
   }
 ];
 
@@ -88,8 +94,36 @@ describe('ModelPickerModal', () => {
     const searchInput = screen.getByPlaceholderText(/Filter models/i);
     fireEvent.change(searchInput, { target: { value: 'gemini' } });
 
-    expect(screen.getByText('google/gemini-2.0-flash')).toBeDefined();
+    expect(screen.getByText('google/gemini-2.0-flash-exp')).toBeDefined();
     expect(screen.queryByText('openai/gpt-4o')).toBeNull();
+  });
+
+  it('identifies experimental models accurately', () => {
+    expect(isExperimentalModel('google/gemini-2.0-flash-exp')).toBe(true);
+    expect(isExperimentalModel('gemini-2.0-pro-exp-02-05')).toBe(true);
+    expect(isExperimentalModel('exp-1206-deepseek')).toBe(true);
+    expect(isExperimentalModel('claude-3-7-sonnet-exp')).toBe(true);
+    expect(isExperimentalModel('gpt-4o')).toBe(false);
+    expect(isExperimentalModel('claude-3-5-sonnet')).toBe(false);
+    expect(isExperimentalModel('')).toBe(false);
+  });
+
+  it('renders Experimental badge with tooltip for matching models', () => {
+    render(
+      <ModelPickerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        models={mockModels}
+        selectedModel=""
+        onSelectModel={vi.fn()}
+        provider="openrouter"
+      />
+    );
+
+    const badges = screen.getAllByText('Experimental');
+    expect(badges.length).toBe(2); // gemini-2.0-flash-exp and exp-1206-deepseek
+    expect(badges[0].getAttribute('title')).toBe('Experimental models may have limited provider availability.');
+    expect(badges[1].getAttribute('title')).toBe('Experimental models may have limited provider availability.');
   });
 
   it('allows manual entry of custom model ID', () => {

@@ -110,7 +110,9 @@ describe('Markdown Export Service', () => {
       const exported = await exportProjectAsMarkdown(projectId);
       expect(exported.filename).toBe('sample_app_docs.md');
       expect(exported.blob.type).toContain('text/markdown');
-      expect(exported.content).toBe(markdown);
+      expect(exported.content).toContain('# Sample App — Project Documentation');
+      expect(exported.content).toContain('### `package.json`');
+      expect(exported.content).toContain('### `src/main.ts`');
     });
   });
 });

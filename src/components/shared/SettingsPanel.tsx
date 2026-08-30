@@ -32,6 +32,7 @@ import {
   getModelContextWindow,
   formatContextWindow
 } from '../../services/llm/modelDiscovery';
+import { toFriendlyErrorMessage } from '../../services/llm/friendlyError';
 import { ModelPickerModal } from '../modals/ModelPickerModal';
 import { 
   createEncryptedBackup, 
@@ -594,7 +595,8 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       setTestStatus({ id: p.id, loading: false, success: true });
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
-      setTestStatus({ id: p.id, loading: false, success: false, error: errorMsg });
+      const friendly = toFriendlyErrorMessage(errorMsg);
+      setTestStatus({ id: p.id, loading: false, success: false, error: friendly.summary });
     }
   };
 

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-85
-- Last verified working: Eliminated INEFFECTIVE_DYNAMIC_IMPORT warnings for testRunner.ts and PreviewPanel.tsx by converting dynamic imports in provenance.ts and deployClient.ts to static imports. All 71 test suites (518 tests) pass, linter and production builds are clean with 0 warnings/errors.
+- Phase: HOTFIX-86
+- Last verified working: Centralized friendly LLM error translation with collapsible technical details and direct action links (OpenRouter data policy/privacy, 429 rate limits, 401 authentication, 404 models); added visual 'Experimental' badge for `-exp`/`exp-` models in ModelPickerModal. All 72 test suites (532 tests) pass; lint and production build compile cleanly with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -195,6 +195,29 @@
 - **Files Panel Mobile Header Layout** (8.4.1): Shortened Files panel title to "Files" with item count separated in a compact badge.
 
 ## Log
+
+### [HOTFIX-86] Friendly LLM Error Normalization & Model Picker Experimental Badges — 2026-08-30
+Prompt: Translate raw provider error messages into friendly UI summaries with collapsible details and add experimental badges to the model picker.
+Files touched:
+- `src/services/llm/friendlyError.ts` (new)
+- `src/services/llm/friendlyError.test.ts` (new)
+- `src/components/modals/ModelPickerModal.tsx` (modified)
+- `src/components/modals/ModelPickerModal.test.tsx` (modified)
+- `src/components/chat/ChatPanel.tsx` (modified)
+- `src/components/chat/ChatPanel.test.tsx` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `src/services/fs/markdownExport.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented `toFriendlyErrorMessage`, `formatFriendlyErrorForChat`, and `parseFriendlyErrorFromMessage` in `src/services/llm/friendlyError.ts` normalizing raw HTTP/JSON errors across providers into human-readable summaries with direct action links and structured raw error tags.
+- Handled OpenRouter data-policy / guardrail restrictions with direct link to `https://openrouter.ai/settings/preferences`, rate limits (429), authentication/API key errors (401), model not found (404), and fallback generic error cards with collapsible raw technical details.
+- Updated `ChatPanel.tsx` and `SettingsPanel.tsx` to display friendly summaries and action buttons with togglable technical debug payloads.
+- Added visual "Experimental" amber badge chip to model cards in `ModelPickerModal.tsx` matching `-exp` or `exp-` identifiers (such as `google/gemini-2.0-flash-exp:free`) while keeping all models accessible.
+Decisions:
+- Encapsulated raw error metadata inside structured HTML comment markers within chat history strings so persisted session data maintains both human-readable clarity and full raw error debuggability without breaking schema backwards compatibility.
+Deviations: none
+Verified: Comprehensive unit tests in `friendlyError.test.ts`, `ModelPickerModal.test.tsx`, `ChatPanel.test.tsx`, and full repository test suite (72 test files, 532 tests) passed with 0 failures; `lint_applet` passed with 0 errors; `compile_applet` built cleanly.
+Open questions: none
 
 ### [HOTFIX-85] Eliminate Ineffective Dynamic Imports in Bundler & Deployment Pipelines — 2026-08-29
 Prompt: Resolve INEFFECTIVE_DYNAMIC_IMPORT warnings for testRunner.ts and PreviewPanel.tsx.

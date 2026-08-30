@@ -23,6 +23,12 @@ export function formatContextWindow(tokens?: number): string {
   return `${Math.round(tokens / 1000)}k ctx`;
 }
 
+export function isExperimentalModel(modelId: string): boolean {
+  if (!modelId) return false;
+  const lower = modelId.toLowerCase();
+  return lower.includes('-exp') || lower.includes('exp-');
+}
+
 export function ModelPickerModal({
   isOpen,
   onClose,
@@ -240,6 +246,7 @@ export function ModelPickerModal({
               const isHighlighted = idx === selectedIndex;
               const ctx = m.contextWindow || getModelContextWindow(provider, m.id);
               const ctxFormatted = formatContextWindow(ctx);
+              const isExperimental = isExperimentalModel(m.id);
 
               return (
                 <button
@@ -263,6 +270,14 @@ export function ModelPickerModal({
                       <span className="font-mono font-bold text-xs truncate text-text">
                         {m.id}
                       </span>
+                      {isExperimental && (
+                        <span
+                          title="Experimental models may have limited provider availability."
+                          className="px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-[9.5px] font-sans font-semibold text-amber-500 shrink-0"
+                        >
+                          Experimental
+                        </span>
+                      )}
                       <span className="px-1.5 py-0.2 rounded bg-surface-elevated border border-border text-[9.5px] font-mono text-muted shrink-0">
                         {ctxFormatted}
                       </span>

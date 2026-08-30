@@ -296,4 +296,65 @@ describe('ChatPanel Controls & Collapsed Summary Chip', () => {
     // Dialog should close
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+
+  it('renders friendly error summary and action link for OpenRouter data-policy error in chat history', async () => {
+    const rawError = 'OpenAI-compatible stream failed: 404 - {"message":"No endpoints available matching your guardrail restrictions and data policy. Configure your preferences at https://openrouter.ai/settings/preferences","code":404} (model: "google/gemini-2.0-flash-exp:free", baseUrl: "https://openrouter.ai/api/v1")';
+
+    mockStoreState.activeProfileId = 'prof-1';
+    mockStoreState.chatHistory = [
+      { role: 'user', content: 'Hello' },
+      {
+        role: 'assistant',
+        content: `⚠️ **No provider endpoints match your data policy or privacy settings on OpenRouter.**\n\n[OpenRouter Privacy Settings](https://openrouter.ai/settings/preferences)\n\n<!-- RAW_ERROR_START -->\n${rawError}\n<!-- RAW_ERROR_END -->`
+      }
+    ];
+
+    render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
+
+    // Friendly summary should be visible
+    expect(screen.getByText('No provider endpoints match your data policy or privacy settings on OpenRouter.')).toBeDefined();
+
+    // Action link should be rendered
+    const actionLink = screen.getByRole('link', { name: /OpenRouter Privacy Settings/i });
+    expect(actionLink).toBeDefined();
+    expect(actionLink.getAttribute('href')).toBe('https://openrouter.ai/settings/preferences');
+
+    // Raw error details should be hidden by default
+    expect(screen.queryByText(rawError)).toBeNull();
+
+    // Show details button should exist
+    const showDetailsBtn = screen.getByRole('button', { name: /Show details/i });
+    expect(showDetailsBtn).toBeDefined();
+
+    // Expand details
+    fireEvent.click(showDetailsBtn);
+    expect(screen.getByText(rawError)).toBeDefined();
+    expect(screen.getByRole('button', { name: /Hide details/i })).toBeDefined();
+
+    // Collapse details
+    fireEvent.click(screen.getByRole('button', { name: /Hide details/i }));
+    expect(screen.queryByText(rawError)).toBeNull();
+  });
+
+  it('renders friendly error summary for unmatched errors with raw details toggle', async () => {
+    const rawError = 'InternalServerNetworkFailure: Code 503 from edge gateway';
+
+    mockStoreState.activeProfileId = 'prof-1';
+    mockStoreState.chatHistory = [
+      { role: 'user', content: 'Build a calculator' },
+      {
+        role: 'assistant',
+        content: `⚠️ **Something went wrong talking to the model provider**\n\n<!-- RAW_ERROR_START -->\n${rawError}\n<!-- RAW_ERROR_END -->`
+      }
+    ];
+
+    render(React.createElement(ChatPanel, { projectId: 'proj-1' }));
+
+    expect(screen.getByText('Something went wrong talking to the model provider')).toBeDefined();
+    expect(screen.queryByText(rawError)).toBeNull();
+
+    const showDetailsBtn = screen.getByRole('button', { name: /Show details/i });
+    fireEvent.click(showDetailsBtn);
+    expect(screen.getByText(rawError)).toBeDefined();
+  });
 });

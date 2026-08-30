@@ -15,7 +15,8 @@ import {
   Eye,
   X,
   GitMerge,
-  Coins
+  Coins,
+  ExternalLink
 } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { runAgentLoop } from '../../services/agent/agentLoop';
@@ -25,6 +26,7 @@ import { QuickConnectSheet } from '../shared/QuickConnectSheet';
 import { createLLMAdapter } from '../../services/llm/factory';
 import { db, type FileItem } from '../../db';
 import { listFiles } from '../../services/fs/vfs';
+import { formatFriendlyErrorForChat, parseFriendlyErrorFromMessage } from '../../services/llm/friendlyError';
 
 import { EmptyState } from '../shared/EmptyState';
 import type { LLMToolCall } from '../../services/llm/llmAdapter';
@@ -136,6 +138,7 @@ export function ChatPanel({
   const [contextFiles, setContextFiles] = useState<FileItem[]>([]);
   const [contextExpanded, setContextExpanded] = useState(false);
   const [expandedToolResults, setExpandedToolResults] = useState<Record<string, boolean>>({});
+  const [expandedErrors, setExpandedErrors] = useState<Record<number, boolean>>({});
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isQuickConnectOpen, setIsQuickConnectOpen] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
@@ -300,9 +303,10 @@ export function ChatPanel({
       if (e.name !== 'AbortError' && !abortController.signal.aborted) {
         console.error(e);
         const currentHistory = useAppStore.getState().chatHistory;
+        const rawMsg = e.message || String(e);
         setChatHistory([
           ...currentHistory,
-          { role: 'assistant', content: `⚠️ Request failed: ${e.message || String(e)}` }
+          { role: 'assistant', content: formatFriendlyErrorForChat(rawMsg) }
         ]);
       }
     } finally {
@@ -642,6 +646,8 @@ export function ChatPanel({
           // Omit bare leading colon from assistant output
           const cleanedText = msg.role === 'assistant' ? rawText.replace(/^:\s*/, '') : rawText;
           const senderModelName = msg.model || profileLabel || '';
+          const parsedError = msg.role === 'assistant' ? parseFriendlyErrorFromMessage(cleanedText) : { isError: false, summary: '' };
+          const isErrorExpanded = !!expandedErrors[i];
 
           return (
             <div 
@@ -691,6 +697,49 @@ export function ChatPanel({
                           }
                           return null;
                         })
+                      )}
+                    </div>
+                  ) : parsedError.isError ? (
+                    <div className="border border-oxide/40 bg-oxide/10 rounded-lg p-3 text-xs font-sans space-y-2.5">
+                      <div className="flex items-start gap-2 text-oxide">
+                        <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-oxide leading-relaxed">
+                            {parsedError.summary}
+                          </p>
+                          {parsedError.action && (
+                            <div className="mt-2">
+                              <a
+                                href={parsedError.action.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface border border-border text-accent hover:text-accent-hover hover:border-accent/40 font-mono text-[11px] font-semibold transition-colors cursor-pointer"
+                              >
+                                <span>{parsedError.action.label}</span>
+                                <ExternalLink size={11} />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {parsedError.rawError && (
+                        <div className="pt-1.5 border-t border-oxide/20">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedErrors(prev => ({ ...prev, [i]: !prev[i] }))}
+                            className="text-[11px] text-muted hover:text-text cursor-pointer flex items-center gap-1 font-mono transition-colors"
+                          >
+                            <span>{isErrorExpanded ? 'Hide details' : 'Show details'}</span>
+                            {isErrorExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          </button>
+
+                          {isErrorExpanded && (
+                            <pre className="mt-2 p-2 rounded bg-surface border border-border font-mono text-[11px] text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto select-text">
+                              {parsedError.rawError}
+                            </pre>
+                          )}
+                        </div>
                       )}
                     </div>
                   ) : (
