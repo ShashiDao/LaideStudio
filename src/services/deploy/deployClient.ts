@@ -3,6 +3,7 @@ import type { FileItem } from '../../db';
 import type { KeyMaterial } from '../security/crypto';
 import { binaryExtensions } from '../fs/zipExport';
 import { detectBundledProject } from '../bundler/entryDetection';
+import { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } from '../../components/preview/PreviewPanel';
 
 export interface DeployFile {
   file: string;
@@ -60,8 +61,6 @@ export async function buildDeployPackage(
     onProgress?.('Compiling standalone HTML & assets...');
     const indexFile = files.find(f => f.path === '/index.html' || f.path === '/public/index.html');
     
-    // Import helper from PreviewPanel
-    const { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } = await import('../../components/preview/PreviewPanel');
     let finalHtml = buildBundledHtml(bundledCode, indexFile?.content);
     
     const tailwindVersion = detectProjectTailwindVersion(files);
