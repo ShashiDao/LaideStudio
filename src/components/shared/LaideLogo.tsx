@@ -23,8 +23,7 @@ export function LaideLogo({
       role="img"
       {...props}
     >
-      {withBackground && <rect width="512" height="512" rx="100" fill="#0e0f12" />}
-      <rect x="96" y="96" width="320" height="320" rx="56" fill="#d4af37" />
+      {withBackground && <rect width="512" height="512" rx="100" fill="#d4af37" />}
       <path
         d="M 190 158 L 190 330 L 268 330"
         fill="none"
