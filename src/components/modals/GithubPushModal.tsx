@@ -199,6 +199,36 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
         setRepo(finalRepo);
         setBaseBranch(finalBaseBranch);
         setCreatedRepoUrl(createdRepo.html_url || `https://github.com/${finalOwner}/${finalRepo}`);
+
+        // Retry loop: GitHub may take a brief moment to initialize the created repo's default branch/ref
+        const MAX_RETRIES = 5;
+        let branchReady = false;
+        let lastBranchError: unknown = null;
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            setProgress(attempt === 1 ? 'Fetching base branch info...' : `Waiting for repository to initialize... (attempt ${attempt}/${MAX_RETRIES})`);
+            const branchData = await client.getBranch(finalOwner, finalRepo, finalBaseBranch);
+            if (branchData && branchData.object && branchData.object.sha) {
+              branchReady = true;
+              break;
+            }
+          } catch (err) {
+            lastBranchError = err;
+            const msg = err instanceof Error ? err.message : String(err);
+            const isNotFound = msg.includes('404') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no access');
+            if (isNotFound && attempt < MAX_RETRIES) {
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              continue;
+            }
+            if (!isNotFound) {
+              throw err;
+            }
+          }
+        }
+
+        if (!branchReady) {
+          throw new Error("Repository was created but isn't ready yet. Please wait a few seconds and click 'Push to Remote Branch' again.", { cause: lastBranchError });
+        }
       } else {
         if (!isBaseBranchEdited) {
           setProgress('Fetching repository info...');

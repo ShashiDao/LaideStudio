@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-93
-- Last verified working: Added "Create new repository" option to GitHub Push modal with automatic initialization, visibility options, org creation support, 422 collision handling, and comprehensive unit tests (all 75 test suites / 552 tests pass).
+- Phase: HOTFIX-94
+- Last verified working: Added a retry loop (up to 5 attempts with 1s delay and live progress reporting) for getBranch after repo creation in GithubPushModal to prevent 404 race condition, with dedicated unit test (all tests pass).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -467,4 +467,23 @@ Decisions:
 Deviations: none
 Verified: All 75 test suites (552 tests) pass via `npx vitest run`; `lint_applet` reports 0 errors; `compile_applet` compiles cleanly.
 Open questions: none
+
+### [HOTFIX-94] Fix Repository Initialization Race Condition on Create Repo Push — 2026-08-31
+Prompt: Fix a race condition in the "Create new repository" GitHub push flow by adding a retry loop before getBranch.
+Files touched:
+- `src/components/modals/GithubPushModal.tsx` (modified)
+- `src/components/modals/GithubPushModal.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added retry loop (up to 5 attempts, 1s delay) for `client.getBranch()` immediately after `client.createRepo()` when `mode === 'create'`.
+- Updated `setProgress` on each attempt to indicate repository initialization status ("Waiting for repository to initialize... (attempt N/5)").
+- Throws clear actionable error if all retries fail, directing user to wait and click push again.
+- Preserved untouched the existing branch, tree, blob, and commit creation flows and the existing repository push mode.
+Decisions:
+- Maintained exact 1-second fixed delay for retries to keep implementation robust and responsive.
+- Added comprehensive unit test in `GithubPushModal.test.ts` mocking a 404 response on the first `getBranch` call followed by a 200 response on the second attempt.
+Deviations: none
+Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` passed 10/10 tests; `lint_applet` reported 0 errors; `compile_applet` compiled cleanly.
+Open questions: none
+
 

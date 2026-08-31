@@ -597,4 +597,85 @@ describe('GithubPushModal', () => {
       expect(screen.getByText("A repository with this name already exists. Choose a different name or use 'push to existing repo' instead.")).toBeDefined();
     });
   });
+
+  it('retries getBranch when newly created repo branch is not immediately queryable (404 race condition)', async () => {
+    const onClose = vi.fn();
+    const content = 'export const app = () => "Hello";';
+    await createFile(projectId, '/src/App.tsx', content);
+
+    const createdRepoPayload = {
+      name: 'retry-project',
+      description: '',
+      private: true,
+      default_branch: 'main',
+      html_url: 'https://github.com/testuser/retry-project',
+      owner: { login: 'testuser' }
+    };
+
+    let getBranchCallCount = 0;
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, options: any = {}) => {
+      // POST create repository
+      if (url === 'https://api.github.com/user/repos' && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => createdRepoPayload } as any;
+      }
+      // Base branch ref
+      if (url.includes('/git/ref/heads/main')) {
+        getBranchCallCount++;
+        if (getBranchCallCount === 1) {
+          // First attempt: 404 not found
+          return {
+            ok: false,
+            status: 404,
+            statusText: 'Not Found',
+            json: async () => ({ message: 'Not Found' })
+          } as any;
+        }
+        // Subsequent attempts: succeed
+        return { ok: true, status: 200, json: async () => ({ object: { sha: 'base_sha_123' } }) } as any;
+      }
+      // Base commit
+      if (url.includes('/git/commits/base_sha_123')) {
+        return { ok: true, status: 200, json: async () => ({ tree: { sha: 'base_tree_sha_456' } }) } as any;
+      }
+      // Remote tree
+      if (url.includes('/git/trees/main?recursive=1')) {
+        return { ok: true, status: 200, json: async () => ({ tree: [] }) } as any;
+      }
+      // Create blob
+      if (url.includes('/git/blobs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'blob_sha_789' }) } as any;
+      }
+      // Create tree
+      if (url.includes('/git/trees') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'new_tree_sha_101' }) } as any;
+      }
+      // Create commit
+      if (url.includes('/git/commits') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'new_commit_sha_202' }) } as any;
+      }
+      // Create branch
+      if (url.includes('/git/refs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ ref: 'refs/heads/feature-branch' }) } as any;
+      }
+
+      return { ok: false, status: 404, json: async () => ({ message: 'Not found' }) } as any;
+    });
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    // Switch to create new repository mode
+    fireEvent.click(screen.getByRole('button', { name: 'Create new repository' }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. my-app'), { target: { value: 'retry-project' } });
+
+    const pushButton = screen.getByRole('button', { name: /push to remote branch/i });
+    fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Repository Created & Branch Pushed!')).toBeDefined();
+    }, { timeout: 4000 });
+
+    expect(getBranchCallCount).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('testuser/retry-project')).toBeDefined();
+  });
 });
