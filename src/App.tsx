@@ -546,7 +546,17 @@ export default function App() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => handleDeleteProject(projectToDelete.id)}
+                  onClick={async () => {
+                    try {
+                      await handleDeleteProject(projectToDelete.id);
+                      // Only close the dialog once the delete has actually
+                      // finished successfully; on failure it stays open so
+                      // the user can see the error and retry or cancel.
+                      setProjectToDelete(null);
+                    } catch {
+                      // Error toast is already shown by handleDeleteProject.
+                    }
+                  }}
                   className="px-3 py-1.5 bg-error hover:bg-error/90 text-white font-mono font-bold text-xs rounded transition-colors flex items-center gap-1.5 cursor-pointer shadow"
                 >
                   <Trash2 size={13} />

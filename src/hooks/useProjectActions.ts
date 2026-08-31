@@ -117,8 +117,14 @@ export function useProjectActions({ activeFileId, setActiveFileId }: UseProjectA
         setActiveProjectId(null);
         fileOps.setFiles([]);
       }
+      useAppStore.getState().addToast('Project deleted permanently', 'success');
     } catch (err) {
       console.error('Failed to delete project', err);
+      useAppStore.getState().addToast(err instanceof Error ? err.message : 'Failed to delete project', 'error');
+      // Re-throw so the caller (the confirmation dialog) knows the delete
+      // did not complete and can keep the dialog open instead of closing
+      // as if it succeeded.
+      throw err;
     }
   };
 
