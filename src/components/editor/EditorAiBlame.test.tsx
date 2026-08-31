@@ -9,7 +9,8 @@ import {
   escapeHtml,
   AiBlameSidePanel,
   createAiBlameHoverTooltip,
-  createAiBlameCursorListener
+  createAiBlameCursorListener,
+  classifyLineTrust
 } from './EditorAiBlame';
 
 describe('EditorAiBlame Components & Utilities', () => {
@@ -164,6 +165,38 @@ describe('EditorAiBlame Components & Utilities', () => {
       expect(escapeHtml(payloadProvider)).not.toContain('">');
       expect(escapeHtml(payloadRationale)).not.toContain('"');
       expect(escapeHtml(payloadDetails)).not.toContain('<b');
+    });
+  });
+
+  describe('classifyLineTrust (per-line trust gutter)', () => {
+    it('classifies a line with no provenance entry as human-authored', () => {
+      expect(classifyLineTrust(null)).toBe('human');
+    });
+
+    it('classifies an AI-written line with a passing test result as verified', () => {
+      const entry: ProvenanceEntry = { ...sampleEntry, testResult: { ...sampleEntry.testResult!, status: 'passed' } };
+      expect(classifyLineTrust(entry)).toBe('verified');
+    });
+
+    it('classifies an AI-written line with a failing test result as failing', () => {
+      const entry: ProvenanceEntry = {
+        ...sampleEntry,
+        testResult: { passed: 3, failed: 2, total: 5, status: 'failed', output: '2 failed' }
+      };
+      expect(classifyLineTrust(entry)).toBe('failing');
+    });
+
+    it('classifies an AI-written line with an errored test run as failing', () => {
+      const entry: ProvenanceEntry = {
+        ...sampleEntry,
+        testResult: { passed: 0, failed: 0, total: 0, status: 'error', output: '', error: 'runner crashed' }
+      };
+      expect(classifyLineTrust(entry)).toBe('failing');
+    });
+
+    it('classifies an AI-written line with no recorded test result as untested', () => {
+      const entry: ProvenanceEntry = { ...sampleEntry, testResult: undefined };
+      expect(classifyLineTrust(entry)).toBe('untested');
     });
   });
 });

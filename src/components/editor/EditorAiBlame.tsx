@@ -1,5 +1,5 @@
 import React from 'react';
-import { hoverTooltip, EditorView, type ViewUpdate } from '@codemirror/view';
+import { hoverTooltip, EditorView, gutter, GutterMarker, type ViewUpdate } from '@codemirror/view';
 import type { Extension } from '@codemirror/state';
 import type { ProvenanceEntry, ProvenanceTestResult } from '../../db';
 import { Sparkles, CheckCircle2, XCircle, AlertCircle, HelpCircle, Clock, Cpu, FileText, Hash, ShieldCheck, X, GitBranch, BarChart2 } from 'lucide-react';
@@ -176,6 +176,85 @@ export function createAiBlameCursorListener(
       const entry = getBlameForLine(line.number);
       onLineChange(line.number, entry);
     }
+  });
+}
+
+/**
+ * Per-line trust classification used to color the AI trust gutter.
+ * - 'human': line has no recorded AI provenance entry
+ * - 'verified': AI-authored, and the patch that wrote it passed its tests
+ * - 'untested': AI-authored, no test result was ever recorded for it
+ * - 'failing': AI-authored, and the patch that wrote it failed/errored its tests
+ */
+export type LineTrustStatus = 'human' | 'verified' | 'untested' | 'failing';
+
+export function classifyLineTrust(entry: ProvenanceEntry | null): LineTrustStatus {
+  if (!entry) return 'human';
+  const status = entry.testResult?.status;
+  if (status === 'passed') return 'verified';
+  if (status === 'failed' || status === 'error') return 'failing';
+  return 'untested';
+}
+
+const TRUST_GUTTER_COLORS: Record<Exclude<LineTrustStatus, 'human'>, string> = {
+  // Matches the colors already used in the file-level trust bar below,
+  // so the per-line gutter and the aggregate summary read as one system.
+  verified: '#10b981', // Tailwind emerald-500 (same as "Verified AI" bar segment)
+  untested: 'var(--accent)', // theme accent color (same as "Untested AI" bar segment)
+  failing: '#f43f5e', // Tailwind rose-500 (same as "Failing AI" bar segment)
+};
+
+const TRUST_GUTTER_LABELS: Record<LineTrustStatus, string> = {
+  human: '',
+  verified: 'AI-written · verified by passing tests',
+  untested: 'AI-written · no test result recorded',
+  failing: 'AI-written · written during a failing test run',
+};
+
+class TrustGutterMarker extends GutterMarker {
+  constructor(private status: Exclude<LineTrustStatus, 'human'>) {
+    super();
+  }
+
+  eq(other: TrustGutterMarker) {
+    return other.status === this.status;
+  }
+
+  toDOM() {
+    // Note: uses direct property assignment (not innerHTML) for all
+    // values, including the label — consistent with the escapeHtml
+    // discipline established for this file in the HOTFIX-87 XSS audit.
+    const dom = document.createElement('div');
+    dom.style.width = '3px';
+    dom.style.height = '100%';
+    dom.style.marginLeft = '2px';
+    dom.style.borderRadius = '1px';
+    dom.style.backgroundColor = TRUST_GUTTER_COLORS[this.status];
+    dom.title = TRUST_GUTTER_LABELS[this.status];
+    return dom;
+  }
+}
+
+/**
+ * Creates a CodeMirror 6 gutter extension that renders a thin colored bar next
+ * to each line, indicating whether that line is AI-written-and-verified,
+ * AI-written-but-untested, AI-written-and-failing, or human-authored (no
+ * marker). Gives an at-a-glance trust heatmap for the whole file without
+ * needing to hover or open the Insights panel.
+ */
+export function createAiTrustGutter(
+  getBlameForLine: (lineNumber: number) => ProvenanceEntry | null
+): Extension {
+  return gutter({
+    class: 'cm-ai-trust-gutter',
+    lineMarker: (view: EditorView, line) => {
+      const lineNumber = view.state.doc.lineAt(line.from).number;
+      const entry = getBlameForLine(lineNumber);
+      const status = classifyLineTrust(entry);
+      if (status === 'human') return null;
+      return new TrustGutterMarker(status);
+    },
+    initialSpacer: () => new TrustGutterMarker('untested'),
   });
 }
 
