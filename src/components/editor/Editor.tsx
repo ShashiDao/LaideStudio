@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { X, Copy, Check, Search, Sparkles, MoreHorizontal, Undo, Redo } from 'lucide-react';
+import { X, Copy, Check, Search, Sparkles, MoreHorizontal, Undo, Redo, PaintBucket } from 'lucide-react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { createTheme } from '@uiw/codemirror-themes';
 import { tags as t } from '@lezer/highlight';
@@ -22,7 +22,7 @@ import { useAppStore } from '../../store';
 import { useShellBreakpoint } from '../../hooks/useShellBreakpoint';
 import { EditorFindReplace } from './EditorFindReplace';
 import { getFileAiBlameCached } from '../../services/provenance/blame';
-import { createAiBlameHoverTooltip, createAiBlameCursorListener, AiBlameSidePanel } from './EditorAiBlame';
+import { createAiBlameHoverTooltip, createAiBlameCursorListener, createAiTrustGutter, AiBlameSidePanel } from './EditorAiBlame';
 import { calculateFileTrustScore, getTrustColorStyles } from '../../services/provenance/trustScore';
 
 export const oledEditorTheme = createTheme({
@@ -196,6 +196,7 @@ export function Editor({
   const [provenanceEntries, setProvenanceEntries] = useState<ProvenanceEntry[]>([]);
   const [isBlameOpen, setIsBlameOpen] = useState(false);
   const [activeLineNumber, setActiveLineNumber] = useState<number | null>(1);
+  const [showTrustGutter, setShowTrustGutter] = useState(true);
   const [isOverflowOpen, setIsOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -637,7 +638,7 @@ export function Editor({
 
   const activeCmTheme = theme === 'paper' ? paperEditorTheme : oledEditorTheme;
 
-  // CodeMirror AI blame extensions (hover tooltip and cursor line listener)
+  // CodeMirror AI blame extensions (hover tooltip, cursor line listener, trust gutter)
   const aiBlameExtensions = useMemo(() => {
     const hoverExt = createAiBlameHoverTooltip(
       (lineNum) => blameResult.blameMap.get(lineNum) || null,
@@ -649,8 +650,12 @@ export function Editor({
       },
       (lineNum) => blameResult.blameMap.get(lineNum) || null
     );
-    return [hoverExt, cursorExt];
-  }, [blameResult, theme]);
+    const exts = [hoverExt, cursorExt];
+    if (showTrustGutter && blameResult.hasAiHistory) {
+      exts.push(createAiTrustGutter((lineNum) => blameResult.blameMap.get(lineNum) || null));
+    }
+    return exts;
+  }, [blameResult, theme, showTrustGutter]);
 
   const combinedExtensions = useMemo(
     () => [...languageExt, ...searchExt, ...aiBlameExtensions],
@@ -733,6 +738,24 @@ export function Editor({
               Insights {fileTrustScore.score}%
             </span>
           </button>
+
+          {/* AI Trust Gutter Toggle — colored bar per line: green=verified, amber=untested, red=failing */}
+          {blameResult.hasAiHistory && (
+            <button
+              type="button"
+              onClick={() => setShowTrustGutter(prev => !prev)}
+              aria-label="Toggle AI trust gutter"
+              aria-pressed={showTrustGutter}
+              title="Trust gutter: colors each line by AI verification status (green=tested & passing, amber=untested, red=failing)"
+              className={`hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-mono border transition-colors cursor-pointer ${
+                showTrustGutter
+                  ? 'bg-accent text-accent-text-on border-accent font-bold shadow-xs'
+                  : 'border-border bg-surface hover:bg-surface-elevated text-muted hover:text-accent'
+              }`}
+            >
+              <PaintBucket size={12} className="shrink-0" />
+            </button>
+          )}
 
           {/* Find & Replace Toggle Button */}
           <button

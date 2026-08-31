@@ -737,7 +737,7 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                   ) : (
                     <>
                       <Rocket size={13} />
-                      <span>Publish to {activeTab === 'netlify' ? 'Netlify' : 'Vercel'}</span>
+                      <span>Publish to {activeTab === 'netlify' ? 'Netlify' : activeTab === 'vercel' ? 'Vercel' : 'Cloudflare'}</span>
                     </>
                   )}
                 </button>
