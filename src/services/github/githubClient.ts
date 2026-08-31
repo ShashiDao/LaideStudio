@@ -9,8 +9,16 @@ export interface GitTreeEntry {
   content?: string;
 }
 
-interface GithubRepo {
+export interface GithubRepo {
+  id?: number | string;
+  name: string;
+  full_name: string;
   default_branch: string;
+  private: boolean;
+  owner: {
+    login: string;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -23,7 +31,7 @@ interface GithubCommit {
   sha: string;
 }
 
-interface GithubTreeResponse {
+export interface GithubTreeResponse {
   sha: string;
   tree: GitTreeEntry[];
 }

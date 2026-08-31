@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-95
-- Last verified working: Extended the retry loop for newly created repositories to encompass getBranch, getCommit, and getRepoTree to fully mitigate initialization race conditions, with corresponding test cases (all tests pass).
+- Phase: HOTFIX-96
+- Last verified working: Searchable combobox repository picker for "Push to existing repository" mode with listRepos() auto-fetch, client-side filtering, manual typing fallback, and touch-friendly controls (all 75 test suites and 556 tests passing).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -501,6 +501,25 @@ Decisions:
 - Grouped the dependent data retrievals (branch ref -> commit tree -> tree contents) under the same exception handler within the retry loop since a replication delay can cause any of these to be temporarily "not found".
 Deviations: none
 Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` passed 11/11 tests; `lint_applet` reported 0 errors; `compile_applet` compiled cleanly.
+Open questions: none
+
+### [HOTFIX-96] Add Searchable Repository Picker to Push to Existing Repo — 2026-08-31
+Prompt: Add a repository picker to the "Push to existing repository" mode in LAIDE Studio, replacing manual owner/repo typing with a searchable dropdown.
+Files touched:
+- `src/services/github/githubClient.ts` (modified)
+- `src/components/modals/GithubPushModal.tsx` (modified)
+- `src/components/modals/GithubPushModal.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Exported `GithubTreeResponse` and ensured `GithubRepo` includes `full_name`, `owner.login`, `name`, `default_branch`, and `private`.
+- Integrated `client.listRepos()` on modal load when in existing mode to populate available repositories list.
+- Replaced separate owner/repo text fields with a custom searchable combobox supporting client-side filtering, automatic owner/repo/default_branch population, and a manual typing fallback option.
+- Maintained mobile ergonomics with >=44px touch targets and click-outside dropdown closure.
+Decisions:
+- Built custom lightweight combobox using standard React state and hooks without adding external UI dependencies.
+- Retained full manual typing support when repos fail to fetch or when a non-listed repository is typed.
+Deviations: none
+Verified: Full test suite passing (75/75 test files, 556/556 tests); `lint_applet` passed with 0 errors; `compile_applet` build succeeded.
 Open questions: none
 
 

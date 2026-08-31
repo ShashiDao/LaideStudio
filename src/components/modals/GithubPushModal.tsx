@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2, X, GitPullRequest, GitBranch, ShieldCheck, Cpu } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Loader2, X, GitPullRequest, GitBranch, ShieldCheck, Cpu, Lock, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { db } from '../../db';
-import { createGithubClient, type GitTreeEntry } from '../../services/github/githubClient';
+import { createGithubClient, type GitTreeEntry, type GithubRepo, type GithubTreeResponse } from '../../services/github/githubClient';
 import { listFiles } from '../../services/fs/vfs';
 import { binaryExtensions } from '../../services/fs/zipExport';
 import { 
@@ -69,6 +69,12 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   const [mode, setMode] = useState<'existing' | 'create'>('existing');
   const [owner, setOwner] = useState('');
   const [repo, setRepo] = useState('');
+  const [repoSearchInput, setRepoSearchInput] = useState('');
+  const [availableRepos, setAvailableRepos] = useState<GithubRepo[]>([]);
+  const [loadingRepos, setLoadingRepos] = useState(false);
+  const [hasFetchedRepos, setHasFetchedRepos] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const comboboxRef = useRef<HTMLDivElement>(null);
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoDescription, setNewRepoDescription] = useState('');
   const [isPrivate, setIsPrivate] = useState(true);
@@ -86,6 +92,48 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   const [prUrl, setPrUrl] = useState<string | null>(null);
   const [createdBranch, setCreatedBranch] = useState<string | null>(null);
   const [createdRepoUrl, setCreatedRepoUrl] = useState<string | null>(null);
+
+  // Close combobox dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (comboboxRef.current && !comboboxRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Fetch available repositories for existing mode
+  useEffect(() => {
+    if (!keys || mode !== 'existing' || hasFetchedRepos) return;
+
+    let active = true;
+    const fetchRepos = async () => {
+      setLoadingRepos(true);
+      try {
+        const client = await createGithubClient(keys);
+        const repos = await client.listRepos();
+        if (active && Array.isArray(repos)) {
+          setAvailableRepos(repos);
+          setHasFetchedRepos(true);
+        }
+      } catch (_err) {
+        // Fail silently without blocking the form
+      } finally {
+        if (active) {
+          setLoadingRepos(false);
+        }
+      }
+    };
+
+    fetchRepos();
+    return () => {
+      active = false;
+    };
+  }, [keys, mode, hasFetchedRepos]);
 
   // Compute Project / PR Trust Score
   useEffect(() => {
@@ -124,6 +172,11 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
           if (!active) return;
           if (parsed.owner) setOwner(parsed.owner);
           if (parsed.repo) setRepo(parsed.repo);
+          if (parsed.owner && parsed.repo) {
+            setRepoSearchInput(`${parsed.owner}/${parsed.repo}`);
+          } else if (parsed.repo) {
+            setRepoSearchInput(parsed.repo);
+          }
           if (parsed.branch) {
             setBaseBranch(parsed.branch);
             setIsBaseBranchEdited(true);
@@ -156,6 +209,54 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
     return () => clearTimeout(timeout);
   }, [owner, repo, keys, isBaseBranchEdited, mode]);
 
+  const handleRepoInputChange = (val: string) => {
+    setRepoSearchInput(val);
+    setIsDropdownOpen(true);
+    const trimmed = val.trim();
+    if (trimmed.includes('/')) {
+      const parts = trimmed.split('/');
+      setOwner(parts[0].trim());
+      setRepo(parts.slice(1).join('/').trim());
+    } else {
+      setOwner('');
+      setRepo(trimmed);
+    }
+  };
+
+  const handleSelectRepo = (selected: GithubRepo) => {
+    const rOwner = selected.owner?.login || (selected.full_name ? selected.full_name.split('/')[0] : '');
+    const rName = selected.name || (selected.full_name ? selected.full_name.split('/')[1] : '');
+    const rFullName = selected.full_name || `${rOwner}/${rName}`;
+
+    setOwner(rOwner);
+    setRepo(rName);
+    setRepoSearchInput(rFullName);
+    if (selected.default_branch) {
+      setBaseBranch(selected.default_branch);
+    }
+    setIsBaseBranchEdited(false);
+    setIsDropdownOpen(false);
+  };
+
+  const handleUseManual = () => {
+    const trimmed = repoSearchInput.trim();
+    if (trimmed.includes('/')) {
+      const parts = trimmed.split('/');
+      setOwner(parts[0].trim());
+      setRepo(parts.slice(1).join('/').trim());
+    } else {
+      setOwner('');
+      setRepo(trimmed);
+    }
+    setIsDropdownOpen(false);
+  };
+
+  const filterQuery = repoSearchInput.trim().toLowerCase();
+  const filteredRepos = availableRepos.filter(r => {
+    const fullName = (r.full_name || `${r.owner?.login || ''}/${r.name}`).toLowerCase();
+    return fullName.includes(filterQuery);
+  });
+
   const handlePush = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!keys) return;
@@ -176,9 +277,9 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       let finalRepo = repo.trim();
       let finalBaseBranch = baseBranch;
       
-      let baseCommitSha: string;
-      let baseTreeSha: string;
-      let treeData;
+      let baseCommitSha = '';
+      let baseTreeSha = '';
+      let treeData: GithubTreeResponse = { sha: '', tree: [] };
 
       if (mode === 'create') {
         setProgress('Creating repository...');
@@ -567,31 +668,102 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
               </>
             ) : (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-sans text-muted mb-1">Owner</label>
+                <div className="relative" ref={comboboxRef}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-sans text-muted">
+                      Repository <span className="text-[10px] text-muted/70">(owner/repo)</span>
+                    </label>
+                    {loadingRepos && (
+                      <span className="flex items-center gap-1 text-[10px] font-sans text-muted">
+                        <Loader2 size={10} className="animate-spin" />
+                        <span>Fetching repos...</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="relative">
                     <input 
                       type="text"
-                      value={owner}
-                      onChange={e => setOwner(e.target.value)}
-                      placeholder="e.g. facebook"
+                      value={repoSearchInput}
+                      onChange={e => handleRepoInputChange(e.target.value)}
+                      onFocus={() => setIsDropdownOpen(true)}
+                      placeholder="owner/repo (e.g. facebook/react)"
                       required
                       disabled={loading}
-                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50 pr-8"
                     />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setIsDropdownOpen(prev => !prev)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-text p-1 cursor-pointer"
+                      aria-label="Toggle repository list"
+                    >
+                      <ChevronDown size={14} className={`transition-transform duration-150 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-sans text-muted mb-1">Repo</label>
-                    <input 
-                      type="text"
-                      value={repo}
-                      onChange={e => setRepo(e.target.value)}
-                      placeholder="e.g. react"
-                      required
-                      disabled={loading}
-                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-                    />
-                  </div>
+
+                  {isDropdownOpen && (
+                    <div 
+                      role="listbox"
+                      className="absolute left-0 right-0 top-full mt-1 bg-surface border border-border rounded-md shadow-xl z-20 max-h-52 overflow-y-auto divide-y divide-border/50"
+                    >
+                      {filteredRepos.length > 0 ? (
+                        filteredRepos.map((r) => {
+                          const rOwner = r.owner?.login || (r.full_name ? r.full_name.split('/')[0] : '');
+                          const rName = r.name || (r.full_name ? r.full_name.split('/')[1] : '');
+                          const rFullName = r.full_name || `${rOwner}/${rName}`;
+                          const isSelected = owner === rOwner && repo === rName;
+
+                          return (
+                            <button
+                              key={r.id || rFullName}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => handleSelectRepo(r)}
+                              className={`w-full text-left px-3 py-2.5 text-xs font-sans flex items-center justify-between min-h-[44px] hover:bg-bg/80 transition-colors cursor-pointer ${
+                                isSelected ? 'bg-accent/10 text-accent font-semibold' : 'text-text'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 truncate">
+                                {r.private ? (
+                                  <Lock size={12} className="text-muted shrink-0" aria-label="Private repository" />
+                                ) : (
+                                  <GithubIcon size={12} className="text-muted shrink-0" />
+                                )}
+                                <span className="truncate">{rFullName}</span>
+                              </div>
+                              {r.default_branch && (
+                                <span className="text-[10px] font-mono text-muted shrink-0 ml-2 px-1.5 py-0.5 rounded bg-bg border border-border/50">
+                                  {r.default_branch}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
+                      ) : repoSearchInput.trim() ? (
+                        <div className="px-3 py-2.5 text-xs text-muted font-sans text-center">
+                          No matching repositories
+                        </div>
+                      ) : (
+                        <div className="px-3 py-2.5 text-xs text-muted font-sans text-center">
+                          {loadingRepos ? 'Loading repositories...' : 'No repositories found'}
+                        </div>
+                      )}
+
+                      {repoSearchInput.trim() && (
+                        <button
+                          type="button"
+                          onClick={handleUseManual}
+                          className="w-full text-left px-3 py-2.5 text-xs font-sans text-muted hover:text-text hover:bg-bg/80 transition-colors flex items-center gap-2 min-h-[44px] cursor-pointer bg-surface border-t border-border"
+                        >
+                          <span className="text-accent font-medium truncate">
+                            Use &ldquo;{repoSearchInput.trim()}&rdquo; manually
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

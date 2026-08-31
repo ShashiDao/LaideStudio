@@ -159,8 +159,7 @@ describe('GithubPushModal', () => {
     render(React.createElement(GithubPushModal, { projectId, onClose }));
 
     // Fill in repository details
-    fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'testorg' } });
-    fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'testrepo' } });
+    fireEvent.change(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)'), { target: { value: 'testorg/testrepo' } });
     fireEvent.change(screen.getByPlaceholderText('Update from LAIDE Studio'), { target: { value: 'Feat: push test' } });
 
     // Submit form
@@ -272,8 +271,7 @@ describe('GithubPushModal', () => {
 
     render(React.createElement(GithubPushModal, { projectId, onClose }));
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'testorg' } });
-    fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'testrepo' } });
+    fireEvent.change(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)'), { target: { value: 'testorg/testrepo' } });
     
     fireEvent.click(screen.getByRole('button', { name: /push to remote branch/i }));
 
@@ -310,8 +308,7 @@ describe('GithubPushModal', () => {
     expect(baseBranchInput.value).toBe('main');
 
     // Enter owner and repo
-    fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'testorg' } });
-    fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'testrepo' } });
+    fireEvent.change(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)'), { target: { value: 'testorg/testrepo' } });
 
     // The component debounces fetching the repo info by 800ms
     await waitFor(() => {
@@ -350,8 +347,7 @@ describe('GithubPushModal', () => {
 
     render(React.createElement(GithubPushModal, { projectId, onClose }));
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'org' } });
-    fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'repo' } });
+    fireEvent.change(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)'), { target: { value: 'org/repo' } });
 
     fireEvent.click(screen.getByRole('button', { name: /push to remote branch/i }));
 
@@ -381,8 +377,7 @@ describe('GithubPushModal', () => {
 
     render(React.createElement(GithubPushModal, { projectId, onClose }));
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'org' } });
-    fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'repo' } });
+    fireEvent.change(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)'), { target: { value: 'org/repo' } });
 
     fireEvent.click(screen.getByRole('button', { name: /push to remote branch/i }));
 
@@ -433,8 +428,7 @@ describe('GithubPushModal', () => {
 
     render(React.createElement(GithubPushModal, { projectId, onClose }));
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. facebook'), { target: { value: 'testorg' } });
-    fireEvent.change(screen.getByPlaceholderText('e.g. react'), { target: { value: 'testrepo' } });
+    fireEvent.change(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)'), { target: { value: 'testorg/testrepo' } });
     
     // Type a branch name
     const newBranchInput = screen.getAllByRole('textbox').find(el => (el as HTMLInputElement).placeholder.includes('laide-')) as HTMLInputElement;
@@ -464,8 +458,7 @@ describe('GithubPushModal', () => {
     render(React.createElement(GithubPushModal, { projectId, onClose }));
 
     // Default mode: existing repo
-    expect(screen.getByPlaceholderText('e.g. facebook')).toBeDefined();
-    expect(screen.getByPlaceholderText('e.g. react')).toBeDefined();
+    expect(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)')).toBeDefined();
     expect(screen.queryByPlaceholderText('e.g. my-app')).toBeNull();
 
     // Switch to create new repository mode
@@ -476,13 +469,11 @@ describe('GithubPushModal', () => {
     expect(screen.getByPlaceholderText(/Leave blank for personal/i)).toBeDefined();
     expect(screen.getByRole('button', { name: 'Private' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Public' })).toBeDefined();
-    expect(screen.queryByPlaceholderText('e.g. facebook')).toBeNull();
-    expect(screen.queryByPlaceholderText('e.g. react')).toBeNull();
+    expect(screen.queryByPlaceholderText('owner/repo (e.g. facebook/react)')).toBeNull();
 
     // Switch back to existing repository mode
     fireEvent.click(screen.getByRole('button', { name: 'Push to existing repository' }));
-    expect(screen.getByPlaceholderText('e.g. facebook')).toBeDefined();
-    expect(screen.getByPlaceholderText('e.g. react')).toBeDefined();
+    expect(screen.getByPlaceholderText('owner/repo (e.g. facebook/react)')).toBeDefined();
   });
 
   it('creates new repository and pushes branch successfully', async () => {
@@ -752,5 +743,109 @@ describe('GithubPushModal', () => {
     expect(getBranchCallCount).toBeGreaterThanOrEqual(2);
     expect(getCommitCallCount).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('testuser/retry-commit-project')).toBeDefined();
+  });
+
+  it('populates dropdown with listRepos() and selecting a repo sets owner, repo, and baseBranch', async () => {
+    const onClose = vi.fn();
+    const reposList = [
+      {
+        id: 101,
+        name: 'cool-project',
+        full_name: 'myorg/cool-project',
+        default_branch: 'develop',
+        private: true,
+        owner: { login: 'myorg' }
+      },
+      {
+        id: 102,
+        name: 'public-lib',
+        full_name: 'myorg/public-lib',
+        default_branch: 'main',
+        private: false,
+        owner: { login: 'myorg' }
+      }
+    ];
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/user/repos')) {
+        return { ok: true, status: 200, json: async () => reposList } as any;
+      }
+      return { ok: false, status: 404, json: async () => ({ message: 'Not found' }) } as any;
+    });
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    const repoInput = screen.getByPlaceholderText('owner/repo (e.g. facebook/react)');
+    fireEvent.focus(repoInput);
+
+    await waitFor(() => {
+      expect(screen.getByText('myorg/cool-project')).toBeDefined();
+      expect(screen.getByText('myorg/public-lib')).toBeDefined();
+    });
+
+    // Test filtering by typing
+    fireEvent.change(repoInput, { target: { value: 'cool' } });
+    expect(screen.getByText('myorg/cool-project')).toBeDefined();
+    expect(screen.queryByText('myorg/public-lib')).toBeNull();
+
+    // Select the repository
+    fireEvent.click(screen.getByText('myorg/cool-project'));
+
+    // Check that input and base branch are updated
+    expect((repoInput as HTMLInputElement).value).toBe('myorg/cool-project');
+    const baseBranchInput = screen.getByPlaceholderText('main') as HTMLInputElement;
+    expect(baseBranchInput.value).toBe('develop');
+  });
+
+  it('allows manual typing to push when listRepos() fails or returns empty', async () => {
+    const onClose = vi.fn();
+    const content = 'export const test = 123;';
+    await createFile(projectId, '/src/test.ts', content);
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, options: any = {}) => {
+      if (url.includes('/user/repos')) {
+        return { ok: false, status: 500, json: async () => ({ message: 'Internal Server Error' }) } as any;
+      }
+      if (url.includes('/repos/') && !url.includes('/git/')) {
+        return { ok: true, status: 200, json: async () => ({ default_branch: 'main' }) } as any;
+      }
+      if (url.includes('/git/ref/heads/main')) {
+        return { ok: true, status: 200, json: async () => ({ object: { sha: 'base_sha' } }) } as any;
+      }
+      if (url.includes('/git/commits/base_sha')) {
+        return { ok: true, status: 200, json: async () => ({ tree: { sha: 'base_tree' } }) } as any;
+      }
+      if (url.includes('/git/trees/main?recursive=1')) {
+        return { ok: true, status: 200, json: async () => ({ tree: [] }) } as any;
+      }
+      if (url.includes('/git/blobs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'blob_1' }) } as any;
+      }
+      if (url.includes('/git/trees') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'tree_1' }) } as any;
+      }
+      if (url.includes('/git/commits') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'commit_1' }) } as any;
+      }
+      if (url.includes('/git/refs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ ref: 'refs/heads/branch_1' }) } as any;
+      }
+      return { ok: false, status: 404, json: async () => ({ message: 'Not found' }) } as any;
+    });
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    const repoInput = screen.getByPlaceholderText('owner/repo (e.g. facebook/react)');
+    fireEvent.change(repoInput, { target: { value: 'custom-org/custom-repo' } });
+
+    // Verify fallback item appears in dropdown
+    expect(screen.getByText(/Use “custom-org\/custom-repo” manually/i)).toBeDefined();
+
+    const pushButton = screen.getByRole('button', { name: /push to remote branch/i });
+    fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Branch Created!')).toBeDefined();
+    });
   });
 });
