@@ -458,4 +458,143 @@ describe('GithubPushModal', () => {
       expect(screen.getByText('Branch Created!')).toBeDefined();
     });
   });
+
+  it('switches between "Push to existing repository" and "Create new repository" modes', async () => {
+    const onClose = vi.fn();
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    // Default mode: existing repo
+    expect(screen.getByPlaceholderText('e.g. facebook')).toBeDefined();
+    expect(screen.getByPlaceholderText('e.g. react')).toBeDefined();
+    expect(screen.queryByPlaceholderText('e.g. my-app')).toBeNull();
+
+    // Switch to create new repository mode
+    fireEvent.click(screen.getByRole('button', { name: 'Create new repository' }));
+
+    expect(screen.getByPlaceholderText('e.g. my-app')).toBeDefined();
+    expect(screen.getByPlaceholderText(/Project built with LAIDE Studio/i)).toBeDefined();
+    expect(screen.getByPlaceholderText(/Leave blank for personal/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Private' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Public' })).toBeDefined();
+    expect(screen.queryByPlaceholderText('e.g. facebook')).toBeNull();
+    expect(screen.queryByPlaceholderText('e.g. react')).toBeNull();
+
+    // Switch back to existing repository mode
+    fireEvent.click(screen.getByRole('button', { name: 'Push to existing repository' }));
+    expect(screen.getByPlaceholderText('e.g. facebook')).toBeDefined();
+    expect(screen.getByPlaceholderText('e.g. react')).toBeDefined();
+  });
+
+  it('creates new repository and pushes branch successfully', async () => {
+    const onClose = vi.fn();
+    const content = 'export const app = () => "Hello World";';
+    await createFile(projectId, '/src/App.tsx', content);
+
+    const createdRepoPayload = {
+      name: 'brand-new-project',
+      description: 'Cool description',
+      private: true,
+      default_branch: 'main',
+      html_url: 'https://github.com/testuser/brand-new-project',
+      owner: { login: 'testuser' }
+    };
+
+    let createRepoCalled = false;
+    let createRepoBody: any = null;
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, options: any = {}) => {
+      // POST create repository
+      if (url === 'https://api.github.com/user/repos' && options.method === 'POST') {
+        createRepoCalled = true;
+        createRepoBody = JSON.parse(options.body);
+        return { ok: true, status: 201, json: async () => createdRepoPayload } as any;
+      }
+      // Base branch ref
+      if (url.includes('/git/ref/heads/main')) {
+        return { ok: true, status: 200, json: async () => ({ object: { sha: 'base_sha_123' } }) } as any;
+      }
+      // Base commit
+      if (url.includes('/git/commits/base_sha_123')) {
+        return { ok: true, status: 200, json: async () => ({ tree: { sha: 'base_tree_sha_456' } }) } as any;
+      }
+      // Remote tree
+      if (url.includes('/git/trees/main?recursive=1')) {
+        return { ok: true, status: 200, json: async () => ({ tree: [] }) } as any;
+      }
+      // Create blob
+      if (url.includes('/git/blobs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'blob_sha_789' }) } as any;
+      }
+      // Create tree
+      if (url.includes('/git/trees') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'new_tree_sha_101' }) } as any;
+      }
+      // Create commit
+      if (url.includes('/git/commits') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'new_commit_sha_202' }) } as any;
+      }
+      // Create branch
+      if (url.includes('/git/refs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ ref: 'refs/heads/feature-branch' }) } as any;
+      }
+
+      return { ok: false, status: 404, json: async () => ({ message: 'Not found' }) } as any;
+    });
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    // Switch to create new repository mode
+    fireEvent.click(screen.getByRole('button', { name: 'Create new repository' }));
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. my-app'), { target: { value: 'brand-new-project' } });
+    fireEvent.change(screen.getByPlaceholderText(/Project built with LAIDE Studio/i), { target: { value: 'Cool description' } });
+
+    const pushButton = screen.getByRole('button', { name: /push to remote branch/i });
+    fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Repository Created & Branch Pushed!')).toBeDefined();
+    });
+
+    expect(createRepoCalled).toBe(true);
+    expect(createRepoBody).toEqual({
+      name: 'brand-new-project',
+      description: 'Cool description',
+      private: true,
+      auto_init: true
+    });
+    expect(screen.getByText('testuser/brand-new-project')).toBeDefined();
+    expect(screen.getByRole('link', { name: /open pull request/i })).toBeDefined();
+  });
+
+  it('handles 422 repository already exists error with friendly message', async () => {
+    const onClose = vi.fn();
+    const content = 'export const app = () => "Hello";';
+    await createFile(projectId, '/src/App.tsx', content);
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, options: any = {}) => {
+      if (url === 'https://api.github.com/user/repos' && options.method === 'POST') {
+        return {
+          ok: false,
+          status: 422,
+          statusText: 'Unprocessable Entity',
+          json: async () => ({ message: 'name already exists on this account' })
+        } as any;
+      }
+      return { ok: false, status: 404, json: async () => ({ message: 'Not found' }) } as any;
+    });
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    // Switch to create new repository mode
+    fireEvent.click(screen.getByRole('button', { name: 'Create new repository' }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. my-app'), { target: { value: 'already-existing-repo' } });
+
+    const pushButton = screen.getByRole('button', { name: /push to remote branch/i });
+    fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("A repository with this name already exists. Choose a different name or use 'push to existing repo' instead.")).toBeDefined();
+    });
+  });
 });

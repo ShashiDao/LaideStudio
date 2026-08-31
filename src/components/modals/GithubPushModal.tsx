@@ -66,8 +66,13 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   const defaultBranchName = `laide-${defaultDate}`;
   const defaultCommit = `Update from LAIDE Studio (${defaultDate})`;
 
+  const [mode, setMode] = useState<'existing' | 'create'>('existing');
   const [owner, setOwner] = useState('');
   const [repo, setRepo] = useState('');
+  const [newRepoName, setNewRepoName] = useState('');
+  const [newRepoDescription, setNewRepoDescription] = useState('');
+  const [isPrivate, setIsPrivate] = useState(true);
+  const [newRepoOrg, setNewRepoOrg] = useState('');
   const [baseBranch, setBaseBranch] = useState('main');
   const [isBaseBranchEdited, setIsBaseBranchEdited] = useState(false);
   const [newBranch, setNewBranch] = useState(defaultBranchName);
@@ -80,6 +85,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   const [progress, setProgress] = useState<string>('');
   const [prUrl, setPrUrl] = useState<string | null>(null);
   const [createdBranch, setCreatedBranch] = useState<string | null>(null);
+  const [createdRepoUrl, setCreatedRepoUrl] = useState<string | null>(null);
 
   // Compute Project / PR Trust Score
   useEffect(() => {
@@ -133,7 +139,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   }, [projectId]);
 
   useEffect(() => {
-    if (!keys || !owner || !repo || isBaseBranchEdited) return;
+    if (mode === 'create' || !keys || !owner || !repo || isBaseBranchEdited) return;
 
     const timeout = setTimeout(async () => {
       try {
@@ -148,40 +154,71 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
     }, 800);
 
     return () => clearTimeout(timeout);
-  }, [owner, repo, keys, isBaseBranchEdited]);
+  }, [owner, repo, keys, isBaseBranchEdited, mode]);
 
   const handlePush = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!keys || !owner || !repo) return;
+    if (!keys) return;
+    if (mode === 'existing' && (!owner || !repo)) return;
+    if (mode === 'create' && !newRepoName.trim()) return;
     
     setLoading(true);
     setError(null);
     setPrUrl(null);
     setCreatedBranch(null);
+    setCreatedRepoUrl(null);
     
     try {
       const client = await createGithubClient(keys);
       const targetBranch = (newBranch || defaultBranchName).trim();
       
+      let finalOwner = owner.trim();
+      let finalRepo = repo.trim();
       let finalBaseBranch = baseBranch;
-      if (!isBaseBranchEdited) {
-        setProgress('Fetching repository info...');
-        const repoData = await client.getRepo(owner, repo);
-        if (repoData.default_branch) {
-          finalBaseBranch = repoData.default_branch;
-          setBaseBranch(finalBaseBranch);
+
+      if (mode === 'create') {
+        setProgress('Creating repository...');
+        let createdRepo;
+        try {
+          createdRepo = await client.createRepo(newRepoName.trim(), {
+            description: newRepoDescription.trim() || undefined,
+            private: isPrivate,
+            org: newRepoOrg.trim() || undefined
+          });
+        } catch (createErr) {
+          const msg = createErr instanceof Error ? createErr.message : String(createErr);
+          if (msg.includes('422')) {
+            throw new Error("A repository with this name already exists. Choose a different name or use 'push to existing repo' instead.", { cause: createErr });
+          }
+          throw createErr;
+        }
+        finalOwner = createdRepo.owner.login;
+        finalRepo = createdRepo.name;
+        finalBaseBranch = createdRepo.default_branch || 'main';
+        setOwner(finalOwner);
+        setRepo(finalRepo);
+        setBaseBranch(finalBaseBranch);
+        setCreatedRepoUrl(createdRepo.html_url || `https://github.com/${finalOwner}/${finalRepo}`);
+      } else {
+        if (!isBaseBranchEdited) {
+          setProgress('Fetching repository info...');
+          const repoData = await client.getRepo(finalOwner, finalRepo);
+          if (repoData.default_branch) {
+            finalBaseBranch = repoData.default_branch;
+            setBaseBranch(finalBaseBranch);
+          }
         }
       }
       
       setProgress('Fetching base branch info...');
-      const refData = await client.getBranch(owner, repo, finalBaseBranch);
+      const refData = await client.getBranch(finalOwner, finalRepo, finalBaseBranch);
       const baseCommitSha = refData.object.sha;
       
-      const commitData = await client.getCommit(owner, repo, baseCommitSha);
+      const commitData = await client.getCommit(finalOwner, finalRepo, baseCommitSha);
       const baseTreeSha = commitData.tree.sha;
       
       setProgress('Fetching base tree...');
-      const treeData = await client.getRepoTree(owner, repo, finalBaseBranch);
+      const treeData = await client.getRepoTree(finalOwner, finalRepo, finalBaseBranch);
       const remoteFiles = new Map(treeData.tree.filter((t) => t.type === 'blob').map((t) => [t.path, t.sha]));
       
       setProgress('Analyzing local changes...');
@@ -202,7 +239,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
           
           if (localSha !== remoteSha) {
             // File changed or is new
-            const blobData = await client.createBlob(owner, repo, file.content, isBinary ? 'base64' : 'utf-8');
+            const blobData = await client.createBlob(finalOwner, finalRepo, file.content, isBinary ? 'base64' : 'utf-8');
             return {
               entry: {
                 path: relativePath,
@@ -243,18 +280,18 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       }
       
       setProgress(`Creating tree with ${treeEntries.length} changes (${uploadCount} uploads)...`);
-      const newTreeData = await client.createTree(owner, repo, baseTreeSha, treeEntries);
+      const newTreeData = await client.createTree(finalOwner, finalRepo, baseTreeSha, treeEntries);
       
       setProgress('Creating commit...');
       let finalCommitMsg = (commitMessage || defaultCommit).trim();
       if (includeTrustLedger && projectTrust) {
         finalCommitMsg += '\n\n' + generateTrustMarkdownReport(projectTrust);
       }
-      const newCommitData = await client.createCommit(owner, repo, finalCommitMsg, newTreeData.sha, baseCommitSha);
+      const newCommitData = await client.createCommit(finalOwner, finalRepo, finalCommitMsg, newTreeData.sha, baseCommitSha);
       
       setProgress(`Creating branch '${targetBranch}'...`);
       try {
-        await client.createBranch(owner, repo, targetBranch, newCommitData.sha);
+        await client.createBranch(finalOwner, finalRepo, targetBranch, newCommitData.sha);
       } catch (branchErr) {
         const msg = branchErr instanceof Error ? branchErr.message : String(branchErr);
         if (msg.includes('422')) {
@@ -273,15 +310,18 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       
       // Save sync info for future pushes
       localStorage.setItem(`laide_github_sync_${projectId}`, JSON.stringify({
-        owner,
-        repo,
-        branch: baseBranch
+        owner: finalOwner,
+        repo: finalRepo,
+        branch: finalBaseBranch
       }));
 
       // Generate compare URL
-      const compareUrl = `https://github.com/${owner}/${repo}/compare/${baseBranch}...${targetBranch}?expand=1`;
+      const compareUrl = `https://github.com/${finalOwner}/${finalRepo}/compare/${finalBaseBranch}...${targetBranch}?expand=1`;
       setPrUrl(compareUrl);
       setCreatedBranch(targetBranch);
+      if (!createdRepoUrl) {
+        setCreatedRepoUrl(`https://github.com/${finalOwner}/${finalRepo}`);
+      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Push failed');
@@ -314,91 +354,247 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
             <div className="w-12 h-12 rounded-full bg-moss/20 text-moss flex items-center justify-center mx-auto mb-2">
               <GitPullRequest size={24} />
             </div>
-            <h4 className="text-text font-sans text-sm font-bold">Branch Created!</h4>
+            <h4 className="text-text font-sans text-sm font-bold">
+              {mode === 'create' ? 'Repository Created & Branch Pushed!' : 'Branch Created!'}
+            </h4>
             <p className="text-muted text-xs font-sans">
               Successfully pushed changes to <span className="text-accent font-semibold">{createdBranch}</span>. Click below to open a Pull Request on GitHub.
             </p>
-            <a 
-              href={prUrl} 
-              target="_blank" 
-              rel="noreferrer"
-              onClick={onClose}
-              className="inline-flex items-center gap-2 py-2.5 px-6 bg-moss text-white font-sans font-bold rounded hover:bg-moss/90 transition-colors mt-4 shadow-xs"
-            >
-              Open Pull Request <GitPullRequest size={16} />
-            </a>
+            {createdRepoUrl && (
+              <div className="pt-1">
+                <a 
+                  href={createdRepoUrl} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="text-xs font-mono text-accent hover:underline inline-flex items-center gap-1.5"
+                >
+                  <GithubIcon size={14} />
+                  <span>{createdRepoUrl.replace('https://github.com/', '')}</span>
+                  <span className="text-[10px]">↗</span>
+                </a>
+              </div>
+            )}
+            <div className="pt-2">
+              <a 
+                href={prUrl} 
+                target="_blank" 
+                rel="noreferrer"
+                onClick={onClose}
+                className="inline-flex items-center gap-2 py-2.5 px-6 bg-moss text-white font-sans font-bold rounded hover:bg-moss/90 transition-colors shadow-xs"
+              >
+                Open Pull Request <GitPullRequest size={16} />
+              </a>
+            </div>
           </div>
         ) : (
           <form onSubmit={handlePush} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-sans text-muted mb-1">Owner</label>
-                <input 
-                  type="text"
-                  value={owner}
-                  onChange={e => setOwner(e.target.value)}
-                  placeholder="e.g. facebook"
-                  required
-                  disabled={loading}
-                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-sans text-muted mb-1">Repo</label>
-                <input 
-                  type="text"
-                  value={repo}
-                  onChange={e => setRepo(e.target.value)}
-                  placeholder="e.g. react"
-                  required
-                  disabled={loading}
-                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-sans text-muted mb-1">Base Branch</label>
-                <input 
-                  type="text"
-                  value={baseBranch}
-                  onChange={e => {
-                    setBaseBranch(e.target.value);
-                    setIsBaseBranchEdited(true);
-                  }}
-                  placeholder="main"
-                  required
-                  disabled={loading}
-                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-sans text-muted mb-1">New Branch Name</label>
-                <input 
-                  type="text"
-                  value={newBranch}
-                  onChange={e => setNewBranch(e.target.value)}
-                  placeholder={defaultBranchName}
-                  required
-                  disabled={loading}
-                  className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-sans text-muted mb-1">Commit Message</label>
-              <input 
-                type="text"
-                value={commitMessage}
-                onChange={e => setCommitMessage(e.target.value)}
-                placeholder="Update from LAIDE Studio"
-                required
+            <div className="flex rounded-lg p-0.5 bg-bg border border-border">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('existing');
+                  setError(null);
+                }}
                 disabled={loading}
-                className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
-              />
+                className={`flex-1 py-1.5 px-3 text-xs font-sans font-medium rounded-md transition-colors cursor-pointer ${
+                  mode === 'existing'
+                    ? 'bg-surface text-text shadow-xs font-semibold'
+                    : 'text-muted hover:text-text'
+                }`}
+              >
+                Push to existing repository
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('create');
+                  setError(null);
+                }}
+                disabled={loading}
+                className={`flex-1 py-1.5 px-3 text-xs font-sans font-medium rounded-md transition-colors cursor-pointer ${
+                  mode === 'create'
+                    ? 'bg-surface text-text shadow-xs font-semibold'
+                    : 'text-muted hover:text-text'
+                }`}
+              >
+                Create new repository
+              </button>
             </div>
+
+            {mode === 'create' ? (
+              <>
+                <div>
+                  <label className="block text-xs font-sans text-muted mb-1">Repository Name</label>
+                  <input 
+                    type="text"
+                    value={newRepoName}
+                    onChange={e => setNewRepoName(e.target.value)}
+                    placeholder="e.g. my-app"
+                    required
+                    disabled={loading}
+                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-sans text-muted mb-1">
+                    Description <span className="text-[10px] text-muted/70">(optional)</span>
+                  </label>
+                  <textarea 
+                    value={newRepoDescription}
+                    onChange={e => setNewRepoDescription(e.target.value)}
+                    placeholder="e.g. Project built with LAIDE Studio"
+                    disabled={loading}
+                    rows={2}
+                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-sans text-muted mb-1">Visibility</label>
+                    <div className="flex rounded p-0.5 bg-bg border border-border">
+                      <button
+                        type="button"
+                        onClick={() => setIsPrivate(true)}
+                        disabled={loading}
+                        className={`flex-1 py-1.5 px-2 text-xs font-sans font-medium rounded transition-colors cursor-pointer ${
+                          isPrivate
+                            ? 'bg-surface text-text shadow-xs font-semibold'
+                            : 'text-muted hover:text-text'
+                        }`}
+                      >
+                        Private
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsPrivate(false)}
+                        disabled={loading}
+                        className={`flex-1 py-1.5 px-2 text-xs font-sans font-medium rounded transition-colors cursor-pointer ${
+                          !isPrivate
+                            ? 'bg-surface text-text shadow-xs font-semibold'
+                            : 'text-muted hover:text-text'
+                        }`}
+                      >
+                        Public
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-sans text-muted mb-1">
+                      Organization <span className="text-[10px] text-muted/70">(optional)</span>
+                    </label>
+                    <input 
+                      type="text"
+                      value={newRepoOrg}
+                      onChange={e => setNewRepoOrg(e.target.value)}
+                      placeholder="Leave blank for personal"
+                      disabled={loading}
+                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-sans text-muted mb-1">New Branch Name</label>
+                  <input 
+                    type="text"
+                    value={newBranch}
+                    onChange={e => setNewBranch(e.target.value)}
+                    placeholder={defaultBranchName}
+                    required
+                    disabled={loading}
+                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-sans text-muted mb-1">Commit Message</label>
+                  <input 
+                    type="text"
+                    value={commitMessage}
+                    onChange={e => setCommitMessage(e.target.value)}
+                    placeholder="Update from LAIDE Studio"
+                    required
+                    disabled={loading}
+                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-sans text-muted mb-1">Owner</label>
+                    <input 
+                      type="text"
+                      value={owner}
+                      onChange={e => setOwner(e.target.value)}
+                      placeholder="e.g. facebook"
+                      required
+                      disabled={loading}
+                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-sans text-muted mb-1">Repo</label>
+                    <input 
+                      type="text"
+                      value={repo}
+                      onChange={e => setRepo(e.target.value)}
+                      placeholder="e.g. react"
+                      required
+                      disabled={loading}
+                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-sans text-muted mb-1">Base Branch</label>
+                    <input 
+                      type="text"
+                      value={baseBranch}
+                      onChange={e => {
+                        setBaseBranch(e.target.value);
+                        setIsBaseBranchEdited(true);
+                      }}
+                      placeholder="main"
+                      required
+                      disabled={loading}
+                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-sans text-muted mb-1">New Branch Name</label>
+                    <input 
+                      type="text"
+                      value={newBranch}
+                      onChange={e => setNewBranch(e.target.value)}
+                      placeholder={defaultBranchName}
+                      required
+                      disabled={loading}
+                      className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-sans text-muted mb-1">Commit Message</label>
+                  <input 
+                    type="text"
+                    value={commitMessage}
+                    onChange={e => setCommitMessage(e.target.value)}
+                    placeholder="Update from LAIDE Studio"
+                    required
+                    disabled={loading}
+                    className="w-full bg-bg border border-border rounded px-3 py-2 text-text font-sans text-sm focus:border-accent focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+              </>
+            )}
 
             {/* PR Trust & Provenance Card */}
             {projectTrust && (
@@ -484,7 +680,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
 
             <button 
               type="submit"
-              disabled={loading || !owner || !repo}
+              disabled={loading || (mode === 'existing' ? (!owner.trim() || !repo.trim()) : !newRepoName.trim())}
               title={`Push to Remote Branch (${activeTargetBranch})`}
               className="w-full min-h-[44px] py-2.5 px-4 bg-accent text-accent-text-on font-sans font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-accent/90 active:scale-[0.99] transition-all disabled:opacity-50 cursor-pointer shadow-xs"
             >

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-92
-- Last verified working: Removed 'unsafe-inline' from script-src in index.html CSP and implemented parsed CSP validation test in src/services/security/csp.test.ts (all 75 test suites / 546 tests pass).
+- Phase: HOTFIX-93
+- Last verified working: Added "Create new repository" option to GitHub Push modal with automatic initialization, visibility options, org creation support, 422 collision handling, and comprehensive unit tests (all 75 test suites / 552 tests pass).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -446,5 +446,25 @@ Decisions:
 - Verified that preview iframe bundling and worker executions operate inside isolated iframe blob documents/Workers and do not affect the main window's CSP policy.
 Deviations: none
 Verified: All 75 test suites (546 tests) pass via `npx vitest run`; linter passes with 0 errors; `compile_applet` builds cleanly.
+Open questions: none
+
+### [HOTFIX-93] Add Create New Repository Option to GitHub Push Modal — 2026-08-31
+Prompt: Add a "Create new repository" option to the GitHub push feature in LAIDE Studio with githubClient method, modal toggle, conditional inputs, 422 collision handling, and tests.
+Files touched:
+- `src/services/github/githubClient.ts` (modified)
+- `src/components/modals/GithubPushModal.tsx` (modified)
+- `src/services/github/githubClient.test.ts` (modified)
+- `src/components/modals/GithubPushModal.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `createRepo(name, options)` to `GithubClient` supporting personal (`/user/repos`) and organization (`/orgs/{org}/repos`) endpoints with `auto_init: true`.
+- Added a segmented mode toggle in `GithubPushModal` switching between "Push to existing repository" and "Create new repository".
+- Rendered Repository Name, Description, Visibility (Private default / Public), and optional Organization inputs for new repository mode.
+- Orchestrated the push workflow to call `createRepo` first in new repo mode, skip the redundant 404 validation, map created repo metadata, and handle 422 name collisions with clear inline guidance.
+Decisions:
+- Preserved existing "Push to existing repository" behavior and decrypted PAT access via `createGithubClient(keys)` without alterations.
+- Reused existing success summary view with the added direct repository URL link alongside the PR comparison button.
+Deviations: none
+Verified: All 75 test suites (552 tests) pass via `npx vitest run`; `lint_applet` reports 0 errors; `compile_applet` compiles cleanly.
 Open questions: none
 

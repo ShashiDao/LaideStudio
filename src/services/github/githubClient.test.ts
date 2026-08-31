@@ -174,4 +174,92 @@ describe('GithubClient', () => {
       expect(headers.get('Content-Type')).toBe('application/json');
     }
   });
+
+  it('createRepo(): calls POST /user/repos when org is not specified and sends auto_init: true', async () => {
+    const mockCreatedRepo = {
+      name: 'new-cool-repo',
+      html_url: 'https://github.com/user/new-cool-repo',
+      default_branch: 'main',
+      private: true,
+      owner: { login: 'octocat' }
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => mockCreatedRepo
+    } as any);
+
+    const result = await client.createRepo('new-cool-repo', {
+      description: 'A brand new repository',
+      private: true
+    });
+
+    expect(result.name).toBe('new-cool-repo');
+    expect(result.owner.login).toBe('octocat');
+    expect(result.default_branch).toBe('main');
+    expect(result.html_url).toBe('https://github.com/user/new-cool-repo');
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.github.com/user/repos',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'new-cool-repo',
+          description: 'A brand new repository',
+          private: true,
+          auto_init: true
+        })
+      })
+    );
+  });
+
+  it('createRepo(): calls POST /orgs/{org}/repos when org is provided', async () => {
+    const mockCreatedRepo = {
+      name: 'org-repo',
+      html_url: 'https://github.com/my-org/org-repo',
+      default_branch: 'main',
+      private: false,
+      owner: { login: 'my-org' }
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => mockCreatedRepo
+    } as any);
+
+    const result = await client.createRepo('org-repo', {
+      description: 'Org repository description',
+      private: false,
+      org: 'my-org'
+    });
+
+    expect(result.owner.login).toBe('my-org');
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.github.com/orgs/my-org/repos',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          name: 'org-repo',
+          description: 'Org repository description',
+          private: false,
+          auto_init: true
+        })
+      })
+    );
+  });
+
+  it('createRepo(): throws GitHub API error when status is 422 (e.g. repo name already exists)', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      statusText: 'Unprocessable Entity',
+      json: async () => ({ message: 'Repository creation failed.' })
+    } as any);
+
+    await expect(
+      client.createRepo('existing-repo', { private: true })
+    ).rejects.toThrow('GitHub API error: 422 Unprocessable Entity');
+  });
 });

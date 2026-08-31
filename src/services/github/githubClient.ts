@@ -38,6 +38,17 @@ interface GithubFileContent {
   content: string;
 }
 
+export interface GithubCreatedRepo {
+  name: string;
+  default_branch: string;
+  html_url: string;
+  owner: {
+    login: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export class GithubClient {
   private token: string;
 
@@ -66,6 +77,20 @@ export class GithubClient {
       throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
     }
     return response.json() as Promise<T>;
+  }
+
+  async createRepo(name: string, options: { description?: string; private: boolean; org?: string }): Promise<GithubCreatedRepo> {
+    const org = options.org?.trim();
+    const endpoint = org ? `/orgs/${encodeURIComponent(org)}/repos` : '/user/repos';
+    return this.request<GithubCreatedRepo>(endpoint, {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        description: options.description,
+        private: options.private,
+        auto_init: true
+      })
+    });
   }
 
   async getRepo(owner: string, repo: string) {
