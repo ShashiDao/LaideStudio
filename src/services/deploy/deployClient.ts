@@ -3,7 +3,7 @@ import type { FileItem } from '../../db';
 import type { KeyMaterial } from '../security/crypto';
 import { binaryExtensions } from '../fs/zipExport';
 import { detectBundledProject } from '../bundler/entryDetection';
-import { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } from '../../components/preview/PreviewPanel';
+import { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } from '../bundler/bundleHtml';
 
 export interface DeployFile {
   file: string;

@@ -40,7 +40,7 @@ export function TopStrip({
       role="banner"
       className="pt-safe pl-safe pr-safe shrink-0 bg-surface border-b border-border relative select-none"
     >
-      <div className="h-[34px] flex items-center justify-between px-3">
+      <div className="min-h-[44px] flex items-center justify-between px-3 py-1">
         {/* Left: Professional Brand Logo & Name */}
         <div className="flex items-center gap-2 min-w-0">
           <LaideLogo size={18} className="shrink-0 rounded-xs shadow-xs" />
@@ -56,12 +56,12 @@ export function TopStrip({
         </div>
 
         {/* Right: Uncluttered Quick Controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {/* Keyboard shortcuts helper */}
           <button
             type="button"
             onClick={() => onOpenShortcuts?.()}
-            className="flex items-center justify-center w-7 h-7 bg-surface-elevated hover:bg-accent/15 text-muted hover:text-accent border border-border hover:border-accent/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95"
+            className="flex items-center justify-center min-w-[44px] min-h-[44px] bg-surface-elevated hover:bg-accent/15 text-muted hover:text-accent border border-border hover:border-accent/40 rounded-md transition-colors cursor-pointer shadow-xs active:scale-95"
             title="Keyboard Shortcuts"
             aria-label="Keyboard shortcuts"
           >
@@ -72,7 +72,7 @@ export function TopStrip({
           <button
             type="button"
             onClick={toggleTheme}
-            className="flex items-center justify-center w-7 h-7 bg-surface-elevated hover:bg-accent/15 text-muted hover:text-accent border border-border hover:border-accent/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95"
+            className="flex items-center justify-center min-w-[44px] min-h-[44px] bg-surface-elevated hover:bg-accent/15 text-muted hover:text-accent border border-border hover:border-accent/40 rounded-md transition-colors cursor-pointer shadow-xs active:scale-95"
             title={`Switch Theme (Ctrl+T) • Current: ${theme === 'oled' ? 'OLED Vault' : 'Paper Blueprint'}`}
             aria-label={`Toggle theme, current is ${theme}`}
           >
@@ -87,7 +87,7 @@ export function TopStrip({
           <button
             type="button"
             onClick={handleLockClick}
-            className="flex items-center gap-1.5 px-2 h-7 bg-surface-elevated hover:bg-oxide/15 text-muted hover:text-oxide border border-border hover:border-oxide/40 rounded transition-colors cursor-pointer shadow-xs active:scale-95 text-xs font-mono"
+            className="flex items-center justify-center gap-1.5 px-3 min-w-[44px] min-h-[44px] bg-surface-elevated hover:bg-oxide/15 text-muted hover:text-oxide border border-border hover:border-oxide/40 rounded-md transition-colors cursor-pointer shadow-xs active:scale-95 text-xs font-mono"
             title="Lock Vault & Protect Encryption Keys (Ctrl+Shift+L)"
             aria-label="Lock Vault"
           >

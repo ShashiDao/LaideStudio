@@ -92,9 +92,9 @@ export function ProjectFilesPane({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Clean, compact single-row project header */}
-      <div className="flex items-center justify-between text-accent font-mono text-xs px-2.5 py-1.5 shrink-0 border-b border-border/60 bg-surface/30 gap-2">
+      <div className="flex items-center justify-between text-accent font-mono text-xs px-2.5 py-1 min-h-[44px] shrink-0 border-b border-border/60 bg-surface/30 gap-2">
         {/* Left: Project Selector & Quick Create */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           <ProjectSelector
             projects={projects}
             activeProject={activeProject}
@@ -107,7 +107,7 @@ export function ProjectFilesPane({
 
           <button
             onClick={onCreateBlankProject}
-            className="flex items-center justify-center p-1.5 bg-surface border border-border hover:border-accent/50 hover:bg-accent/10 text-accent rounded transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
+            className="flex items-center justify-center min-w-[44px] min-h-[44px] p-2 bg-surface border border-border hover:border-accent/50 hover:bg-accent/10 text-accent rounded-md transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
             title="Create New Project"
             aria-label="Create new project"
           >
@@ -153,12 +153,12 @@ export function ProjectFilesPane({
 
         {/* Right: Archive Button & Consolidated Professional Project Actions Dropdown Menu */}
         {activeProject && (
-          <div className="flex items-center gap-1 shrink-0 font-mono">
+          <div className="flex items-center gap-2 shrink-0 font-mono">
             {onArchiveProject && (
               <button
                 type="button"
                 onClick={() => onArchiveProject(activeProject)}
-                className="flex items-center justify-center p-1.5 bg-surface border border-border hover:border-amber-500/50 hover:bg-amber-500/10 text-muted hover:text-amber-500 rounded transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
+                className="flex items-center justify-center min-w-[44px] min-h-[44px] p-2 bg-surface border border-border hover:border-amber-500/50 hover:bg-amber-500/10 text-muted hover:text-amber-500 rounded-md transition-all cursor-pointer shadow-xs shrink-0 active:scale-95"
                 title={`Archive "${activeProject.name}" (move to separate archive collection)`}
                 aria-label="Archive Project"
               >
