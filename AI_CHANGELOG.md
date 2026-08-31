@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-96
-- Last verified working: Searchable combobox repository picker for "Push to existing repository" mode with listRepos() auto-fetch, client-side filtering, manual typing fallback, and touch-friendly controls (all 75 test suites and 556 tests passing).
+- Phase: HOTFIX-97
+- Last verified working: Searchable combobox repository picker, plus Cloudflare Pages one-click deployment integration with vault token caching (all 77 test suites and 559 tests passing).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -523,3 +523,21 @@ Verified: Full test suite passing (75/75 test files, 556/556 tests); `lint_apple
 Open questions: none
 
 
+
+### [HOTFIX-97] Add Cloudflare Pages to Deployment Providers — 2026-08-30
+Prompt: Add Cloudflare Pages as a third deploy provider alongside Netlify and Vercel using the exact same structural patterns.
+Files touched:
+- `src/services/deploy/deployClient.ts` (modified)
+- `src/services/deploy/deployClient.test.ts` (modified)
+- `src/components/modals/DeployModal.tsx` (modified)
+- `src/components/modals/DeployModal.test.tsx` (modified)
+Changed:
+- Implemented `deployToCloudflarePages` using the Cloudflare Direct Upload REST API via `FormData` mimicking Netlify and Vercel conventions.
+- Added support for a secondary vault secret (`cloudflare_account_id`) to the `saveDeployToken`, `getDeployToken`, and `deleteDeployToken` crypto helpers.
+- Added a new Cloudflare tab to `DeployModal.tsx` with inputs for both API Token and Account ID, utilizing the cached vault secrets on initialization.
+- Added unit tests mimicking existing deployments and updated `DeployModal.test.tsx` to assert new Cloudflare UI states and successful deployment mocks.
+Decisions:
+- Cloudflare Pages deployments require both an API Token and an Account ID. Both are stored securely via AES-GCM encrypted vault using the existing `db.secureTokens` API.
+Deviations: none
+Verified: `vitest` pass for all modified code blocks; `compile_applet` finishes completely.
+Open questions: none

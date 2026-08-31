@@ -37,23 +37,30 @@ describe('DeployModal', () => {
     localStorage.clear();
   });
 
-  it('renders modal with Netlify, Vercel, and Deploys tabs', () => {
+  it('renders modal with Netlify, Vercel, Cloudflare, and Deploys tabs', () => {
     render(<DeployModal project={dummyProject} onClose={() => {}} />);
     
     expect(screen.getByText('Publish Live Web App')).toBeDefined();
     expect(screen.getByText('Awesome React App')).toBeDefined();
     expect(screen.getByRole('button', { name: /^Netlify/i })).toBeDefined();
     expect(screen.getByRole('button', { name: /^Vercel/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /^Cloudflare/i })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Past Deploys' })).toBeDefined();
   });
 
-  it('switches between Netlify and Vercel tabs', () => {
+  it('switches between Netlify, Vercel, and Cloudflare tabs', () => {
     render(<DeployModal project={dummyProject} onClose={() => {}} />);
 
     // Click Vercel tab
     fireEvent.click(screen.getByRole('button', { name: /^Vercel/i }));
     expect(screen.getByText(/Vercel Edge Deploy/i)).toBeDefined();
     expect(screen.getByLabelText(/Vercel API Token/i)).toBeDefined();
+
+    // Click Cloudflare tab
+    fireEvent.click(screen.getByRole('button', { name: /^Cloudflare/i }));
+    expect(screen.getByText(/Cloudflare Pages Deploy/i)).toBeDefined();
+    expect(screen.getByLabelText(/Cloudflare API Token/i)).toBeDefined();
+    expect(screen.getByLabelText(/Cloudflare Account ID/i)).toBeDefined();
 
     // Click Netlify tab
     fireEvent.click(screen.getByRole('button', { name: /^Netlify/i }));
@@ -83,6 +90,39 @@ describe('DeployModal', () => {
       expect(screen.getByText('Your Project is Live!')).toBeDefined();
       expect(screen.getByText('https://awesome-react-app.netlify.app')).toBeDefined();
       expect(screen.getByRole('link', { name: /Open Live Application/i }).getAttribute('href')).toBe('https://awesome-react-app.netlify.app');
+    });
+  });
+
+  it('handles successful Cloudflare deploy and shows live shareable URL card', async () => {
+    const mockDeployResult = {
+      id: 'd-cf-123',
+      provider: 'cloudflare' as const,
+      siteName: 'awesome-react-app',
+      url: 'https://awesome-react-app.pages.dev',
+      liveUrl: 'https://awesome-react-app.pages.dev',
+      adminUrl: 'https://dash.cloudflare.com/cf-acc-123/pages/view/awesome-react-app',
+      deployedAt: new Date().toISOString(),
+      projectId: 'proj-deploy-1'
+    };
+
+    vi.spyOn(deployClient, 'deployToCloudflarePages').mockResolvedValue(mockDeployResult);
+
+    render(<DeployModal project={dummyProject} onClose={() => {}} />);
+
+    // Switch to Cloudflare tab
+    fireEvent.click(screen.getByRole('button', { name: /^Cloudflare/i }));
+
+    // Fill in required fields
+    fireEvent.change(screen.getByLabelText(/Cloudflare Account ID/i), { target: { value: 'cf-acc-123' } });
+    fireEvent.change(screen.getByLabelText(/Cloudflare API Token/i), { target: { value: 'cf-token-123' } });
+
+    const deployBtn = screen.getByRole('button', { name: /Publish to Cloudflare/i });
+    fireEvent.click(deployBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Your Project is Live!')).toBeDefined();
+      expect(screen.getByText('https://awesome-react-app.pages.dev')).toBeDefined();
+      expect(screen.getByRole('link', { name: /Open Live Application/i }).getAttribute('href')).toBe('https://awesome-react-app.pages.dev');
     });
   });
 

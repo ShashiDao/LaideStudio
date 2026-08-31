@@ -20,7 +20,7 @@ export interface DeployPackage {
 
 export interface DeployResult {
   id: string;
-  provider: 'netlify' | 'vercel';
+  provider: 'netlify' | 'vercel' | 'cloudflare';
   siteName: string;
   url: string;
   liveUrl: string;
@@ -346,14 +346,186 @@ export async function deployToVercel({
   return result;
 }
 
+/**
+ * Deploys static files to Cloudflare Pages via the Cloudflare REST API.
+ */
+export async function deployToCloudflarePages({
+  apiToken,
+  accountId,
+  projectName,
+  projectId,
+  files,
+  onProgress
+}: {
+  apiToken: string;
+  accountId: string;
+  projectName: string;
+  projectId: string;
+  files: DeployFile[];
+  onProgress?: (status: string) => void;
+}): Promise<DeployResult> {
+  if (!apiToken || !apiToken.trim()) {
+    throw new Error('Cloudflare API Token is required');
+  }
+  if (!accountId || !accountId.trim()) {
+    throw new Error('Cloudflare Account ID is required');
+  }
+
+  const sanitizedName = projectName
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 58) || 'laide-app';
+
+  const baseUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId.trim()}/pages/projects`;
+  const headers = { 'Authorization': `Bearer ${apiToken.trim()}` };
+
+  onProgress?.('Checking Cloudflare Pages project...');
+  let projectExists = false;
+  try {
+    const projRes = await fetch(`${baseUrl}/${sanitizedName}`, { headers });
+    if (projRes.ok) projectExists = true;
+  } catch {
+    // Ignore fetch errors here
+  }
+
+  if (!projectExists) {
+    onProgress?.('Creating Cloudflare Pages project...');
+    const createRes = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: sanitizedName,
+        production_branch: 'main'
+      })
+    });
+
+    if (!createRes.ok) {
+      let errorMsg = `Cloudflare project creation failed (${createRes.status})`;
+      try {
+        const errData = await createRes.json();
+        if (errData.errors?.[0]?.message) {
+          errorMsg = errData.errors[0].message;
+        }
+      } catch {
+        // Ignore JSON parse errors
+      }
+      throw new Error(errorMsg);
+    }
+  }
+
+  onProgress?.('Packaging files for Cloudflare Pages...');
+  const formData = new FormData();
+  for (const f of files) {
+    let blob: Blob;
+    if (f.encoding === 'base64') {
+      const byteCharacters = atob(f.data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      blob = new Blob([new Uint8Array(byteNumbers)]);
+    } else {
+      blob = new Blob([f.data]);
+    }
+    const path = f.file.startsWith('/') ? f.file.substring(1) : f.file;
+    formData.append(path, blob, path);
+  }
+
+  onProgress?.('Uploading to Cloudflare Pages deployment...');
+  const uploadRes = await fetch(`${baseUrl}/${sanitizedName}/deployments`, {
+    method: 'POST',
+    headers, // Let browser set Content-Type with boundary for FormData
+    body: formData
+  });
+
+  if (!uploadRes.ok) {
+    let errorMsg = `Cloudflare deployment failed (${uploadRes.status})`;
+    try {
+      const errData = await uploadRes.json();
+      if (errData.errors?.[0]?.message) {
+        errorMsg = errData.errors[0].message;
+      }
+    } catch {
+      // Ignore JSON parse errors
+    }
+    throw new Error(errorMsg);
+  }
+
+  const uploadData = await uploadRes.json();
+  const deploymentId = uploadData.result?.id;
+  const rawUrl = uploadData.result?.url;
+
+  if (deploymentId && uploadData.result?.latest_stage?.status !== 'success' && uploadData.result?.latest_stage?.status !== 'failure') {
+    onProgress?.('Waiting for Cloudflare Pages deployment to go live...');
+    const maxAttempts = 15;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(r => setTimeout(r, 1500));
+      try {
+        const checkRes = await fetch(`${baseUrl}/${sanitizedName}/deployments/${deploymentId}`, { headers });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          const status = checkData.result?.latest_stage?.status;
+          if (status === 'success') {
+            break;
+          }
+          if (status === 'failure' || status === 'canceled') {
+            throw new Error('Cloudflare build failed');
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.message.includes('build failed')) throw err;
+      }
+    }
+  }
+
+  const liveUrl = rawUrl || `https://${sanitizedName}.pages.dev`;
+  
+  const result: DeployResult = {
+    id: deploymentId || crypto.randomUUID(),
+    provider: 'cloudflare',
+    siteName: sanitizedName,
+    url: rawUrl?.replace(/^https?:\/\//, '') || `${sanitizedName}.pages.dev`,
+    liveUrl,
+    adminUrl: `https://dash.cloudflare.com/${accountId.trim()}/pages/view/${sanitizedName}`,
+    deployedAt: new Date().toISOString(),
+    projectId
+  };
+
+  saveDeployHistory(projectId, result);
+  return result;
+}
+
 // Vault Token helpers
 export async function saveDeployToken(
   keys: KeyMaterial,
-  provider: 'netlify' | 'vercel',
-  token: string
+  provider: 'netlify' | 'vercel' | 'cloudflare',
+  token: string,
+  accountId?: string
 ): Promise<void> {
   const { encryptData } = await import('../security/crypto');
   const { db } = await import('../../db');
+  
+  if (provider === 'cloudflare') {
+    if (!token.trim()) {
+      await db.secureTokens.delete('cloudflare_token');
+      await db.secureTokens.delete('cloudflare_account_id');
+      return;
+    }
+    const encToken = await encryptData(keys.aesKey, token.trim());
+    await db.secureTokens.put({ key: 'cloudflare_token', encryptedValue: encToken });
+    if (accountId?.trim()) {
+      const encAccount = await encryptData(keys.aesKey, accountId.trim());
+      await db.secureTokens.put({ key: 'cloudflare_account_id', encryptedValue: encAccount });
+    } else {
+      await db.secureTokens.delete('cloudflare_account_id');
+    }
+    return;
+  }
+
   const dbKey = provider === 'netlify' ? 'netlify_token' : 'vercel_token';
   if (!token.trim()) {
     await db.secureTokens.delete(dbKey);
@@ -365,10 +537,29 @@ export async function saveDeployToken(
 
 export async function getDeployToken(
   keys: KeyMaterial | null,
-  provider: 'netlify' | 'vercel'
-): Promise<string | null> {
+  provider: 'netlify' | 'vercel' | 'cloudflare'
+): Promise<string | { token: string; accountId: string } | null> {
   if (!keys) return null;
   const { db } = await import('../../db');
+  
+  if (provider === 'cloudflare') {
+    const tokenRec = await db.secureTokens.get('cloudflare_token');
+    const accountRec = await db.secureTokens.get('cloudflare_account_id');
+    if (!tokenRec?.encryptedValue) return null;
+    
+    try {
+      const { decryptData } = await import('../security/crypto');
+      const token = await decryptData(keys.aesKey, tokenRec.encryptedValue);
+      let accountId = '';
+      if (accountRec?.encryptedValue) {
+        accountId = await decryptData(keys.aesKey, accountRec.encryptedValue);
+      }
+      return { token, accountId };
+    } catch {
+      return null;
+    }
+  }
+
   const dbKey = provider === 'netlify' ? 'netlify_token' : 'vercel_token';
   const record = await db.secureTokens.get(dbKey);
   const enc = record?.encryptedValue;
@@ -381,8 +572,13 @@ export async function getDeployToken(
   }
 }
 
-export async function deleteDeployToken(provider: 'netlify' | 'vercel'): Promise<void> {
+export async function deleteDeployToken(provider: 'netlify' | 'vercel' | 'cloudflare'): Promise<void> {
   const { db } = await import('../../db');
+  if (provider === 'cloudflare') {
+    await db.secureTokens.delete('cloudflare_token');
+    await db.secureTokens.delete('cloudflare_account_id');
+    return;
+  }
   const dbKey = provider === 'netlify' ? 'netlify_token' : 'vercel_token';
   await db.secureTokens.delete(dbKey);
 }

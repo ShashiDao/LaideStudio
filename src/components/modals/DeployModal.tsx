@@ -19,6 +19,7 @@ import {
   buildDeployPackage, 
   deployToNetlify, 
   deployToVercel, 
+  deployToCloudflarePages,
   getDeployToken, 
   saveDeployToken, 
   deleteDeployToken,
@@ -57,6 +58,20 @@ function VercelIcon({ size = 16, className = '' }: { size?: number; className?: 
   );
 }
 
+function CloudflareIcon({ size = 16, className = '' }: { size?: number; className?: string }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="currentColor" 
+      className={className}
+    >
+      <path d="M16.59 8.24a4.19 4.19 0 0 0-3.32-1.63 4.2 4.2 0 0 0-4.06 3.12 3.12 3.12 0 0 0-.82-.12A3.16 3.16 0 0 0 5.23 12.7 3.12 3.12 0 0 0 5.5 13H5a2.53 2.53 0 0 0-2.5 2.56c0 1.4 1.15 2.55 2.56 2.55h14.28c1.78 0 3.22-1.42 3.22-3.17s-1.42-3.18-3.17-3.21a4.23 4.23 0 0 0-2.8-3.49z"/>
+    </svg>
+  );
+}
+
 interface DeployModalProps {
   project: Project;
   onClose: () => void;
@@ -64,7 +79,7 @@ interface DeployModalProps {
 
 export function DeployModal({ project, onClose }: DeployModalProps) {
   const { keys, addToast } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'netlify' | 'vercel' | 'history'>('netlify');
+  const [activeTab, setActiveTab] = useState<'netlify' | 'vercel' | 'cloudflare' | 'history'>('netlify');
   
   const [siteName, setSiteName] = useState(() => {
     return project.name
@@ -75,6 +90,7 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
   });
 
   const [tokenInput, setTokenInput] = useState('');
+  const [accountIdInput, setAccountIdInput] = useState('');
   const [hasSavedToken, setHasSavedToken] = useState(false);
   const [saveTokenToVault, setSaveTokenToVault] = useState(true);
   
@@ -98,14 +114,21 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
 
       if (activeTab === 'history') return;
 
-      const provider = activeTab === 'netlify' ? 'netlify' : 'vercel';
+      const provider = activeTab === 'netlify' ? 'netlify' : activeTab === 'vercel' ? 'vercel' : 'cloudflare';
       const saved = await getDeployToken(keys, provider);
       if (active) {
         if (saved) {
-          setTokenInput(saved);
+          if (typeof saved === 'object' && saved !== null) {
+            setTokenInput(saved.token);
+            setAccountIdInput(saved.accountId);
+          } else if (typeof saved === 'string') {
+            setTokenInput(saved);
+            setAccountIdInput('');
+          }
           setHasSavedToken(true);
         } else {
           setTokenInput('');
+          setAccountIdInput('');
           setHasSavedToken(false);
         }
       }
@@ -163,8 +186,8 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
 
       // 3. Save token if requested and keys exist
       if (tokenInput.trim() && saveTokenToVault && keys) {
-        const provider = activeTab === 'netlify' ? 'netlify' : 'vercel';
-        await saveDeployToken(keys, provider, tokenInput.trim());
+        const provider = activeTab === 'netlify' ? 'netlify' : activeTab === 'vercel' ? 'vercel' : 'cloudflare';
+        await saveDeployToken(keys, provider, tokenInput.trim(), accountIdInput.trim());
         setHasSavedToken(true);
       }
 
@@ -178,7 +201,7 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
           zipBlob: deployPkg.zipBlob,
           onProgress: (status) => setDeployStep(status)
         });
-      } else {
+      } else if (activeTab === 'vercel') {
         if (!tokenInput.trim()) {
           throw new Error('Vercel API Token is required to deploy to Vercel.');
         }
@@ -189,11 +212,23 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
           files: deployPkg.staticFiles,
           onProgress: (status) => setDeployStep(status)
         });
+      } else {
+        if (!tokenInput.trim() || !accountIdInput.trim()) {
+          throw new Error('Cloudflare API Token and Account ID are required.');
+        }
+        result = await deployToCloudflarePages({
+          apiToken: tokenInput.trim(),
+          accountId: accountIdInput.trim(),
+          projectName: siteName.trim() || 'laide-app',
+          projectId: project.id,
+          files: deployPkg.staticFiles,
+          onProgress: (status) => setDeployStep(status)
+        });
       }
 
       setDeploySuccess(result);
       setHistoryItems(getDeployHistory(project.id));
-      addToast(`Successfully published to ${activeTab === 'netlify' ? 'Netlify' : 'Vercel'}!`, 'success');
+      addToast(`Successfully published to ${activeTab === 'netlify' ? 'Netlify' : activeTab === 'vercel' ? 'Vercel' : 'Cloudflare'}!`, 'success');
     } catch (err: unknown) {
       console.error('Deploy failed', err);
       const errMsg = err instanceof Error ? err.message : 'Deployment failed. Please check your token and site settings.';
@@ -211,11 +246,12 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
   };
 
   const handleDeleteToken = async () => {
-    const provider = activeTab === 'netlify' ? 'netlify' : 'vercel';
+    const provider = activeTab === 'netlify' ? 'netlify' : activeTab === 'vercel' ? 'vercel' : 'cloudflare';
     await deleteDeployToken(provider);
     setTokenInput('');
+    setAccountIdInput('');
     setHasSavedToken(false);
-    addToast(`${activeTab === 'netlify' ? 'Netlify' : 'Vercel'} token removed from vault`, 'info');
+    addToast(`${activeTab === 'netlify' ? 'Netlify' : activeTab === 'vercel' ? 'Vercel' : 'Cloudflare'} token removed from vault`, 'info');
   };
 
   return (
@@ -294,6 +330,22 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
           >
             <VercelIcon size={13} className="text-text" />
             <span>Vercel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!isDeploying) setActiveTab('cloudflare');
+            }}
+            disabled={isDeploying}
+            className={`flex items-center gap-2 px-3 py-2 rounded-t-lg font-sans text-xs font-medium transition-all cursor-pointer border-t border-x ${
+              activeTab === 'cloudflare'
+                ? 'bg-surface text-accent border-border/80 -mb-[1px] border-b-transparent shadow-xs'
+                : 'text-muted hover:text-text border-transparent hover:bg-surface/50'
+            }`}
+          >
+            <CloudflareIcon size={14} className="text-[#F38020]" />
+            <span>Cloudflare</span>
           </button>
 
           <button
@@ -496,11 +548,18 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                       <strong className="text-text font-mono">Netlify Direct Deploy</strong>: Automatically bundles your code and publishes a lightning-fast live URL on <span className="font-mono text-accent">*.netlify.app</span>.
                     </div>
                   </>
-                ) : (
+                ) : activeTab === 'vercel' ? (
                   <>
                     <VercelIcon size={14} className="text-text shrink-0 mt-0.5" />
                     <div className="text-[11px] text-muted leading-relaxed font-sans">
                       <strong className="text-text font-mono">Vercel Edge Deploy</strong>: Deploys your project static bundle directly to Vercel&apos;s global CDN edge network on <span className="font-mono text-accent">*.vercel.app</span>.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <CloudflareIcon size={16} className="text-[#F38020] shrink-0 mt-0.5" />
+                    <div className="text-[11px] text-muted leading-relaxed font-sans">
+                      <strong className="text-text font-mono">Cloudflare Pages Deploy</strong>: Deploys your project to Cloudflare Pages edge network on <span className="font-mono text-accent">*.pages.dev</span>.
                     </div>
                   </>
                 )}
@@ -522,7 +581,7 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                     className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-text font-mono text-xs focus:border-accent focus:outline-none disabled:opacity-50"
                   />
                   <span className="absolute right-3 text-[10px] text-muted pointer-events-none font-mono">
-                    .{activeTab === 'netlify' ? 'netlify.app' : 'vercel.app'}
+                    .{activeTab === 'netlify' ? 'netlify.app' : activeTab === 'vercel' ? 'vercel.app' : 'pages.dev'}
                   </span>
                 </div>
                 <p className="text-[10px] text-muted font-sans">
@@ -530,23 +589,46 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                 </p>
               </div>
 
+              {activeTab === 'cloudflare' && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="deploy-account-id" className="block text-[11px] font-sans font-medium text-text">
+                      Cloudflare Account ID (Required)
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      id="deploy-account-id"
+                      type="text"
+                      value={accountIdInput}
+                      onChange={(e) => setAccountIdInput(e.target.value)}
+                      disabled={isDeploying}
+                      placeholder="Enter Account ID from dashboard URL"
+                      className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-text font-mono text-xs focus:border-accent focus:outline-none disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* API Token Input */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label htmlFor="deploy-token" className="block text-[11px] font-sans font-medium text-text">
-                    {activeTab === 'netlify' ? 'Netlify Access Token (Optional / Recommended)' : 'Vercel API Token (Required)'}
+                    {activeTab === 'netlify' ? 'Netlify Access Token (Optional / Recommended)' : activeTab === 'vercel' ? 'Vercel API Token (Required)' : 'Cloudflare API Token (Required)'}
                   </label>
                   <a
                     href={
                       activeTab === 'netlify'
                         ? 'https://app.netlify.com/user/applications#personal-access-tokens'
-                        : 'https://vercel.com/account/tokens'
+                        : activeTab === 'vercel'
+                        ? 'https://vercel.com/account/tokens'
+                        : 'https://dash.cloudflare.com/profile/api-tokens'
                     }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-[10px] text-accent hover:underline flex items-center gap-1 font-sans"
                   >
-                    <span>Get {activeTab === 'netlify' ? 'Netlify' : 'Vercel'} Token</span>
+                    <span>Get {activeTab === 'netlify' ? 'Netlify' : activeTab === 'vercel' ? 'Vercel' : 'Cloudflare'} Token</span>
                     <ExternalLink size={10} />
                   </a>
                 </div>
@@ -557,7 +639,7 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                     value={tokenInput}
                     onChange={(e) => setTokenInput(e.target.value)}
                     disabled={isDeploying}
-                    placeholder={activeTab === 'netlify' ? 'nfp_... or leave empty for drop deploy' : 'vck_...'}
+                    placeholder={activeTab === 'netlify' ? 'nfp_... or leave empty for drop deploy' : activeTab === 'vercel' ? 'vck_...' : 'Cloudflare API Token...'}
                     className="w-full bg-bg border border-border rounded-lg px-3 py-2 text-text font-mono text-xs focus:border-accent focus:outline-none disabled:opacity-50"
                   />
                   {hasSavedToken && (
@@ -644,7 +726,7 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={isDeploying || (activeTab === 'vercel' && !tokenInput.trim())}
+                  disabled={isDeploying || (activeTab === 'vercel' && !tokenInput.trim()) || (activeTab === 'cloudflare' && (!tokenInput.trim() || !accountIdInput.trim()))}
                   className="px-5 py-2 bg-accent hover:bg-accent/90 text-accent-text-on font-bold font-sans rounded-lg text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
                   {isDeploying ? (

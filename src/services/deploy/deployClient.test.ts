@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { 
   buildDeployPackage, 
   deployToNetlify, 
-  deployToVercel, 
+  deployToVercel,
+  deployToCloudflarePages,
   saveDeployToken, 
   getDeployToken, 
   deleteDeployToken, 
@@ -184,6 +185,69 @@ describe('deployClient service', () => {
     });
   });
 
+  describe('deployToCloudflarePages', () => {
+    it('deploys files to Cloudflare Pages API and returns live URL', async () => {
+      const mockFetch = vi.fn()
+        .mockResolvedValueOnce({ ok: false }) // projectExists check fails
+        .mockResolvedValueOnce({ ok: true, json: async () => ({}) }) // create project
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            result: {
+              id: 'cf_dep_123',
+              url: 'https://my-cool-project.pages.dev',
+              latest_stage: { status: 'success' }
+            }
+          })
+        });
+      globalThis.fetch = mockFetch;
+
+      const result = await deployToCloudflarePages({
+        apiToken: 'cf_token_123',
+        accountId: 'cf_acc_123',
+        projectName: 'My Cool Project!',
+        projectId: 'proj-cf',
+        files: [
+          { file: 'index.html', data: '<h1>Hello Cloudflare</h1>' }
+        ]
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.cloudflare.com/client/v4/accounts/cf_acc_123/pages/projects/my-cool-project/deployments',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.any(FormData)
+        })
+      );
+
+      expect(result.liveUrl).toBe('https://my-cool-project.pages.dev');
+      expect(result.provider).toBe('cloudflare');
+      expect(result.siteName).toBe('my-cool-project');
+    });
+
+    it('requires API token and account ID for Cloudflare deploy', async () => {
+      await expect(
+        deployToCloudflarePages({
+          apiToken: '',
+          accountId: '123',
+          projectName: 'app',
+          projectId: 'p1',
+          files: []
+        })
+      ).rejects.toThrow('Cloudflare API Token is required');
+
+      await expect(
+        deployToCloudflarePages({
+          apiToken: '123',
+          accountId: '',
+          projectName: 'app',
+          projectId: 'p1',
+          files: []
+        })
+      ).rejects.toThrow('Cloudflare Account ID is required');
+    });
+  });
+
   describe('Deploy Token Storage & History Management', () => {
     it('saves and retrieves deploy token with mock keys', async () => {
       const mockKeys = { 
@@ -201,6 +265,13 @@ describe('deployClient service', () => {
 
       const retrieved = await getDeployToken(mockKeys, 'netlify');
       expect(retrieved).toBe('raw_tok_val');
+
+      await saveDeployToken(mockKeys, 'cloudflare', 'cf_token', 'cf_account');
+      expect((await db.secureTokens.get('cloudflare_token'))?.encryptedValue).toBe('encrypted_tok_val');
+      expect((await db.secureTokens.get('cloudflare_account_id'))?.encryptedValue).toBe('encrypted_tok_val');
+
+      const cfRetrieved = await getDeployToken(mockKeys, 'cloudflare');
+      expect(cfRetrieved).toEqual({ token: 'raw_tok_val', accountId: 'raw_tok_val' });
     });
 
     it('saves and clears deploy history per project', () => {
@@ -226,10 +297,16 @@ describe('deployClient service', () => {
       const { db } = await import('../../db');
       await db.secureTokens.put({ key: 'netlify_token', encryptedValue: 'sample' });
       await db.secureTokens.put({ key: 'vercel_token', encryptedValue: 'sample' });
+      await db.secureTokens.put({ key: 'cloudflare_token', encryptedValue: 'sample' });
+      await db.secureTokens.put({ key: 'cloudflare_account_id', encryptedValue: 'sample' });
 
       await deleteDeployToken('netlify');
       expect(await db.secureTokens.get('netlify_token')).toBeUndefined();
       expect((await db.secureTokens.get('vercel_token'))?.encryptedValue).toBe('sample');
+
+      await deleteDeployToken('cloudflare');
+      expect(await db.secureTokens.get('cloudflare_token')).toBeUndefined();
+      expect(await db.secureTokens.get('cloudflare_account_id')).toBeUndefined();
 
       await deleteDeployToken('vercel');
       expect(await db.secureTokens.get('vercel_token')).toBeUndefined();
