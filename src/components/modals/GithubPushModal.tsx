@@ -175,6 +175,10 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       let finalOwner = owner.trim();
       let finalRepo = repo.trim();
       let finalBaseBranch = baseBranch;
+      
+      let baseCommitSha: string;
+      let baseTreeSha: string;
+      let treeData;
 
       if (mode === 'create') {
         setProgress('Creating repository...');
@@ -202,18 +206,26 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
 
         // Retry loop: GitHub may take a brief moment to initialize the created repo's default branch/ref
         const MAX_RETRIES = 5;
-        let branchReady = false;
-        let lastBranchError: unknown = null;
+        let repoReady = false;
+        let lastRepoError: unknown = null;
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
           try {
             setProgress(attempt === 1 ? 'Fetching base branch info...' : `Waiting for repository to initialize... (attempt ${attempt}/${MAX_RETRIES})`);
             const branchData = await client.getBranch(finalOwner, finalRepo, finalBaseBranch);
-            if (branchData && branchData.object && branchData.object.sha) {
-              branchReady = true;
-              break;
+            if (!branchData || !branchData.object || !branchData.object.sha) {
+               throw new Error("Branch not ready");
             }
+            baseCommitSha = branchData.object.sha;
+
+            const commitData = await client.getCommit(finalOwner, finalRepo, baseCommitSha);
+            baseTreeSha = commitData.tree.sha;
+
+            treeData = await client.getRepoTree(finalOwner, finalRepo, finalBaseBranch);
+            
+            repoReady = true;
+            break;
           } catch (err) {
-            lastBranchError = err;
+            lastRepoError = err;
             const msg = err instanceof Error ? err.message : String(err);
             const isNotFound = msg.includes('404') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no access');
             if (isNotFound && attempt < MAX_RETRIES) {
@@ -226,8 +238,8 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
           }
         }
 
-        if (!branchReady) {
-          throw new Error("Repository was created but isn't ready yet. Please wait a few seconds and click 'Push to Remote Branch' again.", { cause: lastBranchError });
+        if (!repoReady) {
+          throw new Error("Repository was created but isn't ready yet. Please wait a few seconds and click 'Push to Remote Branch' again.", { cause: lastRepoError });
         }
       } else {
         if (!isBaseBranchEdited) {
@@ -238,17 +250,18 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
             setBaseBranch(finalBaseBranch);
           }
         }
+        
+        setProgress('Fetching base branch info...');
+        const refData = await client.getBranch(finalOwner, finalRepo, finalBaseBranch);
+        baseCommitSha = refData.object.sha;
+        
+        const commitData = await client.getCommit(finalOwner, finalRepo, baseCommitSha);
+        baseTreeSha = commitData.tree.sha;
+        
+        setProgress('Fetching base tree...');
+        treeData = await client.getRepoTree(finalOwner, finalRepo, finalBaseBranch);
       }
       
-      setProgress('Fetching base branch info...');
-      const refData = await client.getBranch(finalOwner, finalRepo, finalBaseBranch);
-      const baseCommitSha = refData.object.sha;
-      
-      const commitData = await client.getCommit(finalOwner, finalRepo, baseCommitSha);
-      const baseTreeSha = commitData.tree.sha;
-      
-      setProgress('Fetching base tree...');
-      const treeData = await client.getRepoTree(finalOwner, finalRepo, finalBaseBranch);
       const remoteFiles = new Map(treeData.tree.filter((t) => t.type === 'blob').map((t) => [t.path, t.sha]));
       
       setProgress('Analyzing local changes...');

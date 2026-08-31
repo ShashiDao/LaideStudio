@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-94
-- Last verified working: Added a retry loop (up to 5 attempts with 1s delay and live progress reporting) for getBranch after repo creation in GithubPushModal to prevent 404 race condition, with dedicated unit test (all tests pass).
+- Phase: HOTFIX-95
+- Last verified working: Extended the retry loop for newly created repositories to encompass getBranch, getCommit, and getRepoTree to fully mitigate initialization race conditions, with corresponding test cases (all tests pass).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -484,6 +484,23 @@ Decisions:
 - Added comprehensive unit test in `GithubPushModal.test.ts` mocking a 404 response on the first `getBranch` call followed by a 200 response on the second attempt.
 Deviations: none
 Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` passed 10/10 tests; `lint_applet` reported 0 errors; `compile_applet` compiled cleanly.
+Open questions: none
+
+### [HOTFIX-95] Extend Retry Coverage for Repo Initialization Race Condition — 2026-08-31
+Prompt: Fix the remaining race condition in the "Create new repository" GitHub push flow by extending the retry loop to cover getCommit and getRepoTree.
+Files touched:
+- `src/components/modals/GithubPushModal.tsx` (modified)
+- `src/components/modals/GithubPushModal.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Removed duplicate `client.getBranch` call outside the retry loop for `mode === 'create'`.
+- Restructured `baseCommitSha`, `baseTreeSha`, and `treeData` declaration to be accessible outside the `if (mode === 'create')` block.
+- Expanded the existing retry loop (for `mode === 'create'`) to attempt `getBranch`, `getCommit`, and `getRepoTree` in sequence. The loop only marks success if all three network requests resolve without throwing a 404.
+- Ensured the "Push to existing repository" mode strictly executes its normal 1-pass initialization without any polling/retry behavior.
+Decisions:
+- Grouped the dependent data retrievals (branch ref -> commit tree -> tree contents) under the same exception handler within the retry loop since a replication delay can cause any of these to be temporarily "not found".
+Deviations: none
+Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` passed 11/11 tests; `lint_applet` reported 0 errors; `compile_applet` compiled cleanly.
 Open questions: none
 
 
