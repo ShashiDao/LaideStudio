@@ -7,7 +7,7 @@ import {
   extractDependenciesFromFiles,
   parsePackageSpecifier
 } from './esbuild.worker';
-import { injectTailwindScriptIntoHtml, detectProjectTailwindVersion } from './bundleHtml';
+import { injectTailwindScriptIntoHtml, detectProjectTailwindVersion } from '../../components/preview/PreviewPanel';
 
 describe('esbuild.worker bundler plugins and loaders', () => {
   describe('extractDependenciesFromFiles', () => {

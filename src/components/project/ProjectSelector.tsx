@@ -145,7 +145,7 @@ export function ProjectSelector({
   };
 
   return (
-    <div className={`relative min-w-0 flex-1 max-w-[170px] ${className}`}>
+    <div className={`relative min-w-[76px] flex-1 max-w-[170px] ${className}`}>
       {/* Custom Amber Trigger Button matching existing layout */}
       <button
         ref={triggerRef}

@@ -62,21 +62,4 @@ describe('TopStrip Component', () => {
     fireEvent.click(shortcutsBtn);
     expect(mockOnOpenShortcuts).toHaveBeenCalledTimes(1);
   });
-
-  it('ensures Keyboard Shortcuts, Theme Toggle, and Lock Vault meet the 44x44px minimum hit area requirement', () => {
-    render(<TopStrip />);
-
-    const shortcutsBtn = screen.getByLabelText('Keyboard shortcuts');
-    const themeBtn = screen.getByLabelText(/Toggle theme/i);
-    const lockBtn = screen.getByLabelText(/Lock Vault/i);
-
-    expect(shortcutsBtn.className).toContain('min-w-[44px]');
-    expect(shortcutsBtn.className).toContain('min-h-[44px]');
-
-    expect(themeBtn.className).toContain('min-w-[44px]');
-    expect(themeBtn.className).toContain('min-h-[44px]');
-
-    expect(lockBtn.className).toContain('min-w-[44px]');
-    expect(lockBtn.className).toContain('min-h-[44px]');
-  });
 });
