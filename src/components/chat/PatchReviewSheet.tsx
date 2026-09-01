@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppStore, type PendingPatch } from '../../store';
 import { computeHunks, type DiffHunk } from '../../services/agent/patchSchema';
 import { writeFile, createFile, deleteFile, listFiles } from '../../services/fs/vfs';
@@ -12,6 +12,298 @@ interface HunkState {
   hunkIndex: number;
   checked: boolean;
   viewMode: 'before' | 'after';
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = (event: MediaQueryListEvent) => {
+      setPrefersReducedMotion(event.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', onChange);
+      return () => mediaQuery.removeEventListener('change', onChange);
+    } else if (mediaQuery.addListener) {
+      mediaQuery.addListener(onChange);
+      return () => mediaQuery.removeListener(onChange);
+    }
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+interface HunkReviewRowProps {
+  idx: number;
+  state: HunkState;
+  patch: PendingPatch;
+  hunk: DiffHunk;
+  isDelete: boolean;
+  prefersReducedMotion: boolean;
+  onToggleCheck: (idx: number) => void;
+  onSetChecked: (idx: number, checked: boolean) => void;
+  onSetViewMode: (idx: number, mode: 'before' | 'after') => void;
+}
+
+function HunkReviewRow({
+  idx,
+  state,
+  patch,
+  hunk,
+  isDelete,
+  prefersReducedMotion,
+  onToggleCheck,
+  onSetChecked,
+  onSetViewMode
+}: HunkReviewRowProps) {
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const isDownRef = useRef(false);
+  const hasMovedRef = useRef(false);
+  const pointerIdRef = useRef<number | null>(null);
+
+  const SWIPE_THRESHOLD = 50;
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+    isDownRef.current = true;
+    hasMovedRef.current = false;
+    pointerIdRef.current = e.pointerId;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDownRef.current) return;
+    const deltaX = e.clientX - startXRef.current;
+    const deltaY = e.clientY - startYRef.current;
+
+    if (!hasMovedRef.current) {
+      // If scrolling vertically before moving horizontally, cancel swipe tracking
+      if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 8) {
+        isDownRef.current = false;
+        setDragOffset(0);
+        setIsDragging(false);
+        return;
+      }
+      if (Math.abs(deltaX) > 8) {
+        hasMovedRef.current = true;
+        setIsDragging(true);
+        try {
+          if (typeof e.currentTarget.setPointerCapture === 'function') {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }
+        } catch {
+          // Safe fallback for environments lacking setPointerCapture
+        }
+      }
+    }
+
+    if (hasMovedRef.current) {
+      const maxDrag = 120;
+      const clamped = Math.max(-maxDrag, Math.min(maxDrag, deltaX));
+      setDragOffset(clamped);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDownRef.current) return;
+    isDownRef.current = false;
+    const deltaX = e.clientX - startXRef.current;
+
+    if (pointerIdRef.current !== null) {
+      try {
+        if (typeof e.currentTarget.hasPointerCapture === 'function' && e.currentTarget.hasPointerCapture(pointerIdRef.current)) {
+          e.currentTarget.releasePointerCapture(pointerIdRef.current);
+        }
+      } catch {
+        // Safe fallback
+      }
+      pointerIdRef.current = null;
+    }
+
+    setIsDragging(false);
+    setDragOffset(0);
+
+    if (hasMovedRef.current) {
+      if (deltaX >= SWIPE_THRESHOLD) {
+        // Swipe Right -> Approve / Check
+        onSetChecked(idx, true);
+      } else if (deltaX <= -SWIPE_THRESHOLD) {
+        // Swipe Left -> Reject / Uncheck
+        onSetChecked(idx, false);
+      }
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    isDownRef.current = false;
+    setIsDragging(false);
+    setDragOffset(0);
+    if (pointerIdRef.current !== null) {
+      try {
+        if (typeof e.currentTarget.hasPointerCapture === 'function' && e.currentTarget.hasPointerCapture(pointerIdRef.current)) {
+          e.currentTarget.releasePointerCapture(pointerIdRef.current);
+        }
+      } catch {
+        // Safe fallback
+      }
+      pointerIdRef.current = null;
+    }
+  };
+
+  const transformStyle = prefersReducedMotion 
+    ? undefined 
+    : dragOffset !== 0 
+      ? `translateX(${dragOffset}px)` 
+      : undefined;
+
+  const transitionStyle = prefersReducedMotion
+    ? 'none'
+    : isDragging
+      ? 'none'
+      : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)';
+
+  const beforeLines = hunk.lines.filter(l => l.type === 'context' || l.type === 'removed');
+  const afterLines = hunk.lines.filter(l => l.type === 'context' || l.type === 'added');
+
+  return (
+    <div className="relative overflow-hidden rounded-lg min-w-0 select-none">
+      {/* Swipe Action Indicator Background */}
+      <div 
+        className="absolute inset-0 flex items-center justify-between px-4 rounded-lg pointer-events-none"
+        aria-hidden="true"
+      >
+        <div className={`flex items-center gap-1.5 text-xs font-sans font-bold text-moss transition-opacity duration-150 ${dragOffset > 15 ? 'opacity-100' : 'opacity-0'}`}>
+          <Check size={18} />
+          <span>Approve Hunk</span>
+        </div>
+        <div className={`flex items-center gap-1.5 text-xs font-sans font-bold text-oxide transition-opacity duration-150 ${dragOffset < -15 ? 'opacity-100' : 'opacity-0'}`}>
+          <span>Reject Hunk</span>
+          <X size={18} />
+        </div>
+      </div>
+
+      {/* Swipeable Hunk Card */}
+      <div 
+        data-testid={`hunk-row-${idx}`}
+        className={`border rounded-lg overflow-hidden flex flex-col min-w-0 relative z-10 touch-pan-y ${
+          isDelete 
+            ? 'border-oxide/40 bg-bg shadow-[0_0_15px_rgba(248,113,113,0.05)]' 
+            : 'border-border bg-bg'
+        }`}
+        style={{
+          transform: transformStyle,
+          transition: transitionStyle,
+          willChange: isDragging ? 'transform' : 'auto'
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+      >
+        {/* Hunk Header */}
+        <div className={`p-3 border-b flex items-start justify-between gap-2 min-w-0 ${
+          isDelete ? 'bg-oxide/10 border-oxide/20' : 'bg-surface/50 border-border'
+        }`}>
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <span className={`text-[10px] sm:text-xs font-sans px-2 py-0.5 rounded font-semibold shrink-0 flex items-center gap-1 ${
+                isDelete 
+                  ? 'bg-oxide/20 text-oxide border border-oxide/40' 
+                  : 'bg-moss/20 text-moss'
+              }`}>
+                {isDelete && <Trash2 size={11} />}
+                {patch.type}
+              </span>
+              <span className="text-xs sm:text-sm font-sans text-text font-bold break-all min-w-0">{patch.path}</span>
+              {isDelete && (
+                <span className="text-[10px] font-sans text-oxide/90 font-medium">
+                  (Will permanently remove this file)
+                </span>
+              )}
+            </div>
+            {patch.rationale && (
+              <p className="text-xs text-muted mt-1 break-words">{patch.rationale}</p>
+            )}
+          </div>
+          
+          <button 
+            type="button"
+            aria-label={state.checked ? `Deselect changes for ${patch.path}` : `Select changes for ${patch.path}`}
+            onClick={() => onToggleCheck(idx)}
+            onKeyDown={(e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                onToggleCheck(idx);
+              }
+            }}
+            className="ml-2 text-text hover:text-moss transition-colors cursor-pointer shrink-0 p-1 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-moss rounded"
+          >
+            {state.checked ? (
+              <CheckSquare size={20} className={isDelete ? "text-oxide" : "text-moss"} />
+            ) : (
+              <Square size={20} className="text-muted" />
+            )}
+          </button>
+        </div>
+
+        {/* Hunk Content */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Toggle */}
+          <div className="flex border-b border-border bg-surface/30">
+            <button 
+              type="button"
+              onClick={() => onSetViewMode(idx, 'before')}
+              className={`flex-1 py-1.5 text-xs font-sans text-center transition-colors cursor-pointer ${state.viewMode === 'before' ? (isDelete ? 'bg-oxide/20 text-oxide font-bold' : 'bg-black/5 text-text font-bold') : 'text-muted hover:bg-black/5'}`}
+            >
+              {isDelete ? 'Content to be removed' : 'Before'}
+            </button>
+            {!isDelete && (
+              <button 
+                type="button"
+                onClick={() => onSetViewMode(idx, 'after')}
+                className={`flex-1 py-1.5 text-xs font-sans text-center transition-colors cursor-pointer ${state.viewMode === 'after' ? 'bg-black/5 text-text font-bold' : 'text-muted hover:bg-black/5'}`}
+              >
+                After
+              </button>
+            )}
+          </div>
+          
+          {/* Code */}
+          <pre className="p-3 text-xs font-mono bg-code-bg text-text overflow-x-auto min-w-0 whitespace-pre scrollbar-thin max-h-[40vh]">
+            {state.viewMode === 'before' ? (
+              beforeLines.length === 0 ? <span className="text-muted italic">No previous content</span> :
+              beforeLines.map((l, i) => (
+                <div key={i} className={`min-w-fit pr-4 ${l.type === 'removed' ? 'bg-oxide/20 text-oxide font-medium' : 'text-muted'}`}>
+                  {l.content || ' '}
+                </div>
+              ))
+            ) : (
+              afterLines.length === 0 ? <span className="text-muted italic">No new content</span> :
+              afterLines.map((l, i) => (
+                <div key={i} className={`min-w-fit pr-4 ${l.type === 'added' ? 'bg-moss/20 text-moss font-medium' : 'text-muted'}`}>
+                  {l.content || ' '}
+                </div>
+              ))
+            )}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function PatchReviewSheet({ projectId }: { projectId: string }) {
@@ -65,6 +357,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
     return { data, stateList };
   }, [pendingPatches]);
 
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [prevPatches, setPrevPatches] = useState(pendingPatches);
   const [hunkStates, setHunkStates] = useState<HunkState[]>(() => computedData.stateList);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -87,6 +380,17 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
     const newStates = [...hunkStates];
     newStates[idx].checked = !newStates[idx].checked;
     setHunkStates(newStates);
+  };
+
+  const setHunkChecked = (idx: number, checked: boolean) => {
+    setHunkStates(prev => {
+      if (prev[idx] && prev[idx].checked === checked) return prev;
+      const newStates = [...prev];
+      if (newStates[idx]) {
+        newStates[idx] = { ...newStates[idx], checked };
+      }
+      return newStates;
+    });
   };
 
   const setViewMode = (idx: number, mode: 'before' | 'after') => {
@@ -299,98 +603,20 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
             const { patch, hunks } = computedData.data[state.patchIndex];
             const hunk = hunks[state.hunkIndex];
             const isDelete = patch.type === 'delete';
-            
-            const beforeLines = hunk.lines.filter(l => l.type === 'context' || l.type === 'removed');
-            const afterLines = hunk.lines.filter(l => l.type === 'context' || l.type === 'added');
 
             return (
-              <div 
-                key={idx} 
-                className={`border rounded-lg overflow-hidden flex flex-col min-w-0 ${
-                  isDelete 
-                    ? 'border-oxide/40 bg-bg shadow-[0_0_15px_rgba(248,113,113,0.05)]' 
-                    : 'border-border bg-bg'
-                }`}
-              >
-                {/* Hunk Header */}
-                <div className={`p-3 border-b flex items-start justify-between gap-2 min-w-0 ${
-                  isDelete ? 'bg-oxide/10 border-oxide/20' : 'bg-surface/50 border-border'
-                }`}>
-                  <div className="flex flex-col gap-1 flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap min-w-0">
-                      <span className={`text-[10px] sm:text-xs font-sans px-2 py-0.5 rounded  font-semibold shrink-0 flex items-center gap-1 ${
-                        isDelete 
-                          ? 'bg-oxide/20 text-oxide border border-oxide/40' 
-                          : 'bg-moss/20 text-moss'
-                      }`}>
-                        {isDelete && <Trash2 size={11} />}
-                        {patch.type}
-                      </span>
-                      <span className="text-xs sm:text-sm font-sans text-text font-bold break-all min-w-0">{patch.path}</span>
-                      {isDelete && (
-                        <span className="text-[10px] font-sans text-oxide/90 font-medium">
-                          (Will permanently remove this file)
-                        </span>
-                      )}
-                    </div>
-                    {patch.rationale && (
-                      <p className="text-xs text-muted mt-1 break-words">{patch.rationale}</p>
-                    )}
-                  </div>
-                  
-                  <button 
-                    onClick={() => toggleCheck(idx)}
-                    aria-label={state.checked ? `Deselect changes for ${patch.path}` : `Select changes for ${patch.path}`}
-                    className="ml-2 text-text hover:text-moss transition-colors cursor-pointer shrink-0 p-1"
-                  >
-                    {state.checked ? (
-                      <CheckSquare size={20} className={isDelete ? "text-oxide" : "text-moss"} />
-                    ) : (
-                      <Square size={20} className="text-muted" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Hunk Content */}
-                <div className="flex-1 flex flex-col min-w-0">
-                  {/* Toggle */}
-                  <div className="flex border-b border-border bg-surface/30">
-                    <button 
-                      onClick={() => setViewMode(idx, 'before')}
-                      className={`flex-1 py-1.5 text-xs font-sans text-center   transition-colors cursor-pointer ${state.viewMode === 'before' ? (isDelete ? 'bg-oxide/20 text-oxide font-bold' : 'bg-black/5 text-text font-bold') : 'text-muted hover:bg-black/5'}`}
-                    >
-                      {isDelete ? 'Content to be removed' : 'Before'}
-                    </button>
-                    {!isDelete && (
-                      <button 
-                        onClick={() => setViewMode(idx, 'after')}
-                        className={`flex-1 py-1.5 text-xs font-sans text-center   transition-colors cursor-pointer ${state.viewMode === 'after' ? 'bg-black/5 text-text font-bold' : 'text-muted hover:bg-black/5'}`}
-                      >
-                        After
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Code */}
-                  <pre className="p-3 text-xs font-mono bg-code-bg text-text overflow-x-auto min-w-0 whitespace-pre scrollbar-thin max-h-[40vh]">
-                    {state.viewMode === 'before' ? (
-                      beforeLines.length === 0 ? <span className="text-muted italic">No previous content</span> :
-                      beforeLines.map((l, i) => (
-                        <div key={i} className={`min-w-fit pr-4 ${l.type === 'removed' ? 'bg-oxide/20 text-oxide font-medium' : 'text-muted'}`}>
-                          {l.content || ' '}
-                        </div>
-                      ))
-                    ) : (
-                      afterLines.length === 0 ? <span className="text-muted italic">No new content</span> :
-                      afterLines.map((l, i) => (
-                        <div key={i} className={`min-w-fit pr-4 ${l.type === 'added' ? 'bg-moss/20 text-moss font-medium' : 'text-muted'}`}>
-                          {l.content || ' '}
-                        </div>
-                      ))
-                    )}
-                  </pre>
-                </div>
-              </div>
+              <HunkReviewRow
+                key={idx}
+                idx={idx}
+                state={state}
+                patch={patch}
+                hunk={hunk}
+                isDelete={isDelete}
+                prefersReducedMotion={prefersReducedMotion}
+                onToggleCheck={toggleCheck}
+                onSetChecked={setHunkChecked}
+                onSetViewMode={setViewMode}
+              />
             );
           })}
         </div>

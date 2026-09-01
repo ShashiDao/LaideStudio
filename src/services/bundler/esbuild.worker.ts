@@ -8,7 +8,27 @@ import {
   type DependencyLockfile
 } from './lockfile';
 
-const CACHE_NAME = 'xiom-esm-dep-cache-v1';
+export const CACHE_NAME = 'laide-esm-dep-cache-v2';
+export const LEGACY_CACHE_NAMES = ['xiom-esm-dep-cache-v1', 'laide-esm-dep-cache-v1'];
+
+let legacyCachesCleaned = false;
+
+export async function cleanLegacyCaches(): Promise<void> {
+  if (legacyCachesCleaned) return;
+  if (typeof caches !== 'undefined' && typeof caches.keys === 'function') {
+    try {
+      const keys = await caches.keys();
+      for (const key of keys) {
+        if (LEGACY_CACHE_NAMES.includes(key) || (key.startsWith('xiom-') && key !== CACHE_NAME)) {
+          await caches.delete(key);
+        }
+      }
+      legacyCachesCleaned = true;
+    } catch (e) {
+      console.warn('Failed to clean legacy cache storage:', e);
+    }
+  }
+}
 
 let initialized = false;
 let initPromise: Promise<void> | null = null;
@@ -65,7 +85,7 @@ function normalizePath(path: string) {
 async function getDepCache(): Promise<Cache | null> {
   if (typeof caches !== 'undefined') {
     try {
-
+      await cleanLegacyCaches();
       return await caches.open(CACHE_NAME);
     } catch (e) {
       console.warn('Cache Storage unavailable:', e);

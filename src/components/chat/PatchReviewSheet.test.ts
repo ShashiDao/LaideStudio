@@ -335,4 +335,112 @@ describe('PatchReviewSheet', () => {
     expect(verifyResult.valid).toBe(true);
     expect(verifyResult.totalEntries).toBe(2);
   });
+
+  it('supports pointer swipe gestures: swipe left to reject/uncheck and swipe right to approve/check', async () => {
+    const patches: PendingPatch[] = [
+      {
+        path: '/src/main.ts',
+        type: 'replace',
+        oldContent: 'const a = 1;\n',
+        newContent: 'const a = 2;\n',
+        rationale: 'Update constant a'
+      }
+    ];
+
+    useAppStore.getState().setPendingPatches(patches);
+
+    render(React.createElement(PatchReviewSheet, { projectId }));
+
+    const hunkRow = screen.getByTestId('hunk-row-0');
+    // Initially checked (button label asks to deselect)
+    expect(screen.getByRole('button', { name: /Deselect changes for \/src\/main\.ts/i })).toBeDefined();
+
+    // 1. Simulate pointer-based swipe left (x0: 100 -> xMove: 20 -> xUp: 20, deltaX = -80px)
+    fireEvent.pointerDown(hunkRow, { clientX: 100, clientY: 50, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(hunkRow, { clientX: 20, clientY: 50, pointerId: 1 });
+    fireEvent.pointerUp(hunkRow, { clientX: 20, clientY: 50, pointerId: 1 });
+
+    // Assert hunk is now unchecked/rejected
+    expect(screen.getByRole('button', { name: /Select changes for \/src\/main\.ts/i })).toBeDefined();
+
+    // 2. Simulate pointer-based swipe right (x0: 20 -> xMove: 100 -> xUp: 100, deltaX = +80px)
+    fireEvent.pointerDown(hunkRow, { clientX: 20, clientY: 50, pointerId: 1, button: 0 });
+    fireEvent.pointerMove(hunkRow, { clientX: 100, clientY: 50, pointerId: 1 });
+    fireEvent.pointerUp(hunkRow, { clientX: 100, clientY: 50, pointerId: 1 });
+
+    // Assert hunk is now approved/checked again
+    expect(screen.getByRole('button', { name: /Deselect changes for \/src\/main\.ts/i })).toBeDefined();
+  });
+
+  it('preserves keyboard operability with Space and Enter on hunk checkboxes', async () => {
+    const patches: PendingPatch[] = [
+      {
+        path: '/src/main.ts',
+        type: 'replace',
+        oldContent: 'const a = 1;\n',
+        newContent: 'const a = 2;\n',
+        rationale: 'Update constant a'
+      }
+    ];
+
+    useAppStore.getState().setPendingPatches(patches);
+
+    render(React.createElement(PatchReviewSheet, { projectId }));
+
+    const checkbox = screen.getByRole('button', { name: /Deselect changes for \/src\/main\.ts/i });
+    
+    // Press Space to toggle uncheck
+    fireEvent.keyDown(checkbox, { key: ' ' });
+    expect(screen.getByRole('button', { name: /Select changes for \/src\/main\.ts/i })).toBeDefined();
+
+    // Press Enter to toggle check back
+    const uncheckedCheckbox = screen.getByRole('button', { name: /Select changes for \/src\/main\.ts/i });
+    fireEvent.keyDown(uncheckedCheckbox, { key: 'Enter' });
+    expect(screen.getByRole('button', { name: /Deselect changes for \/src\/main\.ts/i })).toBeDefined();
+  });
+
+  it('respects prefers-reduced-motion by suppressing transform animation styles', async () => {
+    // Mock matchMedia to simulate prefers-reduced-motion: reduce
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation(query => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }));
+
+    try {
+      const patches: PendingPatch[] = [
+        {
+          path: '/src/main.ts',
+          type: 'replace',
+          oldContent: 'const a = 1;\n',
+          newContent: 'const a = 2;\n',
+          rationale: 'Update constant a'
+        }
+      ];
+
+      useAppStore.getState().setPendingPatches(patches);
+
+      render(React.createElement(PatchReviewSheet, { projectId }));
+
+      const hunkRow = screen.getByTestId('hunk-row-0');
+      // Verify style has transition: none and no transform during swipe
+      fireEvent.pointerDown(hunkRow, { clientX: 100, clientY: 50, pointerId: 1, button: 0 });
+      fireEvent.pointerMove(hunkRow, { clientX: 160, clientY: 50, pointerId: 1 });
+
+      expect(hunkRow.style.transition).toBe('none');
+      expect(hunkRow.style.transform).toBe('');
+
+      // Completing the pointer release still flips the state
+      fireEvent.pointerUp(hunkRow, { clientX: 160, clientY: 50, pointerId: 1 });
+      expect(screen.getByRole('button', { name: /Deselect changes for \/src\/main\.ts/i })).toBeDefined();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
 });

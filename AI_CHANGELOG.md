@@ -1,6 +1,6 @@
 ## Current State
 - Phase: HOTFIX-106
-- Last verified working: Honest browser-shell messaging in TerminalPanel (`laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is`), expanded `help` overview and comprehensive `capabilities` command detailing real (IndexedDB VFS, Web Worker sandboxed JS execution, in-browser WebAssembly ESBuild, browser Vitest runner, offline vendoring) vs. simulated environment features, and transparent `uname` / `uname -a` simulated environment output. All 78 Vitest test suites (615 tests) passing, `tsc --noEmit` and `eslint` passing with 0 errors.
+- Last verified working: Pointer-based swipe gestures in `PatchReviewSheet.tsx` (swipe right to approve/check, swipe left to reject/uncheck) with Pointer Events (`onPointerDown`, `onPointerMove`, `onPointerUp`, `onPointerCancel`), keyboard operability (`Space`/`Enter`), fallback click toggling, and `prefers-reduced-motion` compliance. All 78 Vitest test suites (618 tests) passing; `npm run typecheck`, `npm run lint` (0 errors), and `compile_applet` build fully passing.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -736,6 +736,44 @@ Deviations: none
 Verified: `npm run typecheck` passed (0 errors); `npm run lint` passed (0 errors); full vitest suite passed (77/77 test suites, 605/605 tests); `compile_applet` production build succeeded.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-105] Honest Terminal Shell Messaging & Capabilities Documentation — 2026-09-01
+Prompt: Update TerminalPanel unrecognized command message to be honest about browser scope, expand help/capabilities command detailing real vs simulated execution, and revisit uname easter egg.
+Files touched:
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `src/components/terminal/TerminalPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated unrecognized command output to honest scope message: `laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is`.
+- Expanded `help` and added `capabilities` command detailing real capabilities (IndexedDB VFS, Web Worker sandboxed JS execution, in-browser WebAssembly ESBuild, Vitest runner, offline vendoring) vs. simulated environment features.
+- Transparently formatted `uname` and `uname -a` easter egg to clarify browser sandbox context.
+- Updated `TerminalPanel.test.tsx` tests to verify honest command messaging.
+Decisions:
+- Standardized shell prefix to `laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is` rather than mimicking POSIX OS errors.
+Deviations: none
+Verified: All 30 tests in `TerminalPanel.test.tsx` passed; full vitest suite passed.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-106] Swipe Gesture per Hunk Row in PatchReviewSheet — 2026-09-01
+Prompt: Add a swipe gesture per hunk row in PatchReviewSheet (swipe right to approve/check, swipe left to reject/uncheck) using Pointer Events, preserving checkbox clicks, keyboard operability, and reduced-motion preferences.
+Files touched:
+- `src/components/chat/PatchReviewSheet.tsx` (modified)
+- `src/components/chat/PatchReviewSheet.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented `HunkReviewRow` sub-component with Pointer Events (`onPointerDown`, `onPointerMove`, `onPointerUp`, `onPointerCancel`) to support touch, mouse, and trackpad drag.
+- Added visual swipe action indicator backgrounds behind each hunk card with smooth opacity transitions for swipe right (Approve Hunk) and swipe left (Reject Hunk).
+- Preserved standard checkbox click fallback, keyboard navigation (Tab, Space, and Enter), and `aria-label` screen reader announcements.
+- Added `usePrefersReducedMotion` hook to respect `(prefers-reduced-motion: reduce)` by disabling transform translation effects and transitions.
+- Added unit tests in `PatchReviewSheet.test.ts` covering swipe-to-reject, swipe-to-approve, keyboard Space/Enter toggling, and reduced-motion styles.
+Decisions:
+- Used a 50px threshold (`SWIPE_THRESHOLD`) and clamped horizontal drag offset (max 120px) with 8px vertical scroll dead-band to prevent conflicts with page scrolling.
+Deviations: none
+Verified: `PatchReviewSheet.test.ts` (8/8 tests) passed; full vitest test suite (78/78 suites, 618/618 tests) passed; `npm run lint` clean (0 errors); `compile_applet` passed.
+Commit: pending
+Open questions: none
+
 
 
 
