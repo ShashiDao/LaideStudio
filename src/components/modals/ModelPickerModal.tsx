@@ -166,6 +166,16 @@ export function ModelPickerModal({
 
         {/* Search Input Bar */}
         <div className="p-3 border-b border-border/70 bg-bg/50 shrink-0">
+          {(provider === 'webllm' || provider === 'offline') && (
+            <div className="mb-2.5 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[11px] leading-relaxed flex items-start gap-2">
+              <span className="shrink-0 text-sm">⚠️</span>
+              <div>
+                <strong className="font-semibold block">Offline WebGPU Model Notice</strong>
+                <span>Runs entirely inside your browser via WebGPU with zero network calls after download. Noticeably lower reasoning capacity and slower token generation than cloud models (Claude 3.7 / GPT-4o). Best for basic edits and offline privacy.</span>
+              </div>
+            </div>
+          )}
+
           <div className="relative flex items-center">
             <Search size={14} className="absolute left-2.5 text-muted pointer-events-none" />
             <input

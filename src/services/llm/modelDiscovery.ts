@@ -100,6 +100,12 @@ export const KNOWN_MODEL_CONTEXT_WINDOWS: Record<string, number> = {
   'gemini-2.5-pro': 2000000,
   'gemini-1.0-pro': 32768,
   'gemini-pro': 32768,
+
+  // Offline / WebLLM models
+  'qwen2.5-coder-1.5b-instruct-q4f16_1-mlc': 32768,
+  'qwen2.5-coder-0.5b-instruct-q4f16_1-mlc': 16384,
+  'llama-3.2-1b-instruct-q4f16_1-mlc': 16384,
+  'smollm2-1.7b-instruct-q4f16_1-mlc': 8192,
 };
 
 export function formatContextWindow(tokens: number): string {
@@ -183,11 +189,20 @@ export async function fetchAvailableModels(
   apiKey: string,
   baseUrl?: string
 ): Promise<DiscoveredModel[]> {
-  if (!apiKey && provider !== 'openai-compatible' && provider !== 'openrouter') {
+  if (!apiKey && provider !== 'openai-compatible' && provider !== 'openrouter' && provider !== 'webllm' && provider !== 'offline') {
     return [];
   }
 
   try {
+    if (provider === 'webllm' || provider === 'offline') {
+      const { OFFLINE_MODELS } = await import('./providers/webllm');
+      return OFFLINE_MODELS.map(m => ({
+        id: m.id,
+        name: m.name,
+        description: `${m.description} (Download: ${m.downloadSize}, ${m.vramRequired})`,
+        contextWindow: m.contextWindow
+      }));
+    }
     if (provider === 'openai') {
       const res = await fetch('https://api.openai.com/v1/models', {
         headers: {

@@ -84,6 +84,21 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
     description: 'Run completely offline on your own GPU/CPU'
   },
   {
+    id: 'webllm',
+    label: 'Offline In-Browser (WebLLM)',
+    badge: 'WebGPU Offline',
+    defaultModel: 'Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC',
+    models: [
+      'Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC',
+      'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+      'SmolLM2-1.7B-Instruct-q4f16_1-MLC',
+      'Qwen2.5-Coder-0.5B-Instruct-q4f16_1-MLC'
+    ],
+    placeholder: 'No API key needed (runs 100% locally)',
+    requiresKey: false,
+    description: 'In-browser WebGPU execution. Lower capability than cloud models, requires ~1.1GB download on first use.'
+  },
+  {
     id: 'openai-compatible',
     label: 'Custom / OpenAI API',
     defaultModel: 'custom-model',

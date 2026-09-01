@@ -118,5 +118,12 @@ describe('Model Discovery & Context Window Resolution', () => {
       expect(models[0].id).toBe('gemini-1.5-pro');
       expect(models[0].contextWindow).toBe(2097152);
     });
+    it('discovers offline WebLLM models without API key', async () => {
+      const models = await fetchAvailableModels('webllm', '');
+      expect(models.length).toBeGreaterThanOrEqual(3);
+      expect(models.some(m => m.id.includes('Qwen2.5-Coder'))).toBe(true);
+      expect(models.some(m => m.id.includes('Llama-3.2'))).toBe(true);
+      expect(models[0].contextWindow).toBeGreaterThanOrEqual(8192);
+    });
   });
 });

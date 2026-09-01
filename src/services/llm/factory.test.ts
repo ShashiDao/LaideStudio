@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createLLMAdapter } from './factory';
 import { OpenAICompatibleProvider } from './providers/openaiCompatible';
+import { WebLLMProvider } from './providers/webllm';
 import { ConnectionProfile } from '../../db';
 
 vi.mock('../security/crypto', () => ({
@@ -25,7 +26,6 @@ describe('LLM Factory', () => {
     const adapter = await createLLMAdapter(profile, {} as CryptoKey);
     
     expect(adapter).toBeInstanceOf(OpenAICompatibleProvider);
-    // You can't easily assert on private fields, but creating it without throwing is good
   });
 
   it('routes openai-compatible to OpenAICompatibleProvider', async () => {
@@ -41,5 +41,19 @@ describe('LLM Factory', () => {
     const adapter = await createLLMAdapter(profile, {} as CryptoKey);
     
     expect(adapter).toBeInstanceOf(OpenAICompatibleProvider);
+  });
+
+  it('routes webllm to WebLLMProvider without requiring API key', async () => {
+    const profile: ConnectionProfile = {
+      id: '3',
+      label: 'Offline WebGPU',
+      provider: 'webllm',
+      encryptedApiKey: '',
+      baseUrl: '',
+      model: 'Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC'
+    };
+
+    const adapter = await createLLMAdapter(profile, {} as CryptoKey);
+    expect(adapter).toBeInstanceOf(WebLLMProvider);
   });
 });

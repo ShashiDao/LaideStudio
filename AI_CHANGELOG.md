@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-102
-- Last verified working: Dependency integrity verification via SHA-256 lockfile (.laide/lockfile.json), offline zero-network local vendoring (/vendor/<pkg>.js), and npm vendor / update-lock CLI commands in TerminalPanel. All 76 test suites (592 tests) pass, linter and production build clean with 0 errors.
+- Phase: HOTFIX-103
+- Last verified working: Opt-in 100% offline WebGPU in-browser LLM provider via WebLLM (@mlc-ai/web-llm) running quantized models (Qwen 2.5 Coder 1.5B q4f16_1, Llama 3.2 1B, SmolLM2 1.7B, Qwen 2.5 Coder 0.5B). Offline model caching via Cache API/OPFS, WebGPU hardware feature detection, capability/speed warning banners, explicit user download/cache management in SettingsPanel, model picker badges, tool-calling JSON/XML fallback for compact models, and quick-connect sheet support. All 77 test suites (605 tests) passing, production build succeeded with zero errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -641,6 +641,36 @@ Decisions:
 - Vendored files are placed under `/vendor/<pkg>.js` (and `@scope/pkg.js`), allowing full transparency and direct in-editor inspection.
 Deviations: none
 Verified: All 76 test suites (592 tests) passing; `lockfile.test.ts` (11/11 tests) and `esbuild.worker.test.ts` (34/34 tests) passing; `lint_applet` clean (0 errors); `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-103] Opt-In Offline WebGPU In-Browser LLM Provider — 2026-09-01
+Prompt: Add an opt-in offline model provider using WebLLM via WebGPU, running a compact instruction-tuned model with weight caching, feature detection, and clear UI notices.
+Files touched:
+- `src/services/llm/providers/webllm.ts` (new)
+- `src/services/llm/providers/webllm.test.ts` (new)
+- `src/services/llm/factory.ts` (modified)
+- `src/services/llm/factory.test.ts` (modified)
+- `src/services/llm/modelDiscovery.ts` (modified)
+- `src/services/llm/modelDiscovery.test.ts` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `src/components/shared/QuickConnectSheet.tsx` (modified)
+- `src/components/modals/ModelPickerModal.tsx` (modified)
+- `package.json` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `@mlc-ai/web-llm` integration in `webllm.ts` conforming directly to `LLMAdapter` with streaming support, token counting, structured tool calls, and text-based JSON/XML tool-call fallback parsing.
+- Configured default recommended model: `Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC` (~1.1 GB download, ~1.4 GB VRAM) for best code reasoning and patch adherence on mid-range laptop integrated GPUs, along with lightweight alternatives (`Llama-3.2-1B`, `SmolLM2-1.7B`, `Qwen2.5-Coder-0.5B`).
+- Added WebGPU device capability detection (`checkWebGPUSupport()`) surfacing GPU vendor/driver status or actionable browser requirements if unavailable.
+- Integrated weight caching and cache lifecycle management via browser Cache API / OPFS (`isModelCachedInBrowser`, `deleteCachedOfflineModel`), ensuring weights are never downloaded without explicit user initiation and work fully offline once cached.
+- Updated `factory.ts` and `modelDiscovery.ts` to seamlessly route `webllm` profiles into the existing agent loop, tool execution, and patch application flows without code path divergence.
+- Added visual warnings in `SettingsPanel`, `QuickConnectSheet`, and `ModelPickerModal` clearly identifying offline models as lower-capability and slower than hosted frontier models.
+- Added unit tests in `webllm.test.ts`, `factory.test.ts`, and `modelDiscovery.test.ts` with comprehensive engine mocks.
+Decisions:
+- Selected `Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC` as default recommended offline model: it fits well within the <2GB threshold (~1.1GB weights download), requires only ~1.4GB GPU memory (comfortably executable on Intel Iris Xe, Apple Silicon, or AMD Radeon integrated GPUs), and exhibits superior code syntax generation and diff formatting compared to generic non-coder models.
+- Maintained zero API key requirement for offline provider while keeping all profile persistence, model discovery, and agent tool execution compatible with standard connection profiles.
+Deviations: none
+Verified: All 77 test suites (605 tests) passing; `webllm.test.ts` (11/11 tests), `factory.test.ts` (3/3 tests), `modelDiscovery.test.ts` (11/11 tests) passing; production build verified clean with `compile_applet`.
 Commit: pending
 Open questions: none
 

@@ -24,6 +24,19 @@ import { AnthropicProvider } from '../../services/llm/providers/anthropic';
 import { OpenAIProvider } from '../../services/llm/providers/openai';
 import { GoogleProvider } from '../../services/llm/providers/google';
 import { OpenAICompatibleProvider } from '../../services/llm/providers/openaiCompatible';
+import { 
+  WebLLMProvider, 
+  checkWebGPUSupport, 
+  type WebGPUSupportResult, 
+  loadOfflineModel, 
+  unloadOfflineModel, 
+  deleteCachedOfflineModel, 
+  isModelCachedInBrowser, 
+  getEngineState, 
+  subscribeToEngineProgress, 
+  type WebLLMEngineState,
+  OFFLINE_MODELS 
+} from '../../services/llm/providers/webllm';
 import type { LLMAdapter } from '../../services/llm/llmAdapter';
 import { LaideLogo } from './LaideLogo';
 import { 
@@ -55,6 +68,7 @@ const PROVIDERS = [
   { id: 'google', label: 'Google Gemini' },
   { id: 'openrouter', label: 'OpenRouter' },
   { id: 'openai-compatible', label: 'OpenAI Compatible (Local/Custom)' },
+  { id: 'webllm', label: 'Offline (WebGPU / WebLLM)' },
 ] as const;
 
 const API_KEY_HINTS: Record<string, string> = {
@@ -63,6 +77,7 @@ const API_KEY_HINTS: Record<string, string> = {
   'google': 'AIza...',
   'openrouter': 'sk-or-v1-...',
   'openai-compatible': 'sk-...',
+  'webllm': 'Not required (100% in-browser offline model)',
 };
 
 const DEFAULT_MODELS: Record<string, string> = {
@@ -70,7 +85,8 @@ const DEFAULT_MODELS: Record<string, string> = {
   'openai': 'gpt-4o',
   'google': 'gemini-1.5-pro',
   'openrouter': 'anthropic/claude-3.5-sonnet',
-  'openai-compatible': ''
+  'openai-compatible': '',
+  'webllm': 'Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC'
 };
 
 export type SettingsCategoryId = 'appearance' | 'ai-providers' | 'integrations' | 'security-vault' | 'advanced';
@@ -216,6 +232,13 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [isShortcutsDropdownOpen, setIsShortcutsDropdownOpen] = useState(false);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
+
+  // WebGPU & WebLLM Offline State
+  const [webgpuStatus, setWebgpuStatus] = useState<WebGPUSupportResult | null>(null);
+  const [engineState, setEngineState] = useState<WebLLMEngineState>(getEngineState());
+  const [isOfflineCached, setIsOfflineCached] = useState<boolean>(false);
+  const [downloadingOffline, setDownloadingOffline] = useState<boolean>(false);
+  const [offlineActionMsg, setOfflineActionMsg] = useState<string | null>(null);
 
   const [testStatus, setTestStatus] = useState<{ id: string, loading: boolean, success?: boolean, error?: string } | null>(null);
 
@@ -374,9 +397,38 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Track WebGPU Support & WebLLM Engine
+  useEffect(() => {
+    let active = true;
+    checkWebGPUSupport().then(res => {
+      if (active) setWebgpuStatus(res);
+    });
+    const unsubscribe = subscribeToEngineProgress(state => {
+      if (active) setEngineState(state);
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  // Check cache status when model changes for webllm
+  useEffect(() => {
+    let active = true;
+    if (provider === 'webllm') {
+      const targetModel = model || DEFAULT_MODELS['webllm'];
+      isModelCachedInBrowser(targetModel).then(cached => {
+        if (active) setIsOfflineCached(cached);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [provider, model, engineState.status]);
+
   // Auto-discover models when API key and provider are available
   const handleRefreshModels = async () => {
-    if (!apiKey && provider !== 'openai-compatible' && provider !== 'openrouter') {
+    if (!apiKey && provider !== 'openai-compatible' && provider !== 'openrouter' && provider !== 'webllm') {
       return;
     }
     setLoadingModels(true);
@@ -393,7 +445,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   useEffect(() => {
     let active = true;
     const fetchModels = async () => {
-      if (!apiKey && provider !== 'openai-compatible' && provider !== 'openrouter') {
+      if (!apiKey && provider !== 'openai-compatible' && provider !== 'openrouter' && provider !== 'webllm') {
         setDiscoveredModels([]);
         return;
       }
@@ -512,7 +564,9 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     if (!keys) return;
 
     let finalEncryptedKey = '';
-    if (editingId && !apiKey) {
+    if (provider === 'webllm' || provider === 'offline') {
+      finalEncryptedKey = '';
+    } else if (editingId && !apiKey) {
       // User didn't change the API key
       const existing = profiles.find(p => p.id === editingId);
       if (existing) finalEncryptedKey = existing.encryptedApiKey;
@@ -526,7 +580,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     
     const newProfile: ConnectionProfile = {
       id,
-      label: label || `${provider} default`,
+      label: label || (provider === 'webllm' ? 'Offline WebGPU' : `${provider} default`),
       provider,
       encryptedApiKey: finalEncryptedKey,
       baseUrl: (provider === 'openai-compatible' || provider === 'openrouter') ? baseUrl : '',
@@ -566,6 +620,20 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     setTestStatus({ id: p.id, loading: true });
     
     try {
+      if (p.provider === 'webllm' || p.provider === 'offline') {
+        const gpu = await checkWebGPUSupport();
+        if (!gpu.supported) {
+          throw new Error(`WebGPU Not Available: ${gpu.reason || 'Browser/hardware unsupported'}`);
+        }
+        const adapter = new WebLLMProvider(p.model);
+        await adapter.send({
+          messages: [{ role: 'user', content: 'Ping' }],
+          maxTokens: 5
+        });
+        setTestStatus({ id: p.id, loading: false, success: true });
+        return;
+      }
+
       // Decrypt API key
       const { decryptData } = await import('../../services/security/crypto');
       const rawKey = await decryptData(keys.aesKey, p.encryptedApiKey);
@@ -586,6 +654,10 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
         case 'openrouter':
         case 'openai-compatible':
           adapter = new OpenAICompatibleProvider(p.baseUrl, rawKey, p.model);
+          break;
+        case 'webllm':
+        case 'offline':
+          adapter = new WebLLMProvider(p.model);
           break;
         default:
           throw new Error('Unknown provider');
@@ -1069,9 +1141,15 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                           <span>•</span>
                           <span>{formatContextWindow(ctx)} ctx</span>
                           <span>•</span>
-                          <span className="flex items-center gap-1 text-moss">
-                            <ShieldCheck size={11} /> Encrypted Key
-                          </span>
+                          {p.provider === 'webllm' || p.provider === 'offline' ? (
+                            <span className="flex items-center gap-1 text-accent">
+                              <Cpu size={11} /> In-Browser WebGPU
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-moss">
+                              <ShieldCheck size={11} /> Encrypted Key
+                            </span>
+                          )}
                         </div>
                         
                         <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
@@ -1156,12 +1234,150 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                               {opt.id === 'google' && 'Gemini 1.5/2.0'}
                               {opt.id === 'openrouter' && '400+ Models'}
                               {opt.id === 'openai-compatible' && 'Ollama / Local'}
+                              {opt.id === 'webllm' && 'WebGPU (100% Offline)'}
                             </span>
                           </button>
                         );
                       })}
                     </div>
                   </div>
+
+                  {/* WebLLM Offline Notice & Hardware Diagnostics */}
+                  {provider === 'webllm' && (
+                    <div className="space-y-2.5 p-3 rounded-lg border border-border/80 bg-surface-elevated/40">
+                      {/* WebGPU Hardware Status */}
+                      <div className="flex items-start gap-2.5">
+                        <div className={`p-1.5 rounded-md shrink-0 ${webgpuStatus?.supported ? 'bg-moss/15 text-moss border border-moss/30' : 'bg-amber-500/15 text-amber-500 border border-amber-500/30'}`}>
+                          {webgpuStatus?.supported ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                        </div>
+                        <div className="flex-1 min-w-0 text-[11px]">
+                          <div className="flex items-center gap-2">
+                            <strong className="text-text font-semibold">WebGPU Hardware Acceleration:</strong>
+                            <span className={`px-1.5 py-0.2 rounded font-mono text-[9.5px] font-bold ${webgpuStatus?.supported ? 'bg-moss/20 text-moss' : 'bg-amber-500/20 text-amber-500'}`}>
+                              {webgpuStatus?.supported ? 'AVAILABLE' : 'UNAVAILABLE'}
+                            </span>
+                          </div>
+                          {webgpuStatus?.supported ? (
+                            <p className="text-muted mt-0.5 font-mono text-[10.5px]">
+                              {webgpuStatus.adapterInfo ? `${webgpuStatus.adapterInfo.vendor || 'GPU'} (${webgpuStatus.adapterInfo.architecture || webgpuStatus.adapterInfo.description || 'Hardware Acceleration'})` : 'Supported in browser'}
+                            </p>
+                          ) : (
+                            <p className="text-amber-600 dark:text-amber-400 mt-0.5">
+                              {webgpuStatus?.reason || 'WebGPU is not supported by your current browser or hardware.'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Lower-capability / Slower Speed Warning */}
+                      <div className="p-2 rounded bg-amber-500/10 border border-amber-500/25 text-amber-700 dark:text-amber-300 text-[11px] leading-relaxed flex items-start gap-2">
+                        <span className="text-xs shrink-0">⚠️</span>
+                        <div>
+                          <strong>Offline Model Notice:</strong> Compact local model running on integrated GPU. Noticeably lower reasoning capacity and slower token generation than cloud models (Claude 3.7 / GPT-4o). Ideal for privacy, air-gapped coding, and basic code edits.
+                        </div>
+                      </div>
+
+                      {/* Model Weight & Storage / Cache Manager */}
+                      <div className="p-2.5 rounded-lg border border-border/70 bg-surface/80 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-text">
+                            <HardDrive size={13} className="text-accent" />
+                            <span>Browser Storage & Weights Cache</span>
+                          </div>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${isOfflineCached ? 'bg-moss/15 text-moss border border-moss/30' : 'bg-surface-elevated text-muted border border-border'}`}>
+                            {isOfflineCached ? 'Cached (Offline Ready)' : 'Not Downloaded'}
+                          </span>
+                        </div>
+
+                        <p className="text-[10.5px] text-muted">
+                          Weights are stored via browser Cache API and load without network calls once downloaded. Download only occurs on explicit user action.
+                        </p>
+
+                        {/* Download & Engine Progress Bar */}
+                        {(engineState.status === 'downloading' || engineState.status === 'loading') && (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex items-center justify-between text-[10.5px] font-mono text-muted">
+                              <span className="text-accent flex items-center gap-1">
+                                <RefreshCw size={11} className="animate-spin" />
+                                {engineState.status === 'downloading' ? 'Downloading Model Weights...' : 'Initializing WebGPU Pipelines...'}
+                              </span>
+                              <span>{Math.round(engineState.progress * 100)}%</span>
+                            </div>
+                            <div className="w-full h-2 rounded-full bg-surface-elevated overflow-hidden border border-border">
+                              <div 
+                                className="h-full bg-accent transition-all duration-300 rounded-full"
+                                style={{ width: `${Math.max(5, Math.round(engineState.progress * 100))}%` }}
+                              />
+                            </div>
+                            {engineState.text && (
+                              <p className="text-[10px] text-muted/80 font-mono truncate">{engineState.text}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Cache Actions */}
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {engineState.status !== 'downloading' && engineState.status !== 'loading' && (
+                            <button
+                              type="button"
+                              disabled={!webgpuStatus?.supported || downloadingOffline}
+                              onClick={async () => {
+                                setDownloadingOffline(true);
+                                setOfflineActionMsg(null);
+                                try {
+                                  await loadOfflineModel(model || DEFAULT_MODELS['webllm']);
+                                  setIsOfflineCached(true);
+                                  setOfflineActionMsg('Model successfully loaded and cached in browser storage.');
+                                } catch (err: unknown) {
+                                  const msg = err instanceof Error ? err.message : String(err);
+                                  setOfflineActionMsg(`Error: ${msg}`);
+                                } finally {
+                                  setDownloadingOffline(false);
+                                }
+                              }}
+                              className="px-2.5 py-1.5 bg-accent text-accent-text-on rounded-md text-xs font-semibold flex items-center gap-1.5 hover:brightness-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                            >
+                              <Download size={13} />
+                              <span>{isOfflineCached ? 'Load / Warm Up Model' : 'Download & Cache Model (~1.1 GB)'}</span>
+                            </button>
+                          )}
+
+                          {engineState.status === 'ready' && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await unloadOfflineModel();
+                                setOfflineActionMsg('Model unloaded from VRAM.');
+                              }}
+                              className="px-2.5 py-1.5 bg-surface-elevated hover:bg-surface border border-border text-text rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Cpu size={13} />
+                              <span>Unload from VRAM</span>
+                            </button>
+                          )}
+
+                          {isOfflineCached && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                await deleteCachedOfflineModel(model || DEFAULT_MODELS['webllm']);
+                                setIsOfflineCached(false);
+                                setOfflineActionMsg('Cached model weights deleted from browser storage.');
+                              }}
+                              className="px-2.5 py-1.5 bg-surface-elevated hover:bg-surface border border-border text-oxide hover:text-oxide rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                              <span>Delete Model Cache</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {offlineActionMsg && (
+                          <p className="text-[10.5px] font-mono text-moss mt-1">{offlineActionMsg}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Profile Label & Model Name */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1173,7 +1389,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                           type="text"
                           value={label}
                           onChange={e => setLabel(e.target.value)}
-                          placeholder="e.g. Work Claude"
+                          placeholder={provider === 'webllm' ? 'Offline WebGPU' : 'e.g. Work Claude'}
                           required
                           className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-3 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors placeholder-neutral-500"
                         />
@@ -1202,7 +1418,7 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                         <button
                           type="button"
                           onClick={() => setShowModelDropdown(true)}
-                          disabled={loadingModels || (discoveredModels.length === 0 && !apiKey && provider !== 'openai-compatible' && provider !== 'openrouter')}
+                          disabled={loadingModels || (discoveredModels.length === 0 && !apiKey && provider !== 'openai-compatible' && provider !== 'openrouter' && provider !== 'webllm')}
                           title="Select from available models"
                           aria-label="Toggle available models list"
                           className="absolute right-2 text-muted hover:text-accent disabled:opacity-30 cursor-pointer p-1 transition-colors"
@@ -1247,37 +1463,39 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                     </div>
                   )}
 
-                  {/* API Key */}
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-[11px] font-medium text-muted">
-                        API Key {editingId && '(Leave blank to keep existing)'}
-                      </label>
-                      <span className="text-[10px] text-muted flex items-center gap-1">
-                        <Lock size={10} className="text-moss" /> Encrypted locally
-                      </span>
+                  {/* API Key (Hidden for WebLLM) */}
+                  {provider !== 'webllm' && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-medium text-muted">
+                          API Key {editingId && '(Leave blank to keep existing)'}
+                        </label>
+                        <span className="text-[10px] text-muted flex items-center gap-1">
+                          <Lock size={10} className="text-moss" /> Encrypted locally
+                        </span>
+                      </div>
+                      <div className="relative flex items-center">
+                        <Key size={13} className="absolute left-2.5 text-muted pointer-events-none" />
+                        <input 
+                          type={showApiKey ? 'text' : 'password'}
+                          value={apiKey}
+                          onChange={e => setApiKey(e.target.value)}
+                          placeholder={API_KEY_HINTS[provider] || 'sk-...'}
+                          required={!editingId}
+                          className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-9 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono placeholder-neutral-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                          className="absolute right-2.5 text-muted hover:text-text cursor-pointer p-1 transition-colors"
+                          title={showApiKey ? "Hide API key" : "Show API key"}
+                          aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                        >
+                          {showApiKey ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
                     </div>
-                    <div className="relative flex items-center">
-                      <Key size={13} className="absolute left-2.5 text-muted pointer-events-none" />
-                      <input 
-                        type={showApiKey ? 'text' : 'password'}
-                        value={apiKey}
-                        onChange={e => setApiKey(e.target.value)}
-                        placeholder={API_KEY_HINTS[provider] || 'sk-...'}
-                        required={!editingId}
-                        className="w-full bg-bg/80 border border-border/80 rounded-lg pl-8 pr-9 py-2 text-text font-sans text-xs focus:border-accent focus:ring-1 focus:ring-accent/30 focus:outline-none transition-colors font-mono placeholder-neutral-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-2.5 text-muted hover:text-text cursor-pointer p-1 transition-colors"
-                        title={showApiKey ? "Hide API key" : "Show API key"}
-                        aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                      >
-                        {showApiKey ? <EyeOff size={13} /> : <Eye size={13} />}
-                      </button>
-                    </div>
-                  </div>
+                  )}
                   
                   {/* Submit Button */}
                   <button 
