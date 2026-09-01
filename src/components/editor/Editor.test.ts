@@ -16,6 +16,7 @@ vi.mock('../../store', () => ({
     addToast: mockAddToast,
     editorNavigationTarget: null,
     setEditorNavigationTarget: mockSetEditorNavigationTarget,
+    showLineNumbers: true,
   })
 }));
 

@@ -24,6 +24,6 @@ describe('LaideLogo component', () => {
   it('renders without outer dark background when withBackground is false', () => {
     const { container } = render(<LaideLogo withBackground={false} />);
     const rects = container.querySelectorAll('rect');
-    expect(rects.length).toBe(1); // only the inner gold rect
+    expect(rects.length).toBe(0); // no background rect
   });
 });

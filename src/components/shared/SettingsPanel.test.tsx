@@ -6,6 +6,7 @@ import { SettingsPanel } from './SettingsPanel';
 
 const mockSetTheme = vi.fn();
 const mockSetThemeContrast = vi.fn();
+const mockSetShowLineNumbers = vi.fn();
 
 // Mock dependencies
 vi.mock('../../store', () => ({
@@ -26,6 +27,8 @@ vi.mock('../../store', () => ({
     setTheme: mockSetTheme,
     themeContrast: 100,
     setThemeContrast: mockSetThemeContrast,
+    showLineNumbers: true,
+    setShowLineNumbers: mockSetShowLineNumbers,
     ensembleModeEnabled: false,
     setEnsembleModeEnabled: vi.fn(),
     ensembleCandidateBProfileId: null,
@@ -233,6 +236,21 @@ describe('SettingsPanel', () => {
       expect(screen.getByTitle(/^Border:/i)).toBeTruthy();
       expect(screen.getByTitle(/^Ink:/i)).toBeTruthy();
       expect(screen.getByTitle(/^Accent:/i)).toBeTruthy();
+    });
+
+    it('renders the Editor Settings section with Line Numbers toggle and triggers setShowLineNumbers', () => {
+      render(React.createElement(SettingsPanel));
+
+      expect(screen.getByText('Editor Settings')).toBeTruthy();
+      expect(screen.getByText('Line Numbers')).toBeTruthy();
+      expect(screen.getByText('Show or hide line numbers in the editor gutter.')).toBeTruthy();
+
+      const lineNumbersToggle = screen.getByRole('switch', { name: /Toggle line numbers in editor gutter/i });
+      expect(lineNumbersToggle).toBeTruthy();
+      expect(lineNumbersToggle.getAttribute('aria-checked')).toBe('true');
+
+      fireEvent.click(lineNumbersToggle);
+      expect(mockSetShowLineNumbers).toHaveBeenCalledWith(false);
     });
   });
 

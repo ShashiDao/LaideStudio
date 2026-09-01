@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronLeft, ChevronRight, Check, X, Sparkles, RefreshCw, MessageSquareCode, RotateCcw,
   Download, Upload, HardDrive, FileJson, AlertTriangle, Layers, Lock, Moon, Sun, Palette, Keyboard,
   Database, Cpu, ExternalLink, GitMerge, ToggleLeft, ToggleRight,
-  Rocket, Sliders, Coins, Key, Tag, Globe, Eye, EyeOff, Edit3, Bot
+  Rocket, Sliders, Coins, Key, Tag, Globe, Eye, EyeOff, Edit3, Bot, Code2
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../../db';
 import { useAppStore } from '../../store';
@@ -143,7 +143,9 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     ensembleCandidateBProfileId,
     setEnsembleCandidateBProfileId,
     sessionUsageRecords,
-    clearSessionUsage
+    clearSessionUsage,
+    showLineNumbers,
+    setShowLineNumbers
   } = useAppStore();
 
   // Navigation state: category selection & responsive layout
@@ -900,6 +902,59 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                     })()}
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Editor Settings (Gutter & Line Numbers) */}
+            <div className="rounded-xl border border-border bg-surface/30 p-4 space-y-4">
+              {/* Panel Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-border/50">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-surface-elevated border border-border flex items-center justify-center text-accent">
+                    <Code2 size={15} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-text tracking-tight">Editor Settings</h3>
+                    <p className="text-[11px] text-muted">Code editor display and gutter preferences</p>
+                  </div>
+                </div>
+                <span className="font-mono text-[10px] px-2 py-0.5 rounded-md bg-surface-elevated border border-border text-muted font-medium">
+                  Gutter: <span className="text-accent font-bold">{showLineNumbers ? 'Line Numbers On' : 'Line Numbers Off'}</span>
+                </span>
+              </div>
+
+              {/* Line Numbers Preference Item */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-border/70 bg-surface/50">
+                <div className="space-y-0.5 pr-3">
+                  <div className="text-xs font-semibold text-text">Line Numbers</div>
+                  <p className="text-[11px] text-muted leading-relaxed font-sans">
+                    Show or hide line numbers in the editor gutter.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showLineNumbers}
+                  onClick={() => setShowLineNumbers(!showLineNumbers)}
+                  aria-label="Toggle line numbers in editor gutter"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-sans font-semibold transition-colors cursor-pointer border shrink-0 ${
+                    showLineNumbers
+                      ? 'bg-accent text-accent-text-on border-accent shadow-xs'
+                      : 'bg-surface-elevated text-muted border-border hover:text-text'
+                  }`}
+                >
+                  {showLineNumbers ? (
+                    <>
+                      <ToggleRight size={16} />
+                      <span>Shown</span>
+                    </>
+                  ) : (
+                    <>
+                      <ToggleLeft size={16} />
+                      <span>Hidden</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

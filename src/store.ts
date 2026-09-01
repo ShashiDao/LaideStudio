@@ -62,6 +62,9 @@ export interface WorkspaceSlice {
   setLastPreviewScreenshot: (screenshot: PreviewScreenshot | null) => void;
   editorNavigationTarget: { line: number; column?: number; length?: number } | null;
   setEditorNavigationTarget: (target: { line: number; column?: number; length?: number } | null) => void;
+  showLineNumbers: boolean;
+  setShowLineNumbers: (show: boolean) => void;
+  toggleLineNumbers: () => void;
   lockVault: () => void;
 }
 
@@ -184,6 +187,18 @@ export const getInitialContrast = (): number => {
   return DEFAULT_CONTRAST;
 };
 
+export const LINE_NUMBERS_STORAGE_KEY = 'laide_editor_line_numbers';
+
+export const getInitialLineNumbers = (): boolean => {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem(LINE_NUMBERS_STORAGE_KEY);
+    if (saved !== null) {
+      return saved === 'true';
+    }
+  }
+  return true;
+};
+
 export const applyThemeToDocument = (theme: ThemeMode, contrast: number = DEFAULT_CONTRAST) => {
   applyThemeAndContrast(theme, contrast);
 };
@@ -268,6 +283,22 @@ const createWorkspaceSlice: StateCreator<AppState, [], [], WorkspaceSlice> = (se
   setLastPreviewScreenshot: (lastPreviewScreenshot) => set({ lastPreviewScreenshot }),
   editorNavigationTarget: null,
   setEditorNavigationTarget: (editorNavigationTarget) => set({ editorNavigationTarget }),
+  showLineNumbers: getInitialLineNumbers(),
+  setShowLineNumbers: (show) => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(LINE_NUMBERS_STORAGE_KEY, String(show));
+    }
+    set({ showLineNumbers: show });
+  },
+  toggleLineNumbers: () => {
+    set((state) => {
+      const nextVal = !state.showLineNumbers;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LINE_NUMBERS_STORAGE_KEY, String(nextVal));
+      }
+      return { showLineNumbers: nextVal };
+    });
+  },
   lockVault: () => {
     import('./services/security/session').then(({ clearPersistentSession }) => {
       clearPersistentSession().catch(err => console.error('Failed to clear persistent session', err));

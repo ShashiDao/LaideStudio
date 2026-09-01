@@ -163,7 +163,14 @@ export function Editor({
   onOpenBisect?: (testName?: string) => void,
   onOpenTrustReport?: (filePath?: string) => void
 }) {
-  const { setActiveFileId, theme, addToast, editorNavigationTarget, setEditorNavigationTarget } = useAppStore();
+  const { 
+    setActiveFileId, 
+    theme, 
+    addToast, 
+    editorNavigationTarget, 
+    setEditorNavigationTarget,
+    showLineNumbers = true
+  } = useAppStore();
   const breakpoint = useShellBreakpoint();
   const isPhone = breakpoint === 'phone';
   const [content, setContent] = useState(file.content);
@@ -861,8 +868,8 @@ export function Editor({
             onChange={handleChange}
             onBlur={handleBlur}
             basicSetup={{
-              lineNumbers: true,
-              highlightActiveLineGutter: true,
+              lineNumbers: showLineNumbers,
+              highlightActiveLineGutter: showLineNumbers,
               highlightSpecialChars: true,
               history: true,
               foldGutter: true,
