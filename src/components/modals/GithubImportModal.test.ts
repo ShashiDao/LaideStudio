@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import JSZip from 'jszip';
 import { GithubImportModal } from './GithubImportModal';
 import { db } from '../../db';
 import { useAppStore } from '../../store';
@@ -48,53 +49,18 @@ describe('GithubImportModal', () => {
     const onSuccess = vi.fn();
 
     const mockRepoData = { default_branch: 'main' };
-    const mockTreeData = {
-      tree: [
-        { path: 'src/main.ts', type: 'blob' },
-        { path: 'package.json', type: 'blob' },
-        { path: 'README.md', type: 'blob' }
-      ]
-    };
+    const zip = new JSZip();
+    zip.file('octocat-hello-world-1234567/src/main.ts', 'console.log("imported main");');
+    zip.file('octocat-hello-world-1234567/package.json', '{"name": "hello-world"}');
+    zip.file('octocat-hello-world-1234567/README.md', '# Hello World');
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
 
     globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes('/repos/octocat/hello-world/git/trees/main')) {
+      if (url.includes('/repos/octocat/hello-world/zipball/main')) {
         return {
           ok: true,
           status: 200,
-          json: async () => mockTreeData
-        } as any;
-      }
-      if (url.includes('/repos/octocat/hello-world/contents/src/main.ts')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            type: 'file',
-            encoding: 'base64',
-            content: btoa('console.log("imported main");')
-          })
-        } as any;
-      }
-      if (url.includes('/repos/octocat/hello-world/contents/package.json')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            type: 'file',
-            encoding: 'base64',
-            content: btoa('{"name": "hello-world"}')
-          })
-        } as any;
-      }
-      if (url.includes('/repos/octocat/hello-world/contents/README.md')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            type: 'file',
-            encoding: 'base64',
-            content: btoa('# Hello World')
-          })
+          blob: async () => zipBlob
         } as any;
       }
       if (url.includes('/repos/octocat/hello-world')) {
@@ -147,39 +113,17 @@ describe('GithubImportModal', () => {
     const onClose = vi.fn();
     const onSuccess = vi.fn();
 
+    const zip = new JSZip();
+    zip.file('org-repo-1234567/src/main.ts', 'newly overwritten content');
+    zip.file('org-repo-1234567/src/new-file.ts', 'freshly created content');
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+
     globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes('/git/trees/main')) {
+      if (url.includes('/repos/org/repo/zipball/main')) {
         return {
           ok: true,
           status: 200,
-          json: async () => ({
-            tree: [
-              { path: 'src/main.ts', type: 'blob' },
-              { path: 'src/new-file.ts', type: 'blob' }
-            ]
-          })
-        } as any;
-      }
-      if (url.includes('/contents/src/main.ts')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            type: 'file',
-            encoding: 'base64',
-            content: btoa('newly overwritten content')
-          })
-        } as any;
-      }
-      if (url.includes('/contents/src/new-file.ts')) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            type: 'file',
-            encoding: 'base64',
-            content: btoa('freshly created content')
-          })
+          blob: async () => zipBlob
         } as any;
       }
       if (url.includes('/repos/org/repo')) {

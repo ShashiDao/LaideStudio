@@ -105,6 +105,25 @@ export class GithubClient {
     return this.request<GithubRepo>(`/repos/${owner}/${repo}`);
   }
 
+  async getRepoArchive(owner: string, repo: string, ref: string = 'main'): Promise<Blob> {
+    const headers = new Headers();
+    headers.set('Accept', 'application/vnd.github.v3+json');
+    headers.set('Authorization', `Bearer ${this.token}`);
+
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/zipball/${encodeURIComponent(ref)}`, {
+      headers
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Repository not found or no access');
+      }
+      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.blob();
+  }
+
   async listRepos() {
     return this.request<GithubRepo[]>('/user/repos?sort=updated&per_page=100');
   }

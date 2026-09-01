@@ -87,6 +87,23 @@ export function useFileOperations({
     const fileArray = Array.from(fileList);
     if (fileArray.length === 0) return;
 
+    const zipFiles = fileArray.filter(f => f.name.toLowerCase().endsWith('.zip'));
+    const regularFiles = fileArray.filter(f => !f.name.toLowerCase().endsWith('.zip'));
+
+    if (zipFiles.length > 0) {
+      useAppStore.getState().addToast(
+        zipFiles.length === 1 
+          ? `Extracting "${zipFiles[0].name}"...` 
+          : `Processing ${fileArray.length} files...`,
+        'info'
+      );
+    } else {
+      useAppStore.getState().addToast(
+        `Importing ${fileArray.length} file${fileArray.length !== 1 ? 's' : ''}...`,
+        'info'
+      );
+    }
+
     try {
       let targetProjectId = activeProject?.id;
       let targetProjectName = activeProject?.name;
@@ -114,9 +131,6 @@ export function useFileOperations({
         setProjects(allProjects);
         setActiveProjectId(newProjId);
       }
-
-      const zipFiles = fileArray.filter(f => f.name.toLowerCase().endsWith('.zip'));
-      const regularFiles = fileArray.filter(f => !f.name.toLowerCase().endsWith('.zip'));
 
       let totalImported = 0;
 

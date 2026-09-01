@@ -39,6 +39,25 @@ describe('GithubClient', () => {
     );
   });
 
+  it('getRepoArchive(): calls GET /repos/{owner}/{repo}/zipball/{ref} with auth and returns Blob', async () => {
+    const mockBlob = new Blob(['mock-zip-binary-data'], { type: 'application/zip' });
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => mockBlob
+    } as any);
+
+    const blob = await client.getRepoArchive('acme', 'my-project', 'main');
+    expect(blob).toBe(mockBlob);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://api.github.com/repos/acme/my-project/zipball/main',
+      expect.objectContaining({
+        headers: expect.any(Headers)
+      })
+    );
+  });
+
   it('getRepoTree(): uses specified branch parameter (e.g. master)', async () => {
     const mockTreeData = {
       sha: 'tree123',

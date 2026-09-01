@@ -3,7 +3,7 @@ import { Loader2, X } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { createGithubClient } from '../../services/github/githubClient';
 import { db, type Project } from '../../db';
-import { createFile, writeFile, listFiles } from '../../services/fs/vfs';
+import { importZip } from '../../services/fs/zipImport';
 
 function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
   return (
@@ -65,11 +65,8 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
       const repoData = await client.getRepo(owner, repo);
       const branch = repoData?.default_branch || 'main';
 
-      setProgress('Fetching repository tree...');
-      const treeData = await client.getRepoTree(owner, repo, branch);
-      if (!treeData || !treeData.tree) {
-        throw new Error('Failed to fetch repository tree');
-      }
+      setProgress('Downloading repository archive...');
+      const archiveBlob = await client.getRepoArchive(owner, repo, branch);
 
       let targetProjectId = projectId;
       if (!targetProjectId) {
@@ -85,36 +82,8 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         await db.projects.update(targetProjectId, { updatedAt: Date.now() });
       }
 
-      const filesToDownload = treeData.tree.filter((item) => item.type === 'blob');
-      let completed = 0;
-      
-      setProgress(`Downloading 0 / ${filesToDownload.length} files...`);
-      
-      // Get existing files to handle overwrite
-      const existingFiles = await listFiles(targetProjectId);
-      const existingMap = new Map(existingFiles.map(f => [f.path, f]));
-      
-      // Batch download and create (with concurrency limit)
-      const CONCURRENCY = 5;
-      for (let i = 0; i < filesToDownload.length; i += CONCURRENCY) {
-        const batch = filesToDownload.slice(i, i + CONCURRENCY);
-        await Promise.all(batch.map(async (file) => {
-          try {
-            const content = await client.getFileContent(owner, repo, file.path, branch);
-            const targetPath = `/${file.path}`;
-            const existing = existingMap.get(targetPath);
-            if (existing) {
-              await writeFile(existing.id, content);
-            } else {
-              await createFile(targetProjectId!, targetPath, content);
-            }
-          } catch (err) {
-            console.warn(`Failed to import file ${file.path}:`, err);
-          }
-          completed++;
-          setProgress(`Downloading ${completed} / ${filesToDownload.length} files...`);
-        }));
-      }
+      setProgress('Extracting files...');
+      const { count } = await importZip(archiveBlob, targetProjectId, { autoRestructure: true });
 
       const syncPayload = JSON.stringify({
         owner,
@@ -125,7 +94,7 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
       localStorage.setItem('laide_last_github_repo', syncPayload);
       sessionStorage.setItem('laide_last_imported_repo', syncPayload);
 
-      useAppStore.getState().addToast(`Imported ${completed} files from GitHub (${owner}/${repo})`, 'success');
+      useAppStore.getState().addToast(`Imported ${count} files from GitHub (${owner}/${repo})`, 'success');
       onSuccess(targetProjectId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Import failed';

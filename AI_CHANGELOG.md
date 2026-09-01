@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-99
-- Last verified working: Phone mode editor overlay in App.tsx now includes EditorTabs above the Editor in a flex column layout matching desktop ergonomics. All 75 test suites (565 tests) pass, linter and production build are clean with 0 errors.
+- Phase: HOTFIX-100
+- Last verified working: Single-pass ZIP decompression with local text/binary conversion and single-archive GitHub repository import via zipball API. All 75 test suites (570 tests) pass, linter and production build are clean with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -571,4 +571,31 @@ Decisions:
 - Cloudflare Pages deployments require both an API Token and an Account ID. Both are stored securely via AES-GCM encrypted vault using the existing `db.secureTokens` API.
 Deviations: none
 Verified: `vitest` pass for all modified code blocks; `compile_applet` finishes completely.
+Commit: pending
 Open questions: none
+
+### [HOTFIX-100] Single-Pass ZIP Decompression & GitHub Archive Streamlining — 2026-08-31
+Prompt: Replace sequential per-file GitHub import with single-archive zipball download, and optimize ZIP import to a single decompression pass with immediate user feedback toast.
+Files touched:
+- `src/services/github/githubClient.ts` (modified)
+- `src/services/github/githubClient.test.ts` (modified)
+- `src/services/fs/zipImport.ts` (modified)
+- `src/services/fs/zipImport.test.ts` (modified)
+- `src/components/modals/GithubImportModal.tsx` (modified)
+- `src/components/modals/GithubImportModal.test.ts` (modified)
+- `src/hooks/useFileOperations.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `getRepoArchive` method to `GithubClient` fetching repository zipball via `GET /repos/{owner}/{repo}/zipball/{ref}`.
+- Refactored `GithubImportModal` to fetch the complete repo archive in a single request and extract via `importZip`, removing per-file round-trips and concurrency batching.
+- Replaced double-decoding in `zipImport.ts` (`async('string')` + `async('base64')`) with a single `entry.async('uint8array')` pass decoded locally via `TextDecoder` or `uint8ArrayToBase64`.
+- Added immediate feedback toast upon file drop/selection in `useFileOperations.ts` before asynchronous extraction begins.
+- Integrated archive wrapper folder prefix stripping in `zipImport.ts` to preserve correct top-level project paths.
+Decisions:
+- Stripped common top-level repository wrapper folders directly from archive entries during decompression to maintain fidelity for projects where all files reside in a specific subfolder.
+- Used chunked `String.fromCharCode` in `uint8ArrayToBase64` to prevent call-stack overflow on large binary assets.
+Deviations: none
+Verified: All 75 test suites (570 tests) passing; targeted test suite (`zipImport.test.ts`, `GithubImportModal.test.ts`, `githubClient.test.ts`) passing with 150+ files integrity tests; `compile_applet` and `lint_applet` completed with 0 errors.
+Commit: pending
+Open questions: none
+
