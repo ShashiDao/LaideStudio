@@ -80,7 +80,7 @@ describe('TerminalPanel Component', () => {
     expect(screen.getByPlaceholderText(/Type a command/)).toBeDefined();
   });
 
-  it('executes "help" command and displays command list', async () => {
+  it('executes "help" command and displays command list and environment overview', async () => {
     render(<TerminalPanel projectId={projectId} files={mockFiles} />);
 
     const input = screen.getByPlaceholderText(/Type a command/);
@@ -88,8 +88,47 @@ describe('TerminalPanel Component', () => {
     fireEvent.submit(input);
 
     await waitFor(() => {
-      expect(screen.getByText(/LAIDE Virtual Shell — Available Commands/)).toBeDefined();
+      expect(screen.getByText(/LAIDE Virtual Shell — Browser-Based Execution Environment/)).toBeDefined();
       expect(screen.getByText(/FILE SYSTEM/)).toBeDefined();
+      expect(screen.getByText(/DEV & BUILD TOOLS/)).toBeDefined();
+      expect(screen.getByText(/UTILITIES & SHELL/)).toBeDefined();
+    });
+  });
+
+  it('executes "capabilities" command and explains real vs simulated environment', async () => {
+    render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+
+    const input = screen.getByPlaceholderText(/Type a command/);
+    fireEvent.change(input, { target: { value: 'capabilities' } });
+    fireEvent.submit(input);
+
+    await waitFor(() => {
+      expect(screen.getByText(/LAIDE Virtual Shell — Execution Model & Capabilities/)).toBeDefined();
+      expect(screen.getByText(/REAL EXECUTION/)).toBeDefined();
+      expect(screen.getByText(/SIMULATED \/ NOT SUPPORTED/)).toBeDefined();
+      expect(screen.getByText(/SUPPORTED COMMAND SET/)).toBeDefined();
+    });
+  });
+
+  it('executes "uname" and "uname -a" with transparent simulated environment messaging', async () => {
+    render(<TerminalPanel projectId={projectId} files={mockFiles} />);
+
+    const input = screen.getByPlaceholderText(/Type a command/);
+    
+    // uname
+    fireEvent.change(input, { target: { value: 'uname' } });
+    fireEvent.submit(input);
+
+    await waitFor(() => {
+      expect(screen.getByText('LAIDE-Browser-Shell (simulated environment)')).toBeDefined();
+    });
+
+    // uname -a
+    fireEvent.change(input, { target: { value: 'uname -a' } });
+    fireEvent.submit(input);
+
+    await waitFor(() => {
+      expect(screen.getByText('LAIDE Browser Sandbox 1.0.0 (simulated environment; WebAssembly/Worker VFS)')).toBeDefined();
     });
   });
 
@@ -262,7 +301,7 @@ describe('TerminalPanel Component', () => {
     expect(screen.queryByText('hello terminal')).toBeNull();
   });
 
-  it('rejects unknown commands with standard "sh: command not found: [input]" error without creating files', async () => {
+  it('rejects unknown commands with honest "laide: \'<cmd>\' isn\'t available in this browser-based shell" error without creating files', async () => {
     const onFilesChanged = vi.fn();
     render(<TerminalPanel projectId={projectId} files={mockFiles} onFilesChanged={onFilesChanged} />);
 
@@ -271,7 +310,7 @@ describe('TerminalPanel Component', () => {
     fireEvent.submit(input);
 
     await waitFor(() => {
-      expect(screen.getByText(/sh: command not found: foobar_unknown_cmd/)).toBeDefined();
+      expect(screen.getByText(/laide: 'foobar_unknown_cmd' isn't available in this browser-based shell — type 'help' to see what is/)).toBeDefined();
     });
 
     // Verify no files were created in DB
@@ -290,7 +329,7 @@ describe('TerminalPanel Component', () => {
     fireEvent.submit(input);
 
     await waitFor(() => {
-      expect(screen.getByText(/sh: command not found: const/)).toBeDefined();
+      expect(screen.getByText(/laide: 'const' isn't available in this browser-based shell — type 'help' to see what is/)).toBeDefined();
     });
 
     const dbFiles = await db.files.where('projectId').equals(projectId).toArray();

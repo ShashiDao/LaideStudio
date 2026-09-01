@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-105
-- Last verified working: Cryptographically signed provenance proofs and dependency-free standalone verifier script (public/verify-provenance.js). ECDSA P-256 (SHA-256) keypair generation and secure storage in IndexedDB master-key encrypted vault, signed JSON provenance artifact export, PR description Markdown summary generator with verifiable trust badge, historical trust score progression computation over time, and interactive TrustReportModal export/verification tabs with standalone verifier download. All 78 test suites (613 tests) passing cleanly, eslint & tsc --noEmit passing with 0 errors, production build verified.
+- Phase: HOTFIX-106
+- Last verified working: Honest browser-shell messaging in TerminalPanel (`laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is`), expanded `help` overview and comprehensive `capabilities` command detailing real (IndexedDB VFS, Web Worker sandboxed JS execution, in-browser WebAssembly ESBuild, browser Vitest runner, offline vendoring) vs. simulated environment features, and transparent `uname` / `uname -a` simulated environment output. All 78 Vitest test suites (615 tests) passing, `tsc --noEmit` and `eslint` passing with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -195,6 +195,24 @@
 - **Files Panel Mobile Header Layout** (8.4.1): Shortened Files panel title to "Files" with item count separated in a compact badge.
 
 ## Log
+
+### [HOTFIX-106] Honest Shell Messaging, Capabilities Command & Simulated Environment Transparency — 2026-09-01
+Prompt: Replace POSIX-mimicking command-not-found error with honest scope messaging, expand help/capabilities command detailing real vs. simulated execution, and make uname clearly simulated.
+Files touched:
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `src/components/terminal/TerminalPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Replaced POSIX error formatting `sh: command not found: <cmd>` with transparent browser shell messaging: `laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is`.
+- Added a dedicated `capabilities` command and expanded `help` to explicitly clarify what is real (VFS IndexedDB file operations, Web Worker isolated JS execution via sandboxRunner.ts, in-browser WebAssembly ESBuild, Vitest runner, offline vendoring) vs. what is simulated (no arbitrary binaries, no live npm/pip registry client).
+- Updated `uname` and `uname -a` easter eggs to clearly label the environment as `LAIDE-Browser-Shell (simulated environment)` and `LAIDE Browser Sandbox 1.0.0 (simulated environment; WebAssembly/Worker VFS)`.
+- Updated unit tests in `TerminalPanel.test.tsx` to verify honest error messages, the `capabilities` output breakdown, and simulated `uname` responses.
+Decisions:
+- Preserved all supported commands and syntax rules, scoping modifications strictly to user-facing transparency, manual text, and error clarity.
+Deviations: none
+Verified: `npm test` passed 78/78 suites (615 tests); `npm run typecheck` passed with 0 errors; `npx eslint` passed with 0 errors.
+Commit: pending
+Open questions: none
 
 ### [HOTFIX-105] Cryptographically Signed Provenance Proofs & Standalone Verifier — 2026-09-01
 Prompt: Implement cryptographically signed provenance proof export, verification, standalone zero-dependency verification script, and historical trust progression tracking.

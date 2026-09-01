@@ -46,6 +46,7 @@ export interface TerminalOutputItem {
 
 export const ALLOWED_COMMANDS = new Set([
   'help',
+  'capabilities',
   'clear',
   'cls',
   'pwd',
@@ -197,6 +198,9 @@ function tokenize(input: string): string[] {
 
 function getCommandManual(cmd: string): string {
   switch (cmd) {
+    case 'capabilities':
+      return `Usage: capabilities
+Displays an honest, transparent breakdown of what is real (VFS files, isolated worker JS execution, WebAssembly ESBuild) vs. what is simulated in this browser environment.`;
     case 'grep':
       return `Usage: grep [-i] [-n] [-v] [-c] <pattern> [file]
 Options:
@@ -613,9 +617,9 @@ Type "help" for a list of available commands or click quick actions below.`,
     const args = tokens.slice(1);
 
     // If a command input line doesn't match an explicit allowed operation alias,
-    // safely reject the execution loop entirely and output standard clean error.
+    // safely reject the execution loop entirely and output standard honest error.
     if (!ALLOWED_COMMANDS.has(command)) {
-      addOutput('stderr', `sh: command not found: ${command || trimmed}`);
+      addOutput('stderr', `laide: '${command || trimmed}' isn't available in this browser-based shell — type 'help' to see what is`);
       return;
     }
 
@@ -628,7 +632,7 @@ Type "help" for a list of available commands or click quick actions below.`,
 
     if (targetRedirectFile) {
       if (!isValidFilePath(resolvePath(cwd, targetRedirectFile)) || /[\r\n\t]/.test(targetRedirectFile)) {
-        addOutput('stderr', `sh: syntax error near unexpected token '${targetRedirectFile}'`);
+        addOutput('stderr', `laide: syntax error near unexpected token '${targetRedirectFile}'`);
         return;
       }
     }
@@ -640,12 +644,40 @@ Type "help" for a list of available commands or click quick actions below.`,
       let outputType: TerminalOutputItem['type'] = 'stdout';
 
       switch (command) {
+        case 'capabilities': {
+          outputText = `LAIDE Virtual Shell — Execution Model & Capabilities:
+
+✅ REAL EXECUTION:
+  • Virtual File System (VFS): File commands (ls, cd, pwd, cat, head, tail, touch, mkdir, rm, cp, mv, grep, find, wc, stat, tree) operate directly on your real project files stored in IndexedDB.
+  • JavaScript Execution: 'node', 'eval', and 'run' execute real JavaScript inside an isolated Web Worker sandbox (sandboxRunner.ts) with memory limits and execution timeout guards.
+  • In-Browser Bundler & Build: 'build' / 'npm run build' compiles TypeScript/React code directly in the browser via WebAssembly ESBuild.
+  • In-Browser Test Runner: 'test' / 'npm test' runs real test suites using an in-browser Vitest runner shim.
+  • Offline Dependency Vendoring: 'npm vendor' downloads verified ESM packages to /vendor and enforces SHA-256 integrity hashes in /.laide/lockfile.json.
+
+⚠️ SIMULATED / NOT SUPPORTED:
+  • No Arbitrary Native Binaries: Native executables (gcc, python, bash, rustc, etc.) cannot run in this client-side browser sandbox.
+  • No Real npm / pip Registry Client: Full package installation from npm/PyPI registries is not present — use 'npm vendor <pkg>' or package.json dependencies bundled via esm.sh.
+  • No Real POSIX Kernel: All shell commands are sandboxed JavaScript utilities running directly in your browser.
+
+📋 SUPPORTED COMMAND SET:
+  • File Operations : ls, cd, pwd, cat, head, tail, touch, mkdir, rm, cp, mv, grep, find, wc, stat, tree, open, code, edit
+  • Dev & Build     : npm, test, vitest, build, pkg, vendor, lockfile, lock, node, eval, run, bisect, git
+  • Shell & Utility : capabilities, help, echo, env, export, date, whoami, uname, uptime, theme, history, clear, cls, reset`;
+          break;
+        }
+
         case 'help': {
           if (args[0]) {
             const topic = args[0].toLowerCase();
             outputText = getCommandManual(topic);
           } else {
-            outputText = `LAIDE Virtual Shell — Available Commands:
+            outputText = `LAIDE Virtual Shell — Browser-Based Execution Environment
+
+ℹ️ ENVIRONMENT & CAPABILITIES (Type 'capabilities' for full details)
+  • Real VFS file operations on IndexedDB project files
+  • Real JavaScript execution in isolated Web Worker sandbox (sandboxRunner.ts)
+  • In-browser WebAssembly ESBuild & Vitest test runner
+  • No arbitrary binary execution or live npm/pip registry client
 
 📁 FILE SYSTEM
   ls [-l|-a|-h] [dir]    List directory contents
@@ -666,24 +698,26 @@ Type "help" for a list of available commands or click quick actions below.`,
   tree [dir] [-L level]  Print tree diagram of files
 
 ⚡ DEV & BUILD TOOLS
-  npm test | test        Run test suite with Vitest shim
-  npm run build | build  Run ESBuild bundler & compute stats
+  npm test | test        Run test suite with in-browser Vitest shim
+  npm run build | build  Run WebAssembly ESBuild bundler & compute stats
   npm ls | pkg           List package.json dependencies
   npm vendor <pkg>       Vendor dependency into /vendor/<pkg>.js (0 network calls)
   npm update-lock [pkg]  Accept upstream updates & update lockfile integrity hash
-  node [-e code | file]  Execute JS in isolated Web Worker sandbox (no storage/network)
+  node [-e code | file]  Execute JS in isolated Web Worker sandbox (sandboxRunner.ts)
   eval | run "<code>"    Evaluate JS snippet in isolated Web Worker sandbox
   code | open <file>     Open file directly in Code Editor
+  bisect [testName]      Run automated git bisect across provenance history
   git status             Show project VCS status
   git diff [file]        Inspect file changes
 
 🛠 UTILITIES & SHELL
+  capabilities           Explain real vs. simulated execution model
   echo [text] [> file]   Print text or redirect to file
   env                    Display environment variables
   export KEY=VAL         Set environment variable
   date                   Print current date and time
   whoami                 Print active user
-  uname [-a]             Print sandbox system kernel details
+  uname [-a]             Print browser sandbox environment info (simulated)
   uptime                 Print session duration
   theme [oled|paper]     Toggle or set interface theme
   history [-c]           Show command history
@@ -1767,9 +1801,9 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
 
         case 'uname': {
           if (args.includes('-a')) {
-            outputText = 'LAIDE-OS 1.0.0 WebAssembly-Sandbox x86_64 Browser-VFS GNU/Linux';
+            outputText = 'LAIDE Browser Sandbox 1.0.0 (simulated environment; WebAssembly/Worker VFS)';
           } else {
-            outputText = 'LAIDE-OS';
+            outputText = 'LAIDE-Browser-Shell (simulated environment)';
           }
           break;
         }
@@ -1826,7 +1860,7 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
 
         default: {
           outputType = 'stderr';
-          outputText = `sh: command not found: ${command}`;
+          outputText = `laide: '${command}' isn't available in this browser-based shell — type 'help' to see what is`;
           break;
         }
       }
