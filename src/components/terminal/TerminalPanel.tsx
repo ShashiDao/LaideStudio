@@ -27,6 +27,13 @@ import {
 import { runProjectTests } from '../../services/bundler/testRunner';
 import { detectBundledProject } from '../../services/bundler/entryDetection';
 import { formatByteSize } from '../../utils/formatters';
+import {
+  computeSha256,
+  findLockfile,
+  serializeLockfile,
+  getCanonicalVendorPath,
+  LOCKFILE_PATH
+} from '../../services/bundler/lockfile';
 
 export interface TerminalOutputItem {
   id: string;
@@ -67,6 +74,9 @@ export const ALLOWED_COMMANDS = new Set([
   'vitest',
   'build',
   'pkg',
+  'vendor',
+  'lockfile',
+  'lock',
   'node',
   'eval',
   'run',
@@ -204,11 +214,19 @@ Options:
 Options:
   -L  Max display depth of the directory tree`;
     case 'npm':
-      return `Usage: npm <test|run build|list>
+      return `Usage: npm <test|run build|list|vendor|update-lock>
 Commands:
-  test       Execute test suites with in-browser Vitest runner
-  run build  Compile project bundle with WebAssembly ESBuild
-  list       Show package.json dependency tree`;
+  test               Execute test suites with in-browser Vitest runner
+  run build          Compile project bundle with WebAssembly ESBuild
+  list | ls          Show package.json dependency tree
+  vendor <pkg>       Vendor dependency locally into /vendor/<pkg>.js (0 network calls)
+  update-lock [pkg]  Accept upstream updates and refresh lockfile integrity hash`;
+    case 'vendor':
+      return `Usage: vendor <pkg>
+Downloads and verifies dependency bytes, saving to /vendor/<pkg>.js and updating /.laide/lockfile.json for offline bundling with 0 network calls.`;
+    case 'lockfile':
+      return `Usage: lockfile [update [pkg]]
+Inspects or updates dependency integrity SHA-256 hashes in /.laide/lockfile.json.`;
     default:
       return `Command "${cmd}": Refer to general "help" for syntax and flags.`;
   }
@@ -651,6 +669,8 @@ Type "help" for a list of available commands or click quick actions below.`,
   npm test | test        Run test suite with Vitest shim
   npm run build | build  Run ESBuild bundler & compute stats
   npm ls | pkg           List package.json dependencies
+  npm vendor <pkg>       Vendor dependency into /vendor/<pkg>.js (0 network calls)
+  npm update-lock [pkg]  Accept upstream updates & update lockfile integrity hash
   node [-e code | file]  Execute JS in isolated Web Worker sandbox (no storage/network)
   eval | run "<code>"    Evaluate JS snippet in isolated Web Worker sandbox
   code | open <file>     Open file directly in Code Editor
@@ -1308,9 +1328,326 @@ Access: 0644/-rw-r--r--`;
                 outputText = `npm ls: failed to parse package.json (${e.message})`;
               }
             }
+          } else if (sub === 'vendor') {
+            const pkgArg = args.slice(1).join(' ').trim();
+            if (!pkgArg) {
+              outputType = 'stderr';
+              outputText = 'npm vendor: missing package operand. Usage: npm vendor <package-name>';
+            } else if (!projectId) {
+              outputType = 'stderr';
+              outputText = 'npm vendor: no active project open';
+            } else {
+              addOutput('info', `📦 Vendoring package "${pkgArg}"...`);
+              let pkgName = pkgArg;
+              let requestedVersion = '';
+              if (pkgArg.startsWith('@')) {
+                const atIdx = pkgArg.indexOf('@', 1);
+                if (atIdx !== -1) {
+                  pkgName = pkgArg.slice(0, atIdx);
+                  requestedVersion = pkgArg.slice(atIdx + 1);
+                }
+              } else {
+                const atIdx = pkgArg.indexOf('@');
+                if (atIdx !== -1) {
+                  pkgName = pkgArg.slice(0, atIdx);
+                  requestedVersion = pkgArg.slice(atIdx + 1);
+                }
+              }
+
+              if (!requestedVersion) {
+                const pkgJsonFile = files.find(f => f.path === '/package.json');
+                if (pkgJsonFile) {
+                  try {
+                    const parsed = JSON.parse(pkgJsonFile.content);
+                    requestedVersion = parsed.dependencies?.[pkgName] || parsed.devDependencies?.[pkgName] || '';
+                  } catch {}
+                }
+              }
+
+              const targetUrl = requestedVersion
+                ? `https://esm.sh/${pkgName}@${requestedVersion}`
+                : `https://esm.sh/${pkgName}`;
+
+              try {
+                const res = await fetch(targetUrl);
+                if (!res.ok) {
+                  throw new Error(`Failed to fetch ${targetUrl} (Status ${res.status}: ${res.statusText})`);
+                }
+                const fetchedCode = await res.text();
+                const hash = await computeSha256(fetchedCode);
+                const vendorPath = getCanonicalVendorPath(pkgName);
+
+                const existingFile = files.find(f => f.path === vendorPath);
+                if (existingFile) {
+                  await writeFile(existingFile.id, fetchedCode);
+                } else {
+                  await createFile(projectId, vendorPath, fetchedCode);
+                }
+
+                const { file: existingLockfileFile, lockfile } = findLockfile(files);
+                lockfile.dependencies[pkgName] = {
+                  specifier: pkgName,
+                  url: targetUrl,
+                  integrity: hash,
+                  lockedAt: Date.now(),
+                  vendored: true,
+                  vendorPath
+                };
+                const serializedLock = serializeLockfile(lockfile);
+
+                if (existingLockfileFile && existingLockfileFile.id) {
+                  await writeFile(existingLockfileFile.id, serializedLock);
+                } else {
+                  await createFile(projectId, LOCKFILE_PATH, serializedLock);
+                }
+
+                onFilesChanged?.();
+                outputType = 'success';
+                outputText = `📦 Successfully vendored "${pkgName}"!
+  Source: ${targetUrl}
+  Saved to: ${vendorPath} (${formatByteSize(new Blob([fetchedCode]).size)})
+  Integrity: ${hash}
+  Lockfile: updated ${LOCKFILE_PATH}
+✨ Future builds will resolve "${pkgName}" locally with 0 network calls.`;
+              } catch (err: any) {
+                outputType = 'stderr';
+                outputText = `npm vendor failed: ${err.message || String(err)}`;
+              }
+            }
+          } else if (sub === 'update-lock' || sub === 'lock' || sub === 'lockfile') {
+            const pkgArg = args.slice(1).join(' ').trim();
+            if (!projectId) {
+              outputType = 'stderr';
+              outputText = 'npm update-lock: no active project open';
+            } else {
+              const { file: existingLockfileFile, lockfile } = findLockfile(files);
+              const pkgJsonFile = files.find(f => f.path === '/package.json');
+              let pkgObj: any = {};
+              if (pkgJsonFile) {
+                try {
+                  pkgObj = JSON.parse(pkgJsonFile.content);
+                } catch {}
+              }
+              const allDeps: Record<string, string> = {
+                ...(pkgObj.dependencies || {}),
+                ...(pkgObj.devDependencies || {})
+              };
+
+              const targets = pkgArg ? [pkgArg] : Object.keys(allDeps);
+              if (targets.length === 0 && Object.keys(lockfile.dependencies).length === 0) {
+                outputType = 'stderr';
+                outputText = 'npm update-lock: No dependencies declared in package.json or lockfile.';
+              } else {
+                addOutput('info', `🔒 Updating integrity locks for ${targets.length} dependenc${targets.length === 1 ? 'y' : 'ies'}...`);
+                const updatedList: string[] = [];
+
+                for (const target of targets) {
+                  const version = allDeps[target] || '';
+                  const targetUrl = version ? `https://esm.sh/${target}@${version}` : `https://esm.sh/${target}`;
+                  try {
+                    const res = await fetch(targetUrl);
+                    if (res.ok) {
+                      const text = await res.text();
+                      const hash = await computeSha256(text);
+                      lockfile.dependencies[target] = {
+                        specifier: target,
+                        url: targetUrl,
+                        integrity: hash,
+                        lockedAt: Date.now()
+                      };
+                      updatedList.push(`${target} (${hash.slice(0, 15)}...)`);
+                    }
+                  } catch (e: any) {
+                    console.warn(`Failed fetching ${targetUrl} during lock update:`, e);
+                  }
+                }
+
+                const serializedLock = serializeLockfile(lockfile);
+                if (existingLockfileFile && existingLockfileFile.id) {
+                  await writeFile(existingLockfileFile.id, serializedLock);
+                } else {
+                  await createFile(projectId, LOCKFILE_PATH, serializedLock);
+                }
+
+                onFilesChanged?.();
+                outputType = 'success';
+                outputText = `🔒 Lockfile updated at ${LOCKFILE_PATH}
+Updated dependencies (${updatedList.length}):
+${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
+              }
+            }
           } else {
             outputType = 'stderr';
-            outputText = `npm: unsupported command: "${sub}". Try "npm test", "npm run build", or "npm ls".`;
+            outputText = `npm: unsupported command: "${sub}". Try "npm test", "npm run build", "npm vendor <pkg>", or "npm ls".`;
+          }
+          break;
+        }
+
+        case 'vendor': {
+          const pkgArg = args.join(' ').trim();
+          if (!pkgArg) {
+            outputType = 'stderr';
+            outputText = 'vendor: missing package operand. Usage: vendor <package-name>';
+          } else if (!projectId) {
+            outputType = 'stderr';
+            outputText = 'vendor: no active project open';
+          } else {
+            addOutput('info', `📦 Vendoring package "${pkgArg}"...`);
+            let pkgName = pkgArg;
+            let requestedVersion = '';
+            if (pkgArg.startsWith('@')) {
+              const atIdx = pkgArg.indexOf('@', 1);
+              if (atIdx !== -1) {
+                pkgName = pkgArg.slice(0, atIdx);
+                requestedVersion = pkgArg.slice(atIdx + 1);
+              }
+            } else {
+              const atIdx = pkgArg.indexOf('@');
+              if (atIdx !== -1) {
+                pkgName = pkgArg.slice(0, atIdx);
+                requestedVersion = pkgArg.slice(atIdx + 1);
+              }
+            }
+
+            if (!requestedVersion) {
+              const pkgJsonFile = files.find(f => f.path === '/package.json');
+              if (pkgJsonFile) {
+                try {
+                  const parsed = JSON.parse(pkgJsonFile.content);
+                  requestedVersion = parsed.dependencies?.[pkgName] || parsed.devDependencies?.[pkgName] || '';
+                } catch {}
+              }
+            }
+
+            const targetUrl = requestedVersion
+              ? `https://esm.sh/${pkgName}@${requestedVersion}`
+              : `https://esm.sh/${pkgName}`;
+
+            try {
+              const res = await fetch(targetUrl);
+              if (!res.ok) {
+                throw new Error(`Failed to fetch ${targetUrl} (Status ${res.status}: ${res.statusText})`);
+              }
+              const fetchedCode = await res.text();
+              const hash = await computeSha256(fetchedCode);
+              const vendorPath = getCanonicalVendorPath(pkgName);
+
+              const existingFile = files.find(f => f.path === vendorPath);
+              if (existingFile) {
+                await writeFile(existingFile.id, fetchedCode);
+              } else {
+                await createFile(projectId, vendorPath, fetchedCode);
+              }
+
+              const { file: existingLockfileFile, lockfile } = findLockfile(files);
+              lockfile.dependencies[pkgName] = {
+                specifier: pkgName,
+                url: targetUrl,
+                integrity: hash,
+                lockedAt: Date.now(),
+                vendored: true,
+                vendorPath
+              };
+              const serializedLock = serializeLockfile(lockfile);
+
+              if (existingLockfileFile && existingLockfileFile.id) {
+                await writeFile(existingLockfileFile.id, serializedLock);
+              } else {
+                await createFile(projectId, LOCKFILE_PATH, serializedLock);
+              }
+
+              onFilesChanged?.();
+              outputType = 'success';
+              outputText = `📦 Successfully vendored "${pkgName}"!
+  Source: ${targetUrl}
+  Saved to: ${vendorPath} (${formatByteSize(new Blob([fetchedCode]).size)})
+  Integrity: ${hash}
+  Lockfile: updated ${LOCKFILE_PATH}
+✨ Future builds will resolve "${pkgName}" locally with 0 network calls.`;
+            } catch (err: any) {
+              outputType = 'stderr';
+              outputText = `vendor failed: ${err.message || String(err)}`;
+            }
+          }
+          break;
+        }
+
+        case 'lockfile':
+        case 'lock': {
+          const action = args[0]?.toLowerCase();
+          const pkgArg = (action === 'update' ? args.slice(1).join(' ') : args.join(' ')).trim();
+          if (!projectId) {
+            outputType = 'stderr';
+            outputText = 'lockfile: no active project open';
+          } else {
+            const { file: existingLockfileFile, lockfile } = findLockfile(files);
+            if (!action || action === 'show' || action === 'list' || action === 'status') {
+              const depKeys = Object.keys(lockfile.dependencies);
+              if (depKeys.length === 0) {
+                outputText = `No dependencies currently locked in ${LOCKFILE_PATH}. Run "lockfile update" or "npm run build" to generate locks.`;
+              } else {
+                const lines = [`Lockfile (${LOCKFILE_PATH}) — ${depKeys.length} locked packages:`];
+                for (const key of depKeys) {
+                  const entry = lockfile.dependencies[key];
+                  lines.push(`  • ${entry.specifier}: ${entry.integrity} (${entry.vendored ? 'vendored' : 'esm.sh'})`);
+                }
+                outputText = lines.join('\n');
+              }
+              outputType = 'info';
+            } else if (action === 'update' || action === 'refresh') {
+              const pkgJsonFile = files.find(f => f.path === '/package.json');
+              let pkgObj: any = {};
+              if (pkgJsonFile) {
+                try {
+                  pkgObj = JSON.parse(pkgJsonFile.content);
+                } catch {}
+              }
+              const allDeps: Record<string, string> = {
+                ...(pkgObj.dependencies || {}),
+                ...(pkgObj.devDependencies || {})
+              };
+
+              const targets = pkgArg ? [pkgArg] : Object.keys(allDeps);
+              addOutput('info', `🔒 Updating integrity locks for ${targets.length} dependenc${targets.length === 1 ? 'y' : 'ies'}...`);
+              const updatedList: string[] = [];
+
+              for (const target of targets) {
+                const version = allDeps[target] || '';
+                const targetUrl = version ? `https://esm.sh/${target}@${version}` : `https://esm.sh/${target}`;
+                try {
+                  const res = await fetch(targetUrl);
+                  if (res.ok) {
+                    const text = await res.text();
+                    const hash = await computeSha256(text);
+                    lockfile.dependencies[target] = {
+                      specifier: target,
+                      url: targetUrl,
+                      integrity: hash,
+                      lockedAt: Date.now()
+                    };
+                    updatedList.push(`${target} (${hash.slice(0, 15)}...)`);
+                  }
+                } catch (e: any) {
+                  console.warn(`Failed fetching ${targetUrl} during lock update:`, e);
+                }
+              }
+
+              const serializedLock = serializeLockfile(lockfile);
+              if (existingLockfileFile && existingLockfileFile.id) {
+                await writeFile(existingLockfileFile.id, serializedLock);
+              } else {
+                await createFile(projectId, LOCKFILE_PATH, serializedLock);
+              }
+
+              onFilesChanged?.();
+              outputType = 'success';
+              outputText = `🔒 Lockfile updated at ${LOCKFILE_PATH}
+Updated dependencies (${updatedList.length}):
+${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
+            } else {
+              outputType = 'stderr';
+              outputText = `lockfile: unknown action "${action}". Try "lockfile list" or "lockfile update [pkg]".`;
+            }
           }
           break;
         }

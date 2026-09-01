@@ -516,6 +516,88 @@ describe('esbuild.worker bundler plugins and loaders', () => {
       expect(result.errors.length).toBe(0);
       expect(mockFetch).toHaveBeenCalledWith('https://esm.sh/unlisted-lib');
     });
+
+    it('resolves vendored packages directly from /vendor/<pkg>.js with 0 network calls', async () => {
+      const mockFetch = vi.fn();
+      globalThis.fetch = mockFetch;
+
+      const files = [
+        {
+          path: '/src/main.ts',
+          content: `import { helper } from 'vendored-lib';\nexport const res = helper();`
+        },
+        {
+          path: '/vendor/vendored-lib.js',
+          content: `export function helper() { return 'from-vendor'; }`
+        }
+      ];
+
+      const vfsPlugin = createVfsPlugin({
+        files,
+        entryPoint: '/src/main.ts'
+      });
+
+      const result = await esbuild.build({
+        entryPoints: ['/src/main.ts'],
+        bundle: true,
+        write: false,
+        plugins: [vfsPlugin],
+        format: 'esm'
+      });
+
+      expect(result.errors.length).toBe(0);
+      expect(result.outputFiles?.[0]?.text).toContain('from-vendor');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('fails with INTEGRITY MISMATCH error and rejects build when fetched bytes do not match lockfile', async () => {
+      const tamperedCode = `export const answer = 999; /* altered bytes */`;
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(tamperedCode)
+      });
+      globalThis.fetch = mockFetch;
+
+      const files = [
+        {
+          path: '/src/main.ts',
+          content: `import { answer } from 'my-pkg';\nconsole.log(answer);`
+        },
+        {
+          path: '/.laide/lockfile.json',
+          content: JSON.stringify({
+            version: 1,
+            dependencies: {
+              'my-pkg': {
+                specifier: 'my-pkg',
+                url: 'https://esm.sh/my-pkg',
+                integrity: 'sha256-0000000000000000000000000000000000000000000000000000000000000000',
+                lockedAt: 12345
+              }
+            }
+          })
+        }
+      ];
+
+      const vfsPlugin = createVfsPlugin({
+        files,
+        entryPoint: '/src/main.ts'
+      });
+
+      try {
+        await esbuild.build({
+          entryPoints: ['/src/main.ts'],
+          bundle: true,
+          write: false,
+          plugins: [vfsPlugin],
+          format: 'esm'
+        });
+        expect.fail('Build should have thrown due to integrity mismatch');
+      } catch (err: any) {
+        expect(err.message).toContain('INTEGRITY MISMATCH');
+      }
+    });
   });
 
   describe('detectProjectTailwindVersion in PreviewPanel', () => {

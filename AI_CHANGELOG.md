@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-101
-- Last verified working: Multi-layered Web Worker sandbox security boundary stripping and trapping ambient globals (IndexedDB, fetch, CacheStorage, importScripts, XMLHttpRequest, WebSocket, EventSource, BroadcastChannel, Worker, SharedWorker, postMessage) with immediate SecurityError dispatch. All 75 test suites (579 tests) pass, linter and production build clean with 0 errors.
+- Phase: HOTFIX-102
+- Last verified working: Dependency integrity verification via SHA-256 lockfile (.laide/lockfile.json), offline zero-network local vendoring (/vendor/<pkg>.js), and npm vendor / update-lock CLI commands in TerminalPanel. All 76 test suites (592 tests) pass, linter and production build clean with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -619,5 +619,30 @@ Deviations: none
 Verified: All 75 test suites (579 tests) passing; `sandboxRunner.test.ts` (11/11 tests) and `TerminalPanel.test.tsx` (30/30 tests) passing; `lint_applet` clean (0 errors); `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-102] Lockfile Integrity Verification & Offline Package Vendoring — 2026-09-01
+Prompt: Implement dependency lockfile SHA-256 integrity verification, local package vendoring for zero-network builds, and npm terminal commands.
+Files touched:
+- `src/services/bundler/lockfile.ts` (new)
+- `src/services/bundler/lockfile.test.ts` (new)
+- `src/services/bundler/esbuild.worker.ts` (modified)
+- `src/services/bundler/esbuild.worker.test.ts` (modified)
+- `src/services/bundler/bundler.ts` (modified)
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented `.laide/lockfile.json` parser, serializer, and SHA-256 integrity checker in `lockfile.ts` with pure JS fallback and sorted deterministic formatting.
+- Added dependency integrity verification in `esbuild.worker.ts` VFS plugin: records SHA-256 hashes on first download and aborts builds with `[SECURITY INTEGRITY MISMATCH]` if remote bytes change or are tampered with.
+- Added vendored package resolution in `esbuild.worker.ts` checking `/vendor/<pkg>.js` to resolve bare imports locally with 0 network calls.
+- Integrated `npm vendor <pkg>`, `vendor <pkg>`, `npm update-lock [pkg]`, and `lockfile [update|status]` shell commands in `TerminalPanel.tsx` for vendoring and lock management.
+- Extended unit tests in `lockfile.test.ts` and `esbuild.worker.test.ts` covering hashing, lockfile round-trips, mismatch rejections, and zero-network vendor builds.
+Decisions:
+- Standardized lockfile location at `/.laide/lockfile.json` (with fallback discovery for `lockfile.json` and `.lockfile.json`) matching the `.laide/` project metadata directory convention.
+- Vendored files are placed under `/vendor/<pkg>.js` (and `@scope/pkg.js`), allowing full transparency and direct in-editor inspection.
+Deviations: none
+Verified: All 76 test suites (592 tests) passing; `lockfile.test.ts` (11/11 tests) and `esbuild.worker.test.ts` (34/34 tests) passing; `lint_applet` clean (0 errors); `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
 
 

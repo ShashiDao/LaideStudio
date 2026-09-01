@@ -1,5 +1,12 @@
 import * as esbuild from 'esbuild-wasm';
 import type { FileItem } from '../../db';
+import {
+  computeSha256,
+  findLockfile,
+  isVendoredSpecifier,
+  serializeLockfile,
+  type DependencyLockfile
+} from './lockfile';
 
 const CACHE_NAME = 'xiom-esm-dep-cache-v1';
 
@@ -161,11 +168,15 @@ export interface VfsPluginOptions {
   activeNetworkFetches?: Set<string>;
   onStatus?: (status: string) => void;
   preBundledWorkers?: Map<string, string>;
+  lockfile?: DependencyLockfile;
+  onLockfileUpdated?: (updatedLockfile: DependencyLockfile) => void;
 }
 
 export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
   const { files, entryPoint, wasmUrl, cache, activeNetworkFetches, onStatus, preBundledWorkers } = options;
   const deps = extractDependenciesFromFiles(files);
+  const { lockfile: detectedLockfile } = findLockfile(files);
+  const activeLockfile: DependencyLockfile = options.lockfile || detectedLockfile;
 
   return {
     name: 'vfs',
@@ -193,11 +204,11 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
         if (args.path === entryPoint) return { path: args.path, namespace: 'vfs' };
         
         if (args.namespace === 'unpkg-url') {
-           return { path: new URL(args.path, args.importer).href, namespace: 'unpkg-url' };
+           return { path: new URL(args.path, args.importer).href, namespace: 'unpkg-url', pluginData: args.pluginData };
         }
         
         if (args.path.startsWith('http://') || args.path.startsWith('https://')) {
-           return { path: args.path, namespace: 'unpkg-url' };
+           return { path: args.path, namespace: 'unpkg-url', pluginData: { specifier: args.path } };
         }
         
         if (args.path.startsWith('.') || args.path.startsWith('/')) {
@@ -223,14 +234,39 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
            
            return { path: resolvePath, namespace: 'vfs' };
         }
+
+        // Check if package has been vendored locally into VFS (e.g. /vendor/lodash.js)
+        const vendored = isVendoredSpecifier(args.path, files);
+        if (vendored.isVendored && vendored.filePath) {
+          return { path: vendored.filePath, namespace: 'vfs' };
+        }
         
         const { packageName, subpath } = parsePackageSpecifier(args.path);
         const version = deps[packageName];
-        if (version) {
-          return { path: `https://esm.sh/${packageName}@${version}${subpath}`, namespace: 'unpkg-url' };
+
+        // Check if lockfile already pinned a specific URL for this specifier
+        const lockedEntry = activeLockfile.dependencies[args.path] || activeLockfile.dependencies[packageName];
+        if (lockedEntry && lockedEntry.url) {
+          return {
+            path: lockedEntry.url,
+            namespace: 'unpkg-url',
+            pluginData: { specifier: args.path }
+          };
         }
 
-        return { path: `https://esm.sh/${args.path}`, namespace: 'unpkg-url' };
+        if (version) {
+          return { 
+            path: `https://esm.sh/${packageName}@${version}${subpath}`, 
+            namespace: 'unpkg-url',
+            pluginData: { specifier: args.path }
+          };
+        }
+
+        return { 
+          path: `https://esm.sh/${args.path}`, 
+          namespace: 'unpkg-url',
+          pluginData: { specifier: args.path }
+        };
       });
       
       build.onLoad({ filter: /.*/, namespace: 'virtual-module-stub' }, args => {
@@ -346,6 +382,8 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
          const url = args.path;
          const cleanPath = url.split('?')[0];
          const isCss = cleanPath.endsWith('.css');
+         const cleanName = url.replace('https://esm.sh/', '').split('?')[0];
+         const specifierKey = (args.pluginData as { specifier?: string } | undefined)?.specifier || cleanName;
 
          const getLoaderForUrl = (targetUrl: string): esbuild.Loader => {
            const clean = targetUrl.split('?')[0];
@@ -364,13 +402,43 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
            };
          };
 
+         const verifyAndLockDependency = async (text: string): Promise<{ error?: string }> => {
+           const computedHash = await computeSha256(text);
+           const lockedEntry = activeLockfile.dependencies[specifierKey] || activeLockfile.dependencies[cleanName] || activeLockfile.dependencies[url];
+
+           if (lockedEntry && lockedEntry.integrity) {
+             if (lockedEntry.integrity !== computedHash) {
+               return {
+                 error: `[SECURITY INTEGRITY MISMATCH] Dependency "${specifierKey}" (${url}) failed SHA-256 integrity verification!\n` +
+                        `Expected hash: ${lockedEntry.integrity}\n` +
+                        `Received hash: ${computedHash}\n` +
+                        `Upstream content at esm.sh has changed or was tampered with. Build aborted to prevent untrusted code execution.\n` +
+                        `To accept this update, run "npm update-lock ${specifierKey}" in the terminal or update /.laide/lockfile.json.`
+               };
+             }
+           } else {
+             activeLockfile.dependencies[specifierKey] = {
+               specifier: specifierKey,
+               url,
+               integrity: computedHash,
+               lockedAt: Date.now()
+             };
+             options.onLockfileUpdated?.(activeLockfile);
+           }
+           return {};
+         };
+
          // 1. Try Cache Storage first
          if (cache) {
            try {
-
              const cachedRes = await cache.match(url);
              if (cachedRes) {
                const contents = await cachedRes.text();
+               const { error: integrityErr } = await verifyAndLockDependency(contents);
+               if (integrityErr) {
+                 console.error(integrityErr);
+                 return { errors: [{ text: integrityErr }] };
+               }
                if (isCss) {
                  return handleCssContent(contents);
                }
@@ -393,28 +461,36 @@ export function createVfsPlugin(options: VfsPluginOptions): esbuild.Plugin {
 
          // 3. Notify main thread of active network fetch
          activeNetworkFetches?.add(url);
-         const cleanName = url.replace('https://esm.sh/', '').split('?')[0];
          const pendingCount = activeNetworkFetches?.size || 1;
          onStatus?.(`Fetching dependency: ${cleanName} (${pendingCount} pending)...`);
 
          try {
-
             const res = await fetch(url);
             if (!res.ok) {
               throw new Error(`Failed to fetch ${url} (Status: ${res.status})`);
             }
             
+            const contents = await res.text();
+
+            const { error: integrityErr } = await verifyAndLockDependency(contents);
+            if (integrityErr) {
+              console.error(integrityErr);
+              return { errors: [{ text: integrityErr }] };
+            }
+
             // Store in cache for future offline/faster rebuilds
             if (cache) {
               try {
-
-                await cache.put(url, res.clone());
+                await cache.put(url, new Response(contents, {
+                  status: res.status,
+                  statusText: res.statusText,
+                  headers: res.headers
+                }));
               } catch (cachePutErr) {
                 console.warn('Failed to cache response for', url, cachePutErr);
               }
             }
 
-            const contents = await res.text();
             if (isCss) {
               return handleCssContent(contents);
             }
@@ -599,6 +675,8 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
           await ensureWorkerBundled(workerPath);
         }
 
+        let finalLockfile: DependencyLockfile | null = null;
+
         const vfsPlugin = createVfsPlugin({
           files,
           entryPoint,
@@ -606,6 +684,7 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
           cache,
           activeNetworkFetches,
           preBundledWorkers,
+          onLockfileUpdated: (lf) => { finalLockfile = lf; },
           onStatus: (status) => self.postMessage({ id, type: 'STATUS', status })
         });
 
@@ -629,7 +708,12 @@ if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
           throw new Error('Build produced no output. Check that your entry point file exists and exports/renders something.');
         }
         
-        self.postMessage({ id, type: 'SUCCESS', code });
+        self.postMessage({ 
+          id, 
+          type: 'SUCCESS', 
+          code, 
+          updatedLockfile: finalLockfile ? serializeLockfile(finalLockfile) : undefined 
+        });
       } catch (error: unknown) {
         console.error(error);
         const errMsg = error instanceof Error ? error.message : 'Build failed';

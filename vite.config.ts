@@ -46,6 +46,20 @@ export default defineConfig(() => {
                 },
               },
             },
+            {
+              urlPattern: /^https:\/\/esm\.sh\/.*/i,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'esm-sh-cache',
+                expiration: {
+                  maxEntries: 1000,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
           ],
         },
         includeAssets: ['icon.svg'],
