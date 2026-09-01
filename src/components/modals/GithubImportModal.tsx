@@ -3,7 +3,7 @@ import { Loader2, X } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { createGithubClient } from '../../services/github/githubClient';
 import { db, type Project } from '../../db';
-import { importZip } from '../../services/fs/zipImport';
+import { bulkCreateOrUpdateFiles } from '../../services/fs/vfs';
 
 function GithubIcon({ size = 16, className = '', strokeWidth = 2 }: { size?: number | string; className?: string; strokeWidth?: number | string }) {
   return (
@@ -65,8 +65,13 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
       const repoData = await client.getRepo(owner, repo);
       const branch = repoData?.default_branch || 'main';
 
-      setProgress('Downloading repository archive...');
-      const archiveBlob = await client.getRepoArchive(owner, repo, branch);
+      setProgress('Reading file tree...');
+      const treeData = await client.getRepoTree(owner, repo, branch);
+      const blobEntries = treeData.tree.filter(entry => entry.type === 'blob' && entry.path);
+
+      if (blobEntries.length === 0) {
+        throw new Error('Repository appears to be empty');
+      }
 
       let targetProjectId = projectId;
       if (!targetProjectId) {
@@ -82,8 +87,35 @@ export function GithubImportModal({ projectId, onClose, onSuccess }: GithubImpor
         await db.projects.update(targetProjectId, { updatedAt: Date.now() });
       }
 
-      setProgress('Extracting files...');
-      const { count } = await importZip(archiveBlob, targetProjectId, { autoRestructure: true });
+      // Fetch each file's content via the GitHub Contents API (plain JSON
+      // over api.github.com). We intentionally avoid the zipball/tarball
+      // endpoint here: it responds with a 302 redirect to codeload.github.com,
+      // which sends no Access-Control-Allow-Origin header, so the browser
+      // blocks the redirected response and fetch() throws "Failed to fetch".
+      // Pulling the tree + each blob's content as JSON never triggers that
+      // redirect, so it works from the browser.
+      const files: { path: string; content: string }[] = [];
+      const CONCURRENCY = 8;
+      let completed = 0;
+      let nextIndex = 0;
+
+      const downloadNext = async (): Promise<void> => {
+        while (nextIndex < blobEntries.length) {
+          const entry = blobEntries[nextIndex++];
+          const content = await client.getFileContent(owner, repo, entry.path, branch);
+          files.push({ path: `/${entry.path}`, content });
+          completed++;
+          setProgress(`Downloading files... (${completed}/${blobEntries.length})`);
+        }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, blobEntries.length) }, () => downloadNext())
+      );
+
+      setProgress('Writing files to workspace...');
+      const written = await bulkCreateOrUpdateFiles(targetProjectId, files);
+      const count = written.length;
 
       const syncPayload = JSON.stringify({
         owner,
