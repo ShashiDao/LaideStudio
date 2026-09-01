@@ -651,8 +651,8 @@ Type "help" for a list of available commands or click quick actions below.`,
   npm test | test        Run test suite with Vitest shim
   npm run build | build  Run ESBuild bundler & compute stats
   npm ls | pkg           List package.json dependencies
-  node -e "<code>"       Execute JavaScript safely in sandbox
-  eval | run "<code>"    Evaluate JS code snippet
+  node [-e code | file]  Execute JS in isolated Web Worker sandbox (no storage/network)
+  eval | run "<code>"    Evaluate JS snippet in isolated Web Worker sandbox
   code | open <file>     Open file directly in Code Editor
   git status             Show project VCS status
   git diff [file]        Inspect file changes
@@ -1332,7 +1332,7 @@ Access: 0644/-rw-r--r--`;
                 break;
               }
             } else {
-              outputText = 'Welcome to Node.js / JS Sandbox v20.x (Browser WASM)\nType "node -e <code>" or "eval <code>" to run snippets.';
+              outputText = 'Welcome to JS Sandbox (Isolated Web Worker Runtime)\nAmbient globals (IndexedDB, fetch, caches, importScripts) are disabled.\nType "node -e <code>", "node <file>", or "eval <code>" to run snippets.';
               break;
             }
           } else {

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-100
-- Last verified working: Single-pass ZIP decompression with local text/binary conversion and single-archive GitHub repository import via zipball API. All 75 test suites (570 tests) pass, linter and production build are clean with 0 errors.
+- Phase: HOTFIX-101
+- Last verified working: Multi-layered Web Worker sandbox security boundary stripping and trapping ambient globals (IndexedDB, fetch, CacheStorage, importScripts, XMLHttpRequest, WebSocket, EventSource, BroadcastChannel, Worker, SharedWorker, postMessage) with immediate SecurityError dispatch. All 75 test suites (579 tests) pass, linter and production build clean with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -598,4 +598,26 @@ Deviations: none
 Verified: All 75 test suites (570 tests) passing; targeted test suite (`zipImport.test.ts`, `GithubImportModal.test.ts`, `githubClient.test.ts`) passing with 150+ files integrity tests; `compile_applet` and `lint_applet` completed with 0 errors.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-101] Isolated Worker Sandbox Security Boundary — 2026-09-01
+Prompt: Harden arbitrary JS execution in sandboxRunner.ts with a real security boundary, evaluate iframe vs worker shadowing approaches, and add security assertions.
+Files touched:
+- `src/services/bundler/sandboxRunner.ts` (modified)
+- `src/services/bundler/sandboxRunner.test.ts` (modified)
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Implemented multi-layered ambient global neutralization and Proxy security traps on `self`, `globalThis`, `WorkerGlobalScope.prototype`, and `DedicatedWorkerGlobalScope.prototype` inside the worker script.
+- Neutralized storage (`indexedDB`, `caches`, `openDatabase`), network (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`), sub-worker (`Worker`, `SharedWorker`, `serviceWorker`), messaging (`BroadcastChannel`, `postMessage`), and execution (`importScripts`) APIs with immediate descriptive `SecurityError` exceptions on property access/invocation.
+- Secured runner parameter scope by explicitly injecting sanitized proxies for `self`, `globalThis`, `window`, and individual dangerous global identifiers.
+- Added comprehensive unit tests in `sandboxRunner.test.ts` verifying immediate `SecurityError` throws when attempting `self.indexedDB.open`, `fetch`, `self.caches.open`, `self.importScripts`, `XMLHttpRequest`, or `self.postMessage`.
+- Updated `TerminalPanel.tsx` help documentation and welcome banner to accurately reflect isolated Web Worker sandbox guarantees without overclaiming WASM.
+Decisions:
+- Chose Approach (b) (layered worker global neutralization and scope proxy traps): allows preserving background thread execution with reliable 30s timeout interruptibility via `worker.terminate()` without blocking the UI event loop, while avoiding Chromium/WebKit security restrictions on spawning Workers from opaque-origin `srcdoc` iframes.
+- Standardized on immediate `SecurityError` exceptions upon accessing or invoking restricted ambient capabilities for consistent error attribution.
+Deviations: none
+Verified: All 75 test suites (579 tests) passing; `sandboxRunner.test.ts` (11/11 tests) and `TerminalPanel.test.tsx` (30/30 tests) passing; `lint_applet` clean (0 errors); `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
 
