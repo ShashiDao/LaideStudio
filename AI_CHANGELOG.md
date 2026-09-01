@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-98
-- Last verified working: Fixed a real bug caught by the existing test suite (Cloudflare publish button showed "Publish to Vercel" — a stale 2-way ternary never extended for the 3rd tab), and re-applied the AI Trust Gutter feature (missing from this branch since HOTFIX-92, merged cleanly around HOTFIX-87's XSS fix). All 75 test suites (564 tests) pass, linter and production build are clean with 0 errors. Note: the HOTFIX-97 entry's self-reported "77 test suites / 559 tests, all passing" was inaccurate — actual count at that point was 75 suites, 558/559 passing (1 genuine failure, the Cloudflare button bug fixed in this entry).
+- Phase: HOTFIX-99
+- Last verified working: Phone mode editor overlay in App.tsx now includes EditorTabs above the Editor in a flex column layout matching desktop ergonomics. All 75 test suites (565 tests) pass, linter and production build are clean with 0 errors.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -195,6 +195,21 @@
 - **Files Panel Mobile Header Layout** (8.4.1): Shortened Files panel title to "Files" with item count separated in a compact badge.
 
 ## Log
+
+### [HOTFIX-99] Add EditorTabs to Phone Mode Editor Overlay — 2026-08-31
+Prompt: Wrap the phone-mode Editor view in a flex column with EditorTabs matching the desktop tab strip layout.
+Files touched:
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Wrapped full-screen phone mode Editor overlay in `<div className="absolute inset-0 z-10 flex flex-col overflow-hidden">`.
+- Added `<EditorTabs>` above `<div className="flex-1 relative overflow-hidden"><Editor ... /></div>` in the phone files tab overlay.
+Decisions:
+- Used existing EditorTabs component, openFileIds, activeFileId, and file action handlers already scoped in App.tsx.
+Deviations: none
+Verified: `compile_applet` passed; `lint_applet` passed with 0 errors; all Vitest test suites passing.
+Commit: pending
+Open questions: none
 
 ### [HOTFIX-98] Fix Cloudflare Publish Button Label Bug & Re-apply AI Trust Gutter — 2026-08-31
 Prompt: Merge two branches that had diverged — an external review's verified AI Trust Gutter feature (never successfully landed after 3 prior attempts, most recently HOTFIX-93 in a since-abandoned branch) and this branch's own progress through HOTFIX-97 — into one correct, current state. The external review also flagged that HOTFIX-97's self-reported test results didn't match an independent run.

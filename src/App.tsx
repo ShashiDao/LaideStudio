@@ -260,17 +260,29 @@ export default function App() {
 
             {/* Full-screen Editor View Overlay (Phone mode - scoped to files tab) */}
             {activeTab === 'files' && activeFile && (
-              <Editor 
-                file={activeFile} 
-                onContentChanged={(newContent) => {
-                  setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: newContent } : f));
-                }}
-                onOpenBisect={handleOpenBisect}
-                onOpenTrustReport={(filePath) => {
-                  setTrustReportInitialFile(filePath);
-                  setShowTrustReportModal(true);
-                }}
-              />
+              <div className="absolute inset-0 z-10 flex flex-col overflow-hidden">
+                <EditorTabs
+                  files={files}
+                  openFileIds={openFileIds}
+                  activeFileId={activeFileId}
+                  onSelectFile={(id) => setActiveFileId(id)}
+                  onCloseFile={(id) => closeFile(id)}
+                  onReorderTabs={(ids) => setOpenFileIds(ids)}
+                />
+                <div className="flex-1 relative overflow-hidden">
+                  <Editor 
+                    file={activeFile} 
+                    onContentChanged={(newContent) => {
+                      setFiles(prev => prev.map(f => f.id === activeFile.id ? { ...f, content: newContent } : f));
+                    }}
+                    onOpenBisect={handleOpenBisect}
+                    onOpenTrustReport={(filePath) => {
+                      setTrustReportInitialFile(filePath);
+                      setShowTrustReportModal(true);
+                    }}
+                  />
+                </div>
+              </div>
             )}
           </main>
 
