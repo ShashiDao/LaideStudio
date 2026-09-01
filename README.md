@@ -1,5 +1,7 @@
 # LAIDE Studio
 
+[![CI](https://github.com/characterskit/laide/actions/workflows/ci.yml/badge.svg)](https://github.com/characterskit/laide/actions/workflows/ci.yml)
+
 A local-first, privacy-focused in-browser AI development environment and progressive web app (PWA). LAIDE Studio runs an agentic coding loop, virtual file system, in-browser bundler with live preview, and encrypted credential vault entirely on the client.
 
 ## Features
@@ -48,7 +50,8 @@ A local-first, privacy-focused in-browser AI development environment and progres
 - `npm run build`: Compiles TypeScript and builds the production bundle.
 - `npm run preview`: Locally previews the production build.
 - `npm test`: Runs the test suite via Vitest.
-- `npm run lint`: Runs TypeScript validation (`tsc --noEmit`) and ESLint checks.
+- `npm run typecheck`: Performs TypeScript type checking without emitting files (`tsc --noEmit`).
+- `npm run lint`: Runs ESLint checks across codebase.
 
 ## Architecture & Security
 

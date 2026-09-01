@@ -34,8 +34,7 @@ import {
   isModelCachedInBrowser, 
   getEngineState, 
   subscribeToEngineProgress, 
-  type WebLLMEngineState,
-  OFFLINE_MODELS 
+  type WebLLMEngineState 
 } from '../../services/llm/providers/webllm';
 import type { LLMAdapter } from '../../services/llm/llmAdapter';
 import { LaideLogo } from './LaideLogo';
@@ -1309,8 +1308,8 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
                                 style={{ width: `${Math.max(5, Math.round(engineState.progress * 100))}%` }}
                               />
                             </div>
-                            {engineState.text && (
-                              <p className="text-[10px] text-muted/80 font-mono truncate">{engineState.text}</p>
+                            {engineState.progressText && (
+                              <p className="text-[10px] text-muted/80 font-mono truncate">{engineState.progressText}</p>
                             )}
                           </div>
                         )}

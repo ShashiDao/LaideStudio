@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-103
-- Last verified working: Opt-in 100% offline WebGPU in-browser LLM provider via WebLLM (@mlc-ai/web-llm) running quantized models (Qwen 2.5 Coder 1.5B q4f16_1, Llama 3.2 1B, SmolLM2 1.7B, Qwen 2.5 Coder 0.5B). Offline model caching via Cache API/OPFS, WebGPU hardware feature detection, capability/speed warning banners, explicit user download/cache management in SettingsPanel, model picker badges, tool-calling JSON/XML fallback for compact models, and quick-connect sheet support. All 77 test suites (605 tests) passing, production build succeeded with zero errors.
+- Phase: HOTFIX-104
+- Last verified working: GitHub Actions CI workflow (.github/workflows/ci.yml) running on push and pull request events (install via npm ci with npm cache, typecheck via tsc --noEmit, lint via eslint, full vitest test suite, and production build). Generated package-lock.json for reproducible npm ci installs, added typecheck script in package.json, added CI status badge in README.md. All 77 test suites (605 tests) passing, linter and typecheck passing with 0 errors, production build verified.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -671,6 +671,31 @@ Decisions:
 - Maintained zero API key requirement for offline provider while keeping all profile persistence, model discovery, and agent tool execution compatible with standard connection profiles.
 Deviations: none
 Verified: All 77 test suites (605 tests) passing; `webllm.test.ts` (11/11 tests), `factory.test.ts` (3/3 tests), `modelDiscovery.test.ts` (11/11 tests) passing; production build verified clean with `compile_applet`.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-104] GitHub Actions CI Workflow, Typecheck Script & Status Badge — 2026-09-01
+Prompt: Add .github/workflows/ci.yml running on every push and pull request with npm ci, typecheck, lint, full vitest test suite, production build, fail-fast and npm caching, plus CI status badge in README.md.
+Files touched:
+- `.github/workflows/ci.yml` (new)
+- `package-lock.json` (new)
+- `package.json` (modified)
+- `README.md` (modified)
+- `src/services/llm/providers/webllm.ts` (modified)
+- `src/services/llm/providers/webllm.test.ts` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Created `.github/workflows/ci.yml` triggering on `push` and `pull_request` to `main` and `master`, configuring `actions/checkout@v4`, `actions/setup-node@v4` with Node 20 and npm cache, sequential fail-fast step execution for `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build`.
+- Added `"typecheck": "tsc --noEmit"` script and separated `"lint": "eslint ."` in `package.json` for clear CI step distinction and local developer tooling.
+- Generated `package-lock.json` to enable reproducible `npm ci` installs and lockfile-keyed npm caching on GitHub runners.
+- Added GitHub Actions workflow status badge and script documentation in `README.md`.
+- Fixed type exports (`WebLLMEngineState`), caught error `cause` chaining, and unused import lint warnings in `webllm.ts`, `SettingsPanel.tsx`, and `webllm.test.ts`.
+Decisions:
+- Configured concurrency cancellation (`group: ${{ github.workflow }}-${{ github.ref }}`, `cancel-in-progress: true`) in `ci.yml` to automatically cancel outdated pending runs when new commits are pushed to open pull requests.
+- Retained fail-fast ordering: Typecheck -> Lint -> Test -> Build to surface syntax and type errors within seconds before launching lengthy test suites or full bundle optimization.
+Deviations: none
+Verified: `npm run typecheck` passed (0 errors); `npm run lint` passed (0 errors); full vitest suite passed (77/77 test suites, 605/605 tests); `compile_applet` production build succeeded.
 Commit: pending
 Open questions: none
 

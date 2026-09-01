@@ -127,7 +127,7 @@ export type ModelProgressCallback = (progress: {
 }) => void;
 
 // Singleton engine instance state
-interface EngineState {
+export interface WebLLMEngineState {
   engine: unknown | null;
   loadedModelId: string | null;
   status: 'unloaded' | 'downloading' | 'loading' | 'ready' | 'error';
@@ -136,7 +136,9 @@ interface EngineState {
   error: string | null;
 }
 
-const engineState: EngineState = {
+export type EngineState = WebLLMEngineState;
+
+const engineState: WebLLMEngineState = {
   engine: null,
   loadedModelId: null,
   status: 'unloaded',
@@ -145,25 +147,27 @@ const engineState: EngineState = {
   error: null
 };
 
-const progressListeners = new Set<ModelProgressCallback>();
+export type EngineStateListener = (state: WebLLMEngineState) => void;
+const progressListeners = new Set<EngineStateListener>();
 
-export function getEngineState(): Readonly<EngineState> {
+export function getEngineState(): Readonly<WebLLMEngineState> {
   return { ...engineState };
 }
 
-export function subscribeToEngineProgress(callback: ModelProgressCallback): () => void {
+export function subscribeToEngineProgress(callback: EngineStateListener): () => void {
   progressListeners.add(callback);
   return () => {
     progressListeners.delete(callback);
   };
 }
 
-function notifyProgress(progress: number, text: string, timeElapsed?: number) {
+function notifyProgress(progress: number, text: string, _timeElapsed?: number) {
   engineState.progress = progress;
   engineState.progressText = text;
+  const snapshot = { ...engineState };
   for (const listener of progressListeners) {
     try {
-      listener({ progress, text, timeElapsed });
+      listener(snapshot);
     } catch {
       // Ignore listener errors
     }
@@ -292,7 +296,7 @@ export async function loadOfflineModel(
     engineState.status = 'error';
     engineState.error = errorMsg;
     notifyProgress(0, `Failed to load model: ${errorMsg}`);
-    throw new Error(`Failed to load offline WebLLM model "${modelId}": ${errorMsg}`);
+    throw new Error(`Failed to load offline WebLLM model "${modelId}": ${errorMsg}`, { cause: err });
   }
 }
 
@@ -488,7 +492,7 @@ export class WebLLMProvider implements LLMAdapter {
     };
 
     const choice = response.choices?.[0];
-    let text = choice?.message?.content || '';
+    const text = choice?.message?.content || '';
     let toolCalls: LLMToolCall[] | undefined;
 
     if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
