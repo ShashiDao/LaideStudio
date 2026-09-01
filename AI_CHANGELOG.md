@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-104
-- Last verified working: GitHub Actions CI workflow (.github/workflows/ci.yml) running on push and pull request events (install via npm ci with npm cache, typecheck via tsc --noEmit, lint via eslint, full vitest test suite, and production build). Generated package-lock.json for reproducible npm ci installs, added typecheck script in package.json, added CI status badge in README.md. All 77 test suites (605 tests) passing, linter and typecheck passing with 0 errors, production build verified.
+- Phase: HOTFIX-105
+- Last verified working: Cryptographically signed provenance proofs and dependency-free standalone verifier script (public/verify-provenance.js). ECDSA P-256 (SHA-256) keypair generation and secure storage in IndexedDB master-key encrypted vault, signed JSON provenance artifact export, PR description Markdown summary generator with verifiable trust badge, historical trust score progression computation over time, and interactive TrustReportModal export/verification tabs with standalone verifier download. All 78 test suites (613 tests) passing cleanly, eslint & tsc --noEmit passing with 0 errors, production build verified.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -195,6 +195,26 @@
 - **Files Panel Mobile Header Layout** (8.4.1): Shortened Files panel title to "Files" with item count separated in a compact badge.
 
 ## Log
+
+### [HOTFIX-105] Cryptographically Signed Provenance Proofs & Standalone Verifier — 2026-09-01
+Prompt: Implement cryptographically signed provenance proof export, verification, standalone zero-dependency verification script, and historical trust progression tracking.
+Files touched:
+- `src/services/provenance/signing.ts` (new)
+- `src/services/provenance/signing.test.ts` (new)
+- `public/verify-provenance.js` (new)
+- `src/components/modals/TrustReportModal.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Built `src/services/provenance/signing.ts` providing ECDSA P-256 (SHA-256) keypair management, encrypted private key storage in IndexedDB vault, signed JSON provenance artifact export, proof verification with tamper detection index, PR markdown summary generation, and historical trust progression calculation.
+- Created `public/verify-provenance.js` delivering a zero-dependency standalone Node.js/Browser verification module using standard Web Crypto (`crypto.subtle`) APIs.
+- Extended `TrustReportModal.tsx` with dedicated "Cryptographic Proof" and "History" tabs supporting proof export, public key export, artifact verification, standalone verifier download, and visual trust progression timelines.
+- Added comprehensive unit tests in `signing.test.ts` validating key generation, signing, chain verification, tampering detection, and compatibility with the standalone script.
+Decisions:
+- Used Web Crypto ECDSA P-256 with SHA-256 and JWK/DER encoding to guarantee browser and Node.js cross-compatibility with zero external dependencies.
+Deviations: none
+Verified: All 78 Vitest test suites (613 tests) passed; `npm run typecheck` passed with 0 errors; ESLint passed with 0 errors; production build verified via `compile_applet`.
+Commit: pending
+Open questions: none
 
 ### [HOTFIX-99] Add EditorTabs to Phone Mode Editor Overlay — 2026-08-31
 Prompt: Wrap the phone-mode Editor view in a flex column with EditorTabs matching the desktop tab strip layout.
