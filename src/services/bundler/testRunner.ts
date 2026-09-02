@@ -1,4 +1,6 @@
 import type { FileItem, ProvenanceTestResult } from '../../db';
+import { bundle } from './bundler';
+import { SANDBOX_GUARD_PREAMBLE } from './sandboxGuard';
 
 const VITEST_SHIM = `
 export const tests = [];
@@ -147,7 +149,6 @@ __laide_runAllTests().then(res => self.postMessage({ type: 'DONE', data: res }))
   ];
 
   try {
-    const { bundle } = await import('./bundler');
     const bundledCode = await bundle(buildFiles, '/_tests_entry.ts');
 
     if (typeof Worker === 'undefined') {
@@ -163,15 +164,19 @@ __laide_runAllTests().then(res => self.postMessage({ type: 'DONE', data: res }))
 
     return new Promise((resolve) => {
       let worker: Worker | null = null;
-      let blobUrl = '';
+      let testBlobUrl = '';
+      let bootstrapUrl = '';
 
       const cleanup = () => {
         if (worker) {
           try { worker.terminate(); } catch { /* ignore */ }
           worker = null;
         }
-        if (blobUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
-          try { URL.revokeObjectURL(blobUrl); } catch { /* ignore */ }
+        if (testBlobUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+          try { URL.revokeObjectURL(testBlobUrl); } catch { /* ignore */ }
+        }
+        if (bootstrapUrl && typeof URL !== 'undefined' && URL.revokeObjectURL) {
+          try { URL.revokeObjectURL(bootstrapUrl); } catch { /* ignore */ }
         }
       };
 
@@ -188,9 +193,20 @@ __laide_runAllTests().then(res => self.postMessage({ type: 'DONE', data: res }))
       }, 30000);
 
       try {
-        const blob = new Blob([bundledCode], { type: 'application/javascript' });
-        blobUrl = URL.createObjectURL(blob);
-        worker = new Worker(blobUrl, { type: 'module' });
+        const bootstrapScript = SANDBOX_GUARD_PREAMBLE + `
+self.onmessage = function(e) {
+  if (!e.data || !e.data.moduleUrl) return;
+  import(e.data.moduleUrl).catch(function(err) {
+    self.postMessage({ type: 'ERROR', error: (err && err.message) ? err.message : String(err) });
+  });
+};`;
+
+        const testBlob = new Blob([bundledCode], { type: 'application/javascript' });
+        testBlobUrl = URL.createObjectURL(testBlob);
+        const bootstrapBlob = new Blob([bootstrapScript], { type: 'application/javascript' });
+        bootstrapUrl = URL.createObjectURL(bootstrapBlob);
+
+        worker = new Worker(bootstrapUrl);
 
         worker.onmessage = (e) => {
           clearTimeout(timeout);
@@ -234,6 +250,8 @@ __laide_runAllTests().then(res => self.postMessage({ type: 'DONE', data: res }))
             output: `Worker error: ${e.message || 'Unknown error'}`
           });
         };
+
+        worker.postMessage({ moduleUrl: testBlobUrl });
       } catch (err: unknown) {
         clearTimeout(timeout);
         cleanup();

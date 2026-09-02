@@ -64,8 +64,9 @@ export interface ProvenanceEntry {
 
 export interface VaultSession {
   id: string;
-  keyHash: string;
-  masterKeyBytes: Uint8Array;
+  aesKey: CryptoKey;
+  hmacKey: CryptoKey;
+  verifierBase64: string;
   createdAt: number;
   expiresAt: number;
 }
@@ -135,6 +136,17 @@ export class LaideDatabase extends Dexie {
       connectionProfiles: 'id, provider, label',
       provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
       vaultSessions: 'id, keyHash, createdAt, expiresAt',
+      archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
+      archivedFiles: 'id, projectId, path, updatedAt',
+      secureTokens: 'key',
+    });
+    this.version(6).stores({
+      projects: 'id, name, createdAt, updatedAt',
+      files: 'id, projectId, path, updatedAt',
+      snapshots: 'id, projectId, createdAt',
+      connectionProfiles: 'id, provider, label',
+      provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+      vaultSessions: 'id, createdAt, expiresAt',
       archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
       archivedFiles: 'id, projectId, path, updatedAt',
       secureTokens: 'key',

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-108
-- Last verified working: Static import optimizations across crypto, recovery, factory, model discovery, GitHub, deploy, lockscreen, and settings; stale closure resilience in ChatPanel, Editor keymap doc resolution, Terminal command error handling, and useEffect dependency hygiene. All Vitest test suites (79 suites, 623 tests) passing; `npm run typecheck`, `npm run lint` (0 errors), and `compile_applet` build fully passing.
+- Phase: HOTFIX-109
+- Last verified working: Non-extractable CryptoKey storage in VaultSession (db schema v6) eliminating raw master key byte exposure in IndexedDB, and isolated security bootstrap worker for test runner with API trap guards (blocking indexedDB, fetch, WebSocket, caches, importScripts, XHR, sendBeacon, etc.). All unit tests passing (16/16 security & sandbox tests), lint passing (0 errors), and compile_applet build succeeding.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -830,6 +830,33 @@ Deviations: none
 Verified: `npm run lint` clean (0 errors); `compile_applet` production build succeeded with 0 errors.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-109] Non-Extractable VaultSession CryptoKeys & Sandboxed Test Worker Security Guard — 2026-09-02
+Prompt: Stop storing raw master key in VaultSession (store non-extractable CryptoKeys in IndexedDB) and sandbox the test runner with a bootstrap security guard.
+Files touched:
+- `src/db.ts` (modified)
+- `src/services/security/crypto.ts` (modified)
+- `src/services/security/session.ts` (modified)
+- `src/services/security/session.test.ts` (modified)
+- `src/components/shared/LockScreen.tsx` (modified)
+- `src/services/provenance/signing.ts` (modified)
+- `src/services/bundler/sandboxGuard.ts` (new)
+- `src/services/bundler/testRunner.ts` (modified)
+- `src/services/bundler/testRunner.test.ts` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated `VaultSession` interface and Dexie schema (`version(6)`) to store non-extractable `aesKey: CryptoKey` and `hmacKey: CryptoKey` directly in IndexedDB with HMAC `verifierBase64`, removing raw master key byte persistence and reducing default session duration to 24 hours.
+- Rewrote `src/services/security/session.ts` to save and restore `KeyMaterial` directly using `CryptoKey` references and verify session authenticity via `verifyPassphrase` without exposing key bytes.
+- Extracted shared sandbox lockdown logic into `src/services/bundler/sandboxGuard.ts` (`SANDBOX_GUARD_PREAMBLE`), blocking `indexedDB`, `fetch`, `caches`, `importScripts`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `BroadcastChannel`, `Worker`, `SharedWorker`, `openDatabase`, `serviceWorker`, and `navigator.sendBeacon`.
+- Replaced direct module worker invocation in `src/services/bundler/testRunner.ts` with a sandboxed bootstrap worker that enforces security traps before dynamically importing bundled user test code.
+Decisions:
+- Preserved backward-compatible `masterKeyBytes?: Uint8Array` in `KeyMaterial` so existing unlock workflows remain operational while `VaultSession` persistence stores strictly non-extractable `CryptoKey` instances.
+- Added `navigator.sendBeacon` lockdown to `SANDBOX_GUARD_PREAMBLE` to prevent out-of-band data exfiltration from test workers.
+Deviations: none
+Verified: `npx vitest run src/services/security/session.test.ts src/services/bundler/sandboxRunner.test.ts src/services/bundler/testRunner.test.ts` (16/16 tests passing), `npm run lint` (0 errors), `compile_applet` build passed.
+Commit: pending
+Open questions: none
+
 
 
 

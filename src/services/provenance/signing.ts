@@ -1,6 +1,6 @@
 import { db, type ProvenanceEntry } from '../../db';
 import { getPersistentSession } from '../security/session';
-import { importMasterKey, encryptData, decryptData, arrayBufferToBase64, base64ToArrayBuffer } from '../security/crypto';
+import { encryptData, decryptData, arrayBufferToBase64, base64ToArrayBuffer } from '../security/crypto';
 import { 
   getProvenanceEntries, 
   verifyProvenanceChain, 
@@ -136,8 +136,7 @@ export async function getActiveVaultAesKey(): Promise<CryptoKey | null> {
   try {
     const session = await getPersistentSession();
     if (!session) return null;
-    const keyMaterial = await importMasterKey(session.masterKeyBytes);
-    return keyMaterial.aesKey;
+    return session.aesKey;
   } catch {
     return null;
   }

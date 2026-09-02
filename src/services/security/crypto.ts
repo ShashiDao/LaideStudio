@@ -3,7 +3,7 @@ import { argon2id } from 'hash-wasm';
 export interface KeyMaterial {
   aesKey: CryptoKey;
   hmacKey: CryptoKey;
-  masterKeyBytes: Uint8Array;
+  masterKeyBytes?: Uint8Array;
 }
 
 const VERIFIER_MESSAGE = "XIOM_APP_VERIFIER";

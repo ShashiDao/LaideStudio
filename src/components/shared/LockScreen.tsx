@@ -85,11 +85,11 @@ export function LockScreen() {
       try {
         const session = await getPersistentSession();
         if (session && active) {
-          const keys = await importMasterKey(session.masterKeyBytes);
-          if (active) {
-            setKeys(keys);
-            return;
-          }
+          setKeys({
+            aesKey: session.aesKey,
+            hmacKey: session.hmacKey,
+          });
+          return;
         }
       } catch (e) {
         console.warn('Failed to restore persistent session', e);
@@ -193,7 +193,7 @@ export function LockScreen() {
 
     if (keepMeLoggedIn) {
       try {
-        await savePersistentSession(pendingSetup.masterKey);
+        await savePersistentSession(pendingSetup.keys);
       } catch (err) {
         console.error('Failed to save persistent session during setup', err);
       }
@@ -234,7 +234,7 @@ export function LockScreen() {
       if (isValid) {
         if (keepMeLoggedIn) {
           try {
-            await savePersistentSession(keys.masterKeyBytes);
+            await savePersistentSession(keys);
           } catch (sessionErr) {
             console.error('Failed to save persistent session', sessionErr);
           }
@@ -273,7 +273,7 @@ export function LockScreen() {
         const keys = await importMasterKey(masterKeyBytes);
         if (keepMeLoggedIn) {
           try {
-            await savePersistentSession(masterKeyBytes);
+            await savePersistentSession(keys);
           } catch (sessionErr) {
             console.error('Failed to save persistent session', sessionErr);
           }
