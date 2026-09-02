@@ -1,8 +1,8 @@
 ## Current State
-- Phase: HOTFIX-119
-- Last verified working: Full Vitest suite passing (`npm test` — 82/82 test files passed, 645/645 tests passed), `npm run lint` clean (0 errors, 194 warnings), and `compile_applet` build succeeded. SettingsPanel (2,499 -> 196 lines) and TerminalPanel (2,244 -> 353 lines) fully split into modular sub-components. CI badge in README.md updated to ShashiDao/LaideStudio.
+- Phase: HOTFIX-120
+- Last verified working: Full TypeScript typecheck passing (`npm run typecheck` / `tsc --noEmit`), `compile_applet` build succeeded, and `TerminalPrompt.tsx` `inputRef` typing updated to `React.RefObject<HTMLInputElement | null>`.
 - Known issues / incomplete: none
-- Deviations from blueprint so far: Structure cleanup pass outside the blueprint sequence.
+- Deviations from blueprint so far: Structure cleanup follow-up.
 - Tech Debt / Split Candidates:
   - `src/components/terminal/terminalExecutor.ts` (1365 lines) — Extract domain command executors (fs, git, npm, bisect) into separate handler files under `src/components/terminal/handlers/`.
   - `src/components/shared/FileTree.tsx` (1279 lines) — Extract tree node item rendering and search bar into `FileTreeNode.tsx` and `FileTreeSearch.tsx`.
@@ -1080,6 +1080,21 @@ Decisions:
 - Ensured zero logic duplication by lifting state to container shells while delegating command execution and tab rendering to dedicated modules.
 Deviations: Structure cleanup pass outside the blueprint sequence.
 Verified: Full Vitest suite passing (`npm test` — 82/82 test files, 645/645 tests passed in 126.94s), `npm run lint` clean (0 errors, 194 warnings), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-120] Fix RefObject Nullability Type for TerminalPrompt inputRef Prop — 2026-09-02
+Prompt: In src/components/terminal/TerminalPrompt.tsx, change the inputRef prop type from React.RefObject<HTMLInputElement> to React.RefObject<HTMLInputElement | null>, check all split components for similar patterns, run typecheck, and log.
+Files touched:
+- `src/components/terminal/TerminalPrompt.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated `TerminalPromptProps.inputRef` type in `TerminalPrompt.tsx` from `React.RefObject<HTMLInputElement>` to `React.RefObject<HTMLInputElement | null>` to accurately reflect the return type of `useRef<HTMLInputElement>(null)`.
+- Audited all other split sub-components in `src/components/terminal/` and `src/components/shared/` for `RefObject` prop patterns.
+Decisions:
+- Follow-up type refinement directly addressing React 19 / TypeScript `RefObject` nullable value ergonomics.
+Deviations: none
+Verified: `npm run typecheck` (`tsc --noEmit` — 0 errors) and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
 

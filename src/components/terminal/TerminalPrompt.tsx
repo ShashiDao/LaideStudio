@@ -13,7 +13,7 @@ interface TerminalPromptProps {
   input: string;
   setInput: (value: string) => void;
   isRunning: boolean;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   onExecute: (cmd: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onTab: () => void;
