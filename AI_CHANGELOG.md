@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-117
-- Last verified working: Implemented shared exponential backoff retry helper with jitter for LLM provider adapters in `llmAdapter.ts`, reusing `friendlyError.ts`'s detection for transient rate-limit (429/ResourceExhausted) errors and strictly limiting stream retries to initial connection attempts before chunks emit. Added unit test suite in `llmAdapter.test.ts`. Full Vitest suite passing (82/82 test files, 644/644 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
+- Phase: HOTFIX-118
+- Last verified working: Generated `package-lock.json` resolving all direct dependencies and devDependencies in `package.json` for deterministic CI builds (`npm ci`). Verified `.gitignore` does not exclude lockfiles. Full Vitest suite passing (82/82 test files, 644/644 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -999,6 +999,22 @@ Decisions:
 - Implemented `withRetry` as a transparent Proxy around `LLMAdapter` to preserve prototype identity (`instanceof` checks for individual provider classes) while intercepting `send`, `stream`, and `countTokens`.
 Deviations: none
 Verified: `npx vitest run src/services/llm/` (9/9 test files, 69/69 tests passing), full Vitest suite (82/82 test files, 644/644 tests passing), `npm run lint` (0 errors), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-118] Generate and Track package-lock.json for CI — 2026-09-02
+Prompt: Generate and commit a package-lock.json file for this project by resolving exact versions for every dependency currently listed in package.json (both dependencies and devDependencies). Ensure the lockfile is NOT excluded in .gitignore.
+Files touched:
+- `package-lock.json` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Generated `package-lock.json` lockfile version 3 resolving all dependencies and devDependencies from `package.json`.
+- Confirmed `.gitignore` contains no rules excluding `package-lock.json` or `*.lock`.
+- Established convention to maintain and update `package-lock.json` in sync with any future dependency changes for reliable `npm ci` in GitHub Actions.
+Decisions:
+- Used `npm i --package-lock-only` to generate lockfile version 3 without altering existing installed node_modules.
+Deviations: none
+Verified: `package-lock.json` generated and tracked, `.gitignore` inspected, `npm run lint` passed (0 errors), `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
 
