@@ -68,6 +68,7 @@ describe('Accessibility Hygiene Pass (axe-core)', () => {
     const { container } = render(
       <TerminalPanel
         projectId="test-proj"
+        files={[]}
       />
     );
 

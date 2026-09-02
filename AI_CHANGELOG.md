@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-110
-- Last verified working: Secret scanning integrated into deployment pipeline (Netlify, Vercel, Cloudflare) with interactive DeployModal warning card & confirmation gate; path traversal sanitization in ZIP import (rejecting `..`, `.`, and control characters) with toast reporting. All 81 test files (631 tests) passing, linting clean (0 errors), and compile_applet build succeeding.
+- Phase: HOTFIX-111
+- Last verified working: TypeScript typecheck passing (0 errors on `tsc --noEmit`), unit test suites passing, ESLint clean (0 errors), and production build compiling successfully. Fixed terminal panel props type, LockScreen recovery masterKeyBytes null guard, ToastSlice warning type support with AlertTriangle icon in Toaster, and recovery test type assertions.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -881,6 +881,31 @@ Deviations: none
 Verified: Vitest suite (81/81 test files, 631/631 tests passing), ESLint (0 errors), and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-111] CI Pipeline & Typecheck Alignment — 2026-09-02
+Prompt: Look into ci logs and fix it and then verify yourself first.
+Files touched:
+- `package-lock.json` (modified)
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `src/components/shared/AccessibilityPass.test.tsx` (modified)
+- `src/components/shared/LockScreen.tsx` (modified)
+- `src/components/shared/Toaster.tsx` (modified)
+- `src/store.ts` (modified)
+- `src/services/security/recovery.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Synchronized `package-lock.json` with `package.json` dependencies (resolving `axe-core@4.13.0` lockfile mismatch causing `npm ci` failures in CI).
+- Made `files?: FileItem[]` optional with default `[]` in `TerminalPanel.tsx` component props and added explicit `files={[]}` in `AccessibilityPass.test.tsx`.
+- Added defensive null-check guards for `keys.masterKeyBytes` in `LockScreen.tsx` setup before passing to `createRecoveryBundle` and `pendingSetup`.
+- Extended `ToastMessage` and `ToastSlice` in `src/store.ts` to support `'warning'` toast types, and updated `src/components/shared/Toaster.tsx` with amber badge styling and `AlertTriangle` icon rendering.
+- Fixed non-null assertions in `recovery.test.ts` for strict TypeScript type checking.
+Decisions:
+- Updated `ToastSlice` type definition to include `'warning'` to align with usages across file operations and security notifications while providing distinct amber visual feedback.
+Deviations: none
+Verified: `npm ci` completed cleanly, `npm run typecheck` (`tsc --noEmit`) passed with 0 errors, ESLint passed with 0 errors, full Vitest suite (81/81 test files, 631/631 tests) passed, and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
 
 
 

@@ -60,7 +60,7 @@ describe('Recovery Phrase & Master Key Wrapping', () => {
     const recoveryPhrase = generateRecoveryPhrase(12);
     
     // Create recovery bundle
-    const recoveryData = await createRecoveryBundle(primaryKeys.masterKeyBytes, recoveryPhrase);
+    const recoveryData = await createRecoveryBundle(primaryKeys.masterKeyBytes!, recoveryPhrase);
     expect(recoveryData.saltBase64).toBeDefined();
     expect(recoveryData.wrappedMasterKey).toBeDefined();
     expect(recoveryData.verifierBase64).toBeDefined();
@@ -82,7 +82,7 @@ describe('Recovery Phrase & Master Key Wrapping', () => {
     const correctPhrase = generateRecoveryPhrase(12);
     const wrongPhrase = generateRecoveryPhrase(12);
     
-    const recoveryData = await createRecoveryBundle(keys.masterKeyBytes, correctPhrase);
+    const recoveryData = await createRecoveryBundle(keys.masterKeyBytes!, correctPhrase);
     
     const recovered = await unlockWithRecoveryPhrase(recoveryData, wrongPhrase);
     expect(recovered).toBeNull();

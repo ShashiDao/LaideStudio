@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../store';
-import { AlertCircle, CheckCircle, Info, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Info, X } from 'lucide-react';
 
 export function Toaster() {
   const { toasts, removeToast } = useAppStore();
@@ -20,6 +20,8 @@ export function Toaster() {
           className={`flex items-start gap-3 w-full p-3.5 rounded-lg shadow-2xl border pointer-events-auto bg-surface-elevated transition-all animate-in slide-in-from-bottom-4 fade-in duration-200 ${
             toast.type === 'error'
               ? 'border-oxide/60 ring-1 ring-oxide/20 text-text'
+              : toast.type === 'warning'
+              ? 'border-amber-500/60 ring-1 ring-amber-500/20 text-text'
               : toast.type === 'success'
               ? 'border-moss/60 ring-1 ring-moss/20 text-text'
               : 'border-accent/60 ring-1 ring-accent/20 text-text'
@@ -27,6 +29,7 @@ export function Toaster() {
         >
           <div className="shrink-0 mt-0.5">
             {toast.type === 'error' && <AlertCircle size={17} className="text-oxide" />}
+            {toast.type === 'warning' && <AlertTriangle size={17} className="text-amber-500" />}
             {toast.type === 'success' && <CheckCircle size={17} className="text-moss" />}
             {toast.type === 'info' && <Info size={17} className="text-accent" />}
           </div>

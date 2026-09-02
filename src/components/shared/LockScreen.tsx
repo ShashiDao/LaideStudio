@@ -141,6 +141,10 @@ export function LockScreen() {
       const phrase = generateRecoveryPhrase(12);
       setRecoveryPhrase(phrase);
       
+      if (!keys.masterKeyBytes) {
+        throw new Error('Master key bytes not available');
+      }
+
       const recoveryData = await createRecoveryBundle(keys.masterKeyBytes, phrase);
       
       setPendingSetup({

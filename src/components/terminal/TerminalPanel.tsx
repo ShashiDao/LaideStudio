@@ -243,7 +243,7 @@ export function TerminalPanel({
   onOpenBisect
 }: {
   projectId?: string;
-  files: FileItem[];
+  files?: FileItem[];
   onFilesChanged?: () => void;
   onOpenBisect?: (testName?: string) => void;
 }) {

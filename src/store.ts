@@ -148,12 +148,12 @@ export interface ThemeSlice {
 export interface ToastMessage {
   id: string;
   message: string;
-  type: 'info' | 'error' | 'success';
+  type: 'info' | 'error' | 'success' | 'warning';
 }
 
 export interface ToastSlice {
   toasts: ToastMessage[];
-  addToast: (message: string, type?: 'info' | 'error' | 'success') => void;
+  addToast: (message: string, type?: 'info' | 'error' | 'success' | 'warning') => void;
   removeToast: (id: string) => void;
 }
 
