@@ -9,6 +9,7 @@ import {
   Loader2, 
   ShieldCheck, 
   AlertCircle, 
+  AlertTriangle,
   History, 
   Trash2, 
   Clock
@@ -25,8 +26,10 @@ import {
   deleteDeployToken,
   getDeployHistory, 
   clearDeployHistory, 
-  type DeployResult 
+  type DeployResult,
+  type DeployPackage
 } from '../../services/deploy/deployClient';
+import type { SecretMatch } from '../../services/security/secretScan';
 import { listFiles } from '../../services/fs/vfs';
 import { EmptyState } from '../shared/EmptyState';
 
@@ -101,6 +104,8 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
   
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [historyItems, setHistoryItems] = useState<DeployResult[]>([]);
+  const [secretWarnings, setSecretWarnings] = useState<SecretMatch[] | null>(null);
+  const [pendingDeployPkg, setPendingDeployPkg] = useState<DeployPackage | null>(null);
 
   // Load saved token and history on mount or tab change
   useEffect(() => {
@@ -109,6 +114,8 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
     async function loadProviderInfo() {
       setDeployError(null);
       setDeploySuccess(null);
+      setSecretWarnings(null);
+      setPendingDeployPkg(null);
       const history = getDeployHistory(project.id);
       if (active) setHistoryItems(history);
 
@@ -163,8 +170,8 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
     }
   };
 
-  const handleDeploy = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDeploy = async (e?: React.FormEvent, forceBypass: boolean = false) => {
+    if (e) e.preventDefault();
     if (isDeploying) return;
 
     setIsDeploying(true);
@@ -173,16 +180,28 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
     setDeployStep('Reading project workspace files...');
 
     try {
-      // 1. Fetch files
-      const projectFiles = await listFiles(project.id);
-      if (projectFiles.length === 0) {
-        throw new Error('Project contains no files to deploy.');
+      let deployPkg = pendingDeployPkg;
+
+      if (!deployPkg) {
+        // 1. Fetch files
+        const projectFiles = await listFiles(project.id);
+        if (projectFiles.length === 0) {
+          throw new Error('Project contains no files to deploy.');
+        }
+
+        // 2. Build deployment package (bundles TS/React if detected and scans secrets)
+        deployPkg = await buildDeployPackage(projectFiles, (status) => {
+          setDeployStep(status);
+        });
       }
 
-      // 2. Build deployment package (bundles TS/React if detected)
-      const deployPkg = await buildDeployPackage(projectFiles, (status) => {
-        setDeployStep(status);
-      });
+      // Check for secret warnings before proceeding
+      if (!forceBypass && deployPkg.secretWarnings && deployPkg.secretWarnings.length > 0) {
+        setSecretWarnings(deployPkg.secretWarnings);
+        setPendingDeployPkg(deployPkg);
+        setIsDeploying(false);
+        return;
+      }
 
       // 3. Save token if requested and keys exist
       if (tokenInput.trim() && saveTokenToVault && keys) {
@@ -226,6 +245,8 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
         });
       }
 
+      setSecretWarnings(null);
+      setPendingDeployPkg(null);
       setDeploySuccess(result);
       setHistoryItems(getDeployHistory(project.id));
       addToast(`Successfully published to ${activeTab === 'netlify' ? 'Netlify' : activeTab === 'vercel' ? 'Vercel' : 'Cloudflare'}!`, 'success');
@@ -533,6 +554,66 @@ export function DeployModal({ project, onClose }: DeployModalProps) {
                   className="px-4 py-1.5 bg-surface-elevated hover:bg-accent hover:text-accent-text-on text-text border border-border rounded-lg transition-colors cursor-pointer"
                 >
                   Done
+                </button>
+              </div>
+            </div>
+          ) : secretWarnings && secretWarnings.length > 0 ? (
+            /* Secret Detection Warning View */
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <div className="p-4 bg-oxide/10 border border-oxide/30 rounded-xl space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-oxide/20 rounded-lg border border-oxide/40 text-oxide shrink-0 mt-0.5">
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-text">Potential Secrets Detected Before Publishing</h3>
+                    <p className="text-[11px] text-muted leading-relaxed font-sans">
+                      The deploy scanner detected <span className="text-oxide font-bold">{secretWarnings.length}</span> potential secret{secretWarnings.length > 1 ? 's' : ''} or credential pattern{secretWarnings.length > 1 ? 's' : ''} in your workspace files. Deploying will publish these files publicly to the hosting provider.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-bg/90 border border-border/80 rounded-lg p-2 max-h-52 overflow-y-auto space-y-2">
+                  {secretWarnings.map((item, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-2 bg-surface/80 rounded border border-border/60 text-[11px]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-text font-mono font-bold truncate">{item.file}</span>
+                        <span className="text-[10px] text-muted font-sans shrink-0">
+                          {item.line > 0 ? `Line ${item.line}` : '(file)'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-oxide/15 text-oxide border border-oxide/30 font-sans">
+                          {item.pattern}
+                        </span>
+                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-bg text-muted font-mono border border-border">
+                          {item.preview}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSecretWarnings(null);
+                    setPendingDeployPkg(null);
+                  }}
+                  className="px-4 py-2 bg-surface hover:bg-surface-elevated text-muted hover:text-text border border-border rounded-lg text-xs transition-colors cursor-pointer font-sans"
+                >
+                  Cancel & Review Files
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeploying}
+                  onClick={() => handleDeploy(undefined, true)}
+                  className="px-5 py-2 bg-oxide hover:bg-oxide/90 text-white font-bold font-sans rounded-lg text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+                >
+                  {isDeploying ? <Loader2 size={13} className="animate-spin" /> : <Rocket size={13} />}
+                  <span>Deploy anyway</span>
                 </button>
               </div>
             </div>

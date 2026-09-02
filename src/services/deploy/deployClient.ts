@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { db, type FileItem } from '../../db';
 import { encryptData, decryptData, type KeyMaterial } from '../security/crypto';
+import { scanFilesForSecrets, type SecretMatch } from '../security/secretScan';
 import { binaryExtensions } from '../fs/zipExport';
 import { detectBundledProject } from '../bundler/entryDetection';
 import { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } from '../../components/preview/PreviewPanel';
@@ -16,6 +17,7 @@ export interface DeployPackage {
   staticFiles: DeployFile[];
   isBundled: boolean;
   entryPoint?: string;
+  secretWarnings: SecretMatch[];
 }
 
 export interface DeployResult {
@@ -103,11 +105,14 @@ export async function buildDeployPackage(
       compressionOptions: { level: 6 }
     });
 
+    const secretWarnings = scanFilesForSecrets(files);
+
     return {
       zipBlob,
       staticFiles,
       isBundled: true,
-      entryPoint: projectInfo.entryPoint
+      entryPoint: projectInfo.entryPoint,
+      secretWarnings
     };
   }
 
@@ -151,10 +156,13 @@ export async function buildDeployPackage(
     compressionOptions: { level: 6 }
   });
 
+  const secretWarnings = scanFilesForSecrets(files);
+
   return {
     zipBlob,
     staticFiles,
-    isBundled: false
+    isBundled: false,
+    secretWarnings
   };
 }
 

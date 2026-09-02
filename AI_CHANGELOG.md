@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-109
-- Last verified working: Non-extractable CryptoKey storage in VaultSession (db schema v6) eliminating raw master key byte exposure in IndexedDB, and isolated security bootstrap worker for test runner with API trap guards (blocking indexedDB, fetch, WebSocket, caches, importScripts, XHR, sendBeacon, etc.). All unit tests passing (16/16 security & sandbox tests), lint passing (0 errors), and compile_applet build succeeding.
+- Phase: HOTFIX-110
+- Last verified working: Secret scanning integrated into deployment pipeline (Netlify, Vercel, Cloudflare) with interactive DeployModal warning card & confirmation gate; path traversal sanitization in ZIP import (rejecting `..`, `.`, and control characters) with toast reporting. All 81 test files (631 tests) passing, linting clean (0 errors), and compile_applet build succeeding.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -856,6 +856,32 @@ Deviations: none
 Verified: `npx vitest run src/services/security/session.test.ts src/services/bundler/sandboxRunner.test.ts src/services/bundler/testRunner.test.ts` (16/16 tests passing), `npm run lint` (0 errors), `compile_applet` build passed.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-110] Pre-Deploy Secret Scanning & ZIP Import Path Sanitization — 2026-09-02
+Prompt: Integrate secret scanning into deployment packaging and DeployModal with explicit confirmation, and sanitize ZIP import paths against path traversal attacks.
+Files touched:
+- `src/services/security/secretScan.ts` (new)
+- `src/services/security/secretScan.test.ts` (new)
+- `src/services/deploy/deployClient.ts` (modified)
+- `src/components/modals/DeployModal.tsx` (modified)
+- `src/services/fs/vfs.ts` (modified)
+- `src/services/fs/zipImport.ts` (modified)
+- `src/services/fs/zipImport.test.ts` (modified)
+- `src/hooks/useFileOperations.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Integrated `scanFilesForSecrets` into `buildDeployPackage` to scan all workspace files for `.env` files and API key patterns (Anthropic, OpenAI, Google, GitHub, generic credentials) before generating deployment archives.
+- Updated `DeployModal.tsx` to trap detected secrets and render a dedicated warning interface detailing file, line number, pattern, and redacted preview, requiring explicit "Deploy anyway" user confirmation to prevent accidental key exposure.
+- Added `sanitizeImportedPath` in `src/services/fs/vfs.ts` to reject path traversal attempts (`..`, `.`), control characters, and malformed segments.
+- Updated `src/services/fs/zipImport.ts` to filter entries with `sanitizeImportedPath`, record skipped unsafe files, and notify users via toast warnings in `useFileOperations.ts`.
+Decisions:
+- Redacted secret previews in `secretScan.ts` (displaying only first and last 4 characters separated by ellipses) to protect sensitive values from full on-screen disclosure.
+- Allowed explicit bypass in DeployModal via "Deploy anyway" action so false positives or intentional non-production configurations do not block deployments permanently.
+Deviations: none
+Verified: Vitest suite (81/81 test files, 631/631 tests passing), ESLint (0 errors), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
 
 
 

@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { bulkCreateOrUpdateFiles } from './vfs';
+import { bulkCreateOrUpdateFiles, sanitizeImportedPath } from './vfs';
 import { flattenWrapperFolder } from './restructure';
 
 /**
@@ -33,7 +33,7 @@ export async function importZip(
   zipData: Blob | ArrayBuffer | Uint8Array, 
   projectId: string, 
   options?: { autoRestructure?: boolean }
-): Promise<{ count: number }> {
+): Promise<{ count: number; skipped: string[] }> {
   const rawData = (typeof Blob !== 'undefined' && zipData instanceof Blob)
     ? await zipData.arrayBuffer()
     : zipData;
@@ -41,7 +41,7 @@ export async function importZip(
   const rawEntries = Object.values(zip.files).filter(entry => !entry.dir);
 
   if (rawEntries.length === 0) {
-    return { count: 0 };
+    return { count: 0, skipped: [] };
   }
 
   // Detect common top-level wrapper folder if autoRestructure is enabled
@@ -60,15 +60,21 @@ export async function importZip(
     }
   }
 
-  // Parallel single-pass decode of files from ZIP
+  // Parallel single-pass decode of files from ZIP with path sanitization
+  const skipped: string[] = [];
   const utf8Decoder = new TextDecoder('utf-8');
-  const decodedFiles = await Promise.all(
+  const decodedEntries = await Promise.all(
     rawEntries.map(async (entry) => {
       const rawPath = entry.name.replace(/^\//, '');
       const relativePath = (commonFolder && rawPath.startsWith(`${commonFolder}/`))
         ? rawPath.substring(commonFolder.length + 1)
         : rawPath;
-      const path = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+      
+      const safePath = sanitizeImportedPath(relativePath);
+      if (!safePath) {
+        skipped.push(entry.name);
+        return null;
+      }
 
       // Single decompression pass to Uint8Array: no second JSZip decompress call
       const uint8Array = await entry.async('uint8array');
@@ -76,9 +82,11 @@ export async function importZip(
         ? utf8Decoder.decode(uint8Array)
         : uint8ArrayToBase64(uint8Array);
 
-      return { path, content };
+      return { path: safePath, content };
     })
   );
+
+  const decodedFiles = decodedEntries.filter((f): f is { path: string; content: string } => f !== null);
 
   await bulkCreateOrUpdateFiles(projectId, decodedFiles);
 
@@ -86,5 +94,5 @@ export async function importZip(
     await flattenWrapperFolder(projectId);
   }
 
-  return { count: decodedFiles.length };
+  return { count: decodedFiles.length, skipped };
 }

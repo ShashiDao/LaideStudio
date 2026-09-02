@@ -134,11 +134,22 @@ export function useFileOperations({
       }
 
       let totalImported = 0;
+      let totalSkipped = 0;
 
       // Extract ZIP archives fast
       for (const zipFile of zipFiles) {
-        const { count } = await importZip(zipFile, targetProjectId, { autoRestructure: true });
+        const { count, skipped } = await importZip(zipFile, targetProjectId, { autoRestructure: true });
         totalImported += count;
+        if (skipped && skipped.length > 0) {
+          totalSkipped += skipped.length;
+        }
+      }
+
+      if (totalSkipped > 0) {
+        useAppStore.getState().addToast(
+          `${totalSkipped} file${totalSkipped > 1 ? 's were' : ' was'} skipped due to unsafe path names`,
+          'warning'
+        );
       }
 
       // Process and write regular files in parallel

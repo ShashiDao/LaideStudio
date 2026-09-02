@@ -56,6 +56,19 @@ export async function deleteOpfsFile(projectId: string, path: string): Promise<v
 }
 
 /**
+ * Sanitizes a file path coming from an external import (e.g. ZIP archive).
+ * Rejects path traversal (`..` or `.`), control characters, and invalid path segments.
+ * Returns normalized absolute path starting with `/` or null if rejected.
+ */
+export function sanitizeImportedPath(rawPath: string): string | null {
+  if (!rawPath || /[\r\n\t\0]/.test(rawPath)) return null;
+  const segments = rawPath.split('/').filter(Boolean);
+  const safe = segments.filter(s => s !== '.' && s !== '..');
+  if (safe.length === 0 || safe.length !== segments.length) return null; // reject rather than silently rewrite
+  return '/' + safe.join('/');
+}
+
+/**
  * Determines whether a file path is a valid workspace path or an accidental artifact
  * (e.g. created by pasting code snippets or invalid shell parameters).
  */

@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import JSZip from 'jszip';
 import { db } from '../../db';
 import { importZip, uint8ArrayToBase64, isText } from './zipImport';
-import { listFiles } from './vfs';
+import { listFiles, sanitizeImportedPath } from './vfs';
 
 describe('Zip Import Service', () => {
   const projectId = 'zip-import-test';
@@ -11,6 +11,50 @@ describe('Zip Import Service', () => {
   beforeEach(async () => {
     await db.files.clear();
     await db.snapshots.clear();
+  });
+
+  it('sanitizeImportedPath rejects dot-dot traversal, control chars, and normalizes valid paths', () => {
+    expect(sanitizeImportedPath('../escaped.txt')).toBeNull();
+    expect(sanitizeImportedPath('src/../../etc/passwd')).toBeNull();
+    expect(sanitizeImportedPath('./foo/./bar.ts')).toBeNull();
+    expect(sanitizeImportedPath('foo\0bar.ts')).toBeNull();
+    expect(sanitizeImportedPath('foo\nbar.ts')).toBeNull();
+    expect(sanitizeImportedPath('')).toBeNull();
+    expect(sanitizeImportedPath('src/components/App.tsx')).toBe('/src/components/App.tsx');
+    expect(sanitizeImportedPath('/package.json')).toBe('/package.json');
+  });
+
+  it('rejects path traversal and unsafe paths during zip import', async () => {
+    const zip = new JSZip();
+    zip.file('safe.txt', 'safe content');
+    zip.file('bad\0char.txt', 'null byte');
+
+    // Manually inject zip entry with path traversal name to test real parser rejection
+    (zip.files as Record<string, unknown>)['../escaped.txt'] = {
+      name: '../escaped.txt',
+      dir: false,
+      async: async () => new TextEncoder().encode('traversal content')
+    };
+    (zip.files as Record<string, unknown>)['foo/../../bar.ts'] = {
+      name: 'foo/../../bar.ts',
+      dir: false,
+      async: async () => new TextEncoder().encode('traversal content 2')
+    };
+
+    const spy = vi.spyOn(JSZip, 'loadAsync').mockResolvedValueOnce(zip);
+
+    const result = await importZip(new Uint8Array([1, 2, 3]), projectId);
+
+    expect(result.count).toBe(1);
+    expect(result.skipped).toContain('../escaped.txt');
+    expect(result.skipped).toContain('foo/../../bar.ts');
+    expect(result.skipped).toContain('bad\0char.txt');
+
+    const files = await listFiles(projectId);
+    expect(files).toHaveLength(1);
+    expect(files[0].path).toBe('/safe.txt');
+
+    spy.mockRestore();
   });
 
   it('should import a zip file with text and binary files, ignoring directories', async () => {
