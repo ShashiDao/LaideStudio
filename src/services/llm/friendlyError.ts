@@ -12,6 +12,59 @@ export const RAW_ERROR_TAG_START = '<!-- RAW_ERROR_START -->';
 export const RAW_ERROR_TAG_END = '<!-- RAW_ERROR_END -->';
 
 /**
+ * Detects whether an error or error message represents a rate limit / quota exhaustion (HTTP 429, ResourceExhausted, etc.)
+ */
+export function isRateLimitError(errorOrMessage: unknown): boolean {
+  if (!errorOrMessage) return false;
+
+  let msg: string;
+  if (typeof errorOrMessage === 'string') {
+    msg = errorOrMessage;
+  } else if (typeof errorOrMessage === 'object') {
+    const obj = errorOrMessage as Record<string, unknown>;
+    if (
+      obj.status === 429 ||
+      obj.statusCode === 429 ||
+      obj.code === 429 ||
+      obj.code === 'RESOURCE_EXHAUSTED' ||
+      obj.code === 'rate_limit_exceeded'
+    ) {
+      return true;
+    }
+    if (typeof obj.message === 'string') {
+      msg = obj.message;
+    } else {
+      try {
+        msg = JSON.stringify(errorOrMessage);
+      } catch {
+        msg = String(errorOrMessage);
+      }
+    }
+  } else {
+    msg = String(errorOrMessage);
+  }
+
+  const lower = msg.toLowerCase();
+
+  return (
+    lower.includes('429') ||
+    lower.includes('rate limit') ||
+    lower.includes('rate_limit') ||
+    lower.includes('ratelimit') ||
+    lower.includes('too many requests') ||
+    lower.includes('resource_exhausted') ||
+    lower.includes('resourceexhausted') ||
+    lower.includes('quota exceeded') ||
+    lower.includes('insufficient_quota') ||
+    lower.includes('credit limit') ||
+    lower.includes('credits remaining') ||
+    lower.includes('exceeded your current quota')
+  );
+}
+
+export const isRetryableError = isRateLimitError;
+
+/**
  * Transforms raw provider and network error strings into user-friendly, actionable summaries.
  */
 export function toFriendlyErrorMessage(rawMessage: string): FriendlyErrorResult {
@@ -38,20 +91,7 @@ export function toFriendlyErrorMessage(rawMessage: string): FriendlyErrorResult 
   }
 
   // 2. Rate limits / Quota exhaustion (HTTP 429, ResourceExhausted, etc.)
-  if (
-    lower.includes('429') ||
-    lower.includes('rate limit') ||
-    lower.includes('rate_limit') ||
-    lower.includes('ratelimit') ||
-    lower.includes('too many requests') ||
-    lower.includes('resource_exhausted') ||
-    lower.includes('resourceexhausted') ||
-    lower.includes('quota exceeded') ||
-    lower.includes('insufficient_quota') ||
-    lower.includes('credit limit') ||
-    lower.includes('credits remaining') ||
-    lower.includes('exceeded your current quota')
-  ) {
+  if (isRateLimitError(msg)) {
     return {
       summary: 'Rate limit exceeded — please wait a moment before trying again or check your account quota.'
     };

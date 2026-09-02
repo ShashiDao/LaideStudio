@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-116
-- Last verified working: Synchronized encryption scheme documentation in `README.md` to reflect Argon2id + AES-256-GCM across all sections (eliminated outdated PBKDF2 reference). Full Vitest suite passing (81/81 test files, 635/635 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
+- Phase: HOTFIX-117
+- Last verified working: Implemented shared exponential backoff retry helper with jitter for LLM provider adapters in `llmAdapter.ts`, reusing `friendlyError.ts`'s detection for transient rate-limit (429/ResourceExhausted) errors and strictly limiting stream retries to initial connection attempts before chunks emit. Added unit test suite in `llmAdapter.test.ts`. Full Vitest suite passing (82/82 test files, 644/644 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -980,6 +980,28 @@ Deviations: none
 Verified: `grep -i "PBKDF2" README.md` returned 0 matches, `npm run lint` passed (0 errors), and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-117] Shared Exponential Backoff & Rate-Limit Retry for LLM Providers — 2026-09-02
+Prompt: FIX 4 — Implement a shared retry helper with exponential backoff + jitter (max 3 attempts) in the shared adapter layer, reusing friendlyError.ts's rate-limit detection for 429/ResourceExhausted errors without retrying terminal errors (e.g. 401) or mid-stream emissions.
+Files touched:
+- `src/services/llm/friendlyError.ts` (modified)
+- `src/services/llm/llmAdapter.ts` (modified)
+- `src/services/llm/factory.ts` (modified)
+- `src/services/llm/llmAdapter.test.ts` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Exported `isRateLimitError` / `isRetryableError` from `src/services/llm/friendlyError.ts` to provide a single source of truth detecting HTTP 429, ResourceExhausted, quota exceeded, and rate_limit_exceeded errors across all providers.
+- Implemented `retryWithBackoff`, `calculateBackoffDelay`, and `withRetry` in `src/services/llm/llmAdapter.ts`, applying max 3 attempts with exponential backoff and jitter.
+- Restricted stream retries strictly to the initial connection phase before any chunk has yielded, ensuring mid-stream failures are not restarted or duplicated in the UI.
+- Wrapped all adapter instantiations in `src/services/llm/factory.ts` with `withRetry`.
+- Added unit tests in `src/services/llm/llmAdapter.test.ts` verifying retry on 429, immediate failure on 401, stream initial connection retry, mid-stream failure non-retry, and backoff jitter calculation.
+Decisions:
+- Implemented `withRetry` as a transparent Proxy around `LLMAdapter` to preserve prototype identity (`instanceof` checks for individual provider classes) while intercepting `send`, `stream`, and `countTokens`.
+Deviations: none
+Verified: `npx vitest run src/services/llm/` (9/9 test files, 69/69 tests passing), full Vitest suite (82/82 test files, 644/644 tests passing), `npm run lint` (0 errors), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
 
 
 

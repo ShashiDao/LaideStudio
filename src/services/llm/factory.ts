@@ -1,5 +1,5 @@
 import { ConnectionProfile } from '../../db';
-import { LLMAdapter } from './llmAdapter';
+import { LLMAdapter, withRetry } from './llmAdapter';
 import { AnthropicProvider } from './providers/anthropic';
 import { OpenAIProvider } from './providers/openai';
 import { GoogleProvider } from './providers/google';
@@ -9,7 +9,7 @@ import { decryptData } from '../security/crypto';
 
 export async function createLLMAdapter(profile: ConnectionProfile, aesKey: CryptoKey): Promise<LLMAdapter> {
   if (profile.provider === 'webllm' || profile.provider === 'offline') {
-    return new WebLLMProvider(profile.model);
+    return withRetry(new WebLLMProvider(profile.model));
   }
 
   const apiKey = await decryptData(aesKey, profile.encryptedApiKey);
@@ -17,20 +17,28 @@ export async function createLLMAdapter(profile: ConnectionProfile, aesKey: Crypt
     throw new Error('Failed to decrypt API key for profile');
   }
 
+  let adapter: LLMAdapter;
   switch (profile.provider) {
     case 'anthropic':
-      return new AnthropicProvider(apiKey || '', profile.model);
+      adapter = new AnthropicProvider(apiKey || '', profile.model);
+      break;
     case 'openai':
-      return new OpenAIProvider(apiKey || '', profile.model);
+      adapter = new OpenAIProvider(apiKey || '', profile.model);
+      break;
     case 'google':
-      return new GoogleProvider(apiKey || '', profile.model);
+      adapter = new GoogleProvider(apiKey || '', profile.model);
+      break;
     case 'openrouter':
     case 'openai-compatible':
-      return new OpenAICompatibleProvider(profile.baseUrl || '', apiKey || '', profile.model);
+      adapter = new OpenAICompatibleProvider(profile.baseUrl || '', apiKey || '', profile.model);
+      break;
     case 'webllm':
     case 'offline':
-      return new WebLLMProvider(profile.model);
+      adapter = new WebLLMProvider(profile.model);
+      break;
     default:
       throw new Error(`Unsupported provider: ${profile.provider}`);
   }
+
+  return withRetry(adapter);
 }
