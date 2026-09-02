@@ -1,8 +1,40 @@
 ## Current State
-- Phase: HOTFIX-118
-- Last verified working: Generated `package-lock.json` resolving all direct dependencies and devDependencies in `package.json` for deterministic CI builds (`npm ci`). Verified `.gitignore` does not exclude lockfiles. Full Vitest suite passing (82/82 test files, 644/644 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
+- Phase: HOTFIX-119
+- Last verified working: Full Vitest suite passing (`npm test` — 82/82 test files passed, 645/645 tests passed), `npm run lint` clean (0 errors, 194 warnings), and `compile_applet` build succeeded. SettingsPanel (2,499 -> 196 lines) and TerminalPanel (2,244 -> 353 lines) fully split into modular sub-components. CI badge in README.md updated to ShashiDao/LaideStudio.
 - Known issues / incomplete: none
-- Deviations from blueprint so far: none
+- Deviations from blueprint so far: Structure cleanup pass outside the blueprint sequence.
+- Tech Debt / Split Candidates:
+  - `src/components/terminal/terminalExecutor.ts` (1365 lines) — Extract domain command executors (fs, git, npm, bisect) into separate handler files under `src/components/terminal/handlers/`.
+  - `src/components/shared/FileTree.tsx` (1279 lines) — Extract tree node item rendering and search bar into `FileTreeNode.tsx` and `FileTreeSearch.tsx`.
+  - `src/components/chat/ChatPanel.tsx` (1070 lines) — Extract message history list, model configuration header chip, and composer action bar into `ChatMessageList.tsx` and `ChatComposer.tsx`.
+  - `src/components/modals/GithubPushModal.tsx` (1000 lines) — Extract PR metadata form, commit diff previewer, and branch creation wizard into dedicated sub-components.
+  - `src/components/editor/Editor.tsx` (976 lines) — Extract CodeMirror extension configuration, search panel overlay, and mobile accessory toolbar into `editorExtensions.ts` and `EditorAccessoryBar.tsx`.
+  - `src/components/shared/SettingsAIProvidersTab.tsx` (944 lines) — Extract WebLLM model manager, profile connection modal/drawer, and custom prompt templates into sub-components.
+  - `src/components/modals/TrustReportModal.tsx` (918 lines) — Extract audit ledger summary card, human-vs-AI attribution visualizer, and test verification report into modular panels.
+  - `src/components/modals/DeployModal.tsx` (832 lines) — Extract Netlify and Vercel provider deployment workflows and status log stream into separate sub-components.
+  - `src/components/chat/PatchReviewSheet.tsx` (811 lines) — Extract unified diff hunk viewer, file patch accordion, and batch approve/reject bar into `PatchDiffHunk.tsx` and `PatchReviewControls.tsx`.
+  - `src/components/shared/LockScreen.tsx` (781 lines) — Extract vault setup form, passphrase unlock form, and BIP-39 recovery phrase wizard into separate sub-views.
+  - `src/components/preview/PreviewPanel.tsx` (765 lines) — Extract preview iframe wrapper, viewport scaling bar, and live console inspector drawer into dedicated sub-components.
+  - `src/services/agent/ensemble.ts` (762 lines) — Extract candidate execution runner and arbiter judge prompt builder into separate sub-services under `src/services/agent/`.
+  - `src/components/project/ProjectMetadataPanel.tsx` (761 lines) — Extract language distribution Recharts view, project statistics grid, and tag manager into modular panels.
+  - `src/services/bundler/esbuild.worker.ts` (744 lines) — Extract VFS virtual plugin resolver and Tailwind CDN CSS transformer into separate helper modules.
+  - `src/App.tsx` (690 lines) — Extract global keyboard accelerators and shell layout tabs into `useKeyboardShortcuts` hook and `AppLayout.tsx`.
+  - `src/services/provenance/signing.ts` (666 lines) — Extract HMAC/Ed25519 signing primitives and audit chain verification into separate cryptographic services.
+  - `src/services/llm/providers/webllm.ts` (652 lines) — Extract engine state subscription and WebGPU model cache manager into separate helper modules.
+  - `src/components/modals/FindWhatBrokeModal.tsx` (620 lines) — Extract bisection progress indicator and historical test run diff viewer into sub-components.
+  - `src/services/deploy/deployClient.ts` (609 lines) — Extract Netlify API and Vercel API client implementations into separate provider adapters.
+  - `src/services/templates/projectTemplates.ts` (596 lines) — Extract template definitions and file manifest generators into individual template files under `src/services/templates/definitions/`.
+  - `src/services/usage/tokenSpend.ts` (550 lines) — Extract pricing catalog definitions and token counting heuristics into `pricingCatalog.ts` and `tokenCounter.ts`.
+  - `src/store.ts` (545 lines) — Slice Zustand store into dedicated feature slices (editorSlice, projectSlice, vaultSlice, uiSlice).
+  - `src/components/modals/SnapshotsModal.tsx` (520 lines) — Extract snapshot timeline list and snapshot comparison diff viewer into sub-components.
+  - `src/components/editor/EditorAiBlame.tsx` (519 lines) — Extract AI attribution tooltip and line-by-line provenance gutter into dedicated sub-components.
+  - `src/components/project/ProjectSearchModal.tsx` (517 lines) — Extract search filter options and search result list item rendering into sub-components.
+  - `src/services/fs/vfs.ts` (513 lines) — Extract OPFS file persistence and Dexie IndexedDB sync adapter into separate storage modules.
+  - `src/components/modals/ImageViewerModal.tsx` (505 lines) — Extract image canvas pan/zoom controls and image metadata footer into sub-components.
+  - `src/components/project/ProjectActionsMenu.tsx` (482 lines) — Extract ZIP export/import modal triggers and project deletion confirmation dialog into separate sub-components.
+  - `src/services/security/passwordStrength.ts` (480 lines) — Extract password dictionary wordlists and pattern matchers into separate security utilities.
+  - `src/components/shared/QuickConnectSheet.tsx` (473 lines) — Extract individual provider quick-connect cards into sub-components under `src/components/shared/`.
+  - `src/services/provenance/trustScore.ts` (442 lines) — Extract penalty computation rules and letter grade formatters into separate provenance helpers.
 
 ## Archived Log Summary
 
@@ -1017,6 +1049,40 @@ Deviations: none
 Verified: `package-lock.json` generated and tracked, `.gitignore` inspected, `npm run lint` passed (0 errors), `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-119] Split SettingsPanel and TerminalPanel into Modular Sub-components & Backfill Tech Debt Registry — 2026-09-02
+Prompt: Do a structure audit, fix CI badge URL, split SettingsPanel and TerminalPanel into sub-components, backfill Tech Debt / Split Candidates in AI_CHANGELOG.md, and run tests.
+Files touched:
+- `README.md` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `src/components/shared/SettingsAppearanceTab.tsx` (new)
+- `src/components/shared/SettingsAIProvidersTab.tsx` (new)
+- `src/components/shared/SettingsIntegrationsTab.tsx` (new)
+- `src/components/shared/SettingsSecurityVaultTab.tsx` (new)
+- `src/components/shared/SettingsAdvancedTab.tsx` (new)
+- `src/components/shared/settingsConstants.ts` (new)
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `src/components/terminal/terminalTypes.ts` (new)
+- `src/components/terminal/terminalExecutor.ts` (new)
+- `src/components/terminal/terminalAutocomplete.ts` (new)
+- `src/components/terminal/TerminalOutputList.tsx` (new)
+- `src/components/terminal/TerminalPrompt.tsx` (new)
+- `src/services/usage/tokenSpend.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Corrected the CI badge URL in `README.md` from `characterskit/laide` to `ShashiDao/LaideStudio`.
+- Split monolithic `SettingsPanel.tsx` (2,499 lines) into modular category tab components (`SettingsAppearanceTab`, `SettingsAIProvidersTab`, `SettingsIntegrationsTab`, `SettingsSecurityVaultTab`, `SettingsAdvancedTab`) and shared types/constants (`settingsConstants.ts`), reducing `SettingsPanel.tsx` to 196 lines.
+- Split monolithic `TerminalPanel.tsx` (2,244 lines) into modular sub-modules (`terminalTypes.ts`, `terminalExecutor.ts`, `terminalAutocomplete.ts`, `TerminalOutputList.tsx`, `TerminalPrompt.tsx`), reducing `TerminalPanel.tsx` to 353 lines.
+- Added `getSessionUsageSummary` and `clearSessionUsage` to `tokenSpend.ts` to cleanly service the Settings UI.
+- Backfilled the "Tech Debt / Split Candidates" list in `AI_CHANGELOG.md` Current State with every remaining non-test file over 400 lines (31 files) with a clear one-line split proposal for each.
+Decisions:
+- Preserved all sub-components strictly within their respective feature folders (`src/components/shared/` and `src/components/terminal/`) without creating arbitrary new directories.
+- Ensured zero logic duplication by lifting state to container shells while delegating command execution and tab rendering to dedicated modules.
+Deviations: Structure cleanup pass outside the blueprint sequence.
+Verified: Full Vitest suite passing (`npm test` — 82/82 test files, 645/645 tests passed in 126.94s), `npm run lint` clean (0 errors, 194 warnings), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
 
 
 

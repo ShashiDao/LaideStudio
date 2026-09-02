@@ -536,3 +536,15 @@ export function saveStoredUsageRecords(records: UsageRecord[]): void {
     console.warn('Failed to save usage records to localStorage:', e);
   }
 }
+
+export function getSessionUsageSummary(): SessionUsageSummary {
+  const records = loadStoredUsageRecords();
+  return computeSessionUsageSummary(records);
+}
+
+export function clearSessionUsage(): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(USAGE_STORAGE_KEY);
+  }
+}
+

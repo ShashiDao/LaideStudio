@@ -1,6 +1,6 @@
 # LAIDE Studio
 
-[![CI](https://github.com/characterskit/laide/actions/workflows/ci.yml/badge.svg)](https://github.com/characterskit/laide/actions/workflows/ci.yml)
+[![CI](https://github.com/ShashiDao/LaideStudio/actions/workflows/ci.yml/badge.svg)](https://github.com/ShashiDao/LaideStudio/actions/workflows/ci.yml)
 
 A local-first, privacy-focused in-browser AI development environment and progressive web app (PWA). LAIDE Studio runs an agentic coding loop, virtual file system, in-browser bundler with live preview, and encrypted credential vault entirely on the client.
 
