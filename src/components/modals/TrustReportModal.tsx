@@ -16,7 +16,6 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Sparkles,
   Terminal,
   FileText,
   Clock
@@ -268,6 +267,16 @@ export const TrustReportModal: React.FC<TrustReportModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={handleCopyMarkdown}
+              disabled={loading || !projectTrust}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-elevated border border-border hover:border-accent text-text rounded font-mono text-[11px] font-semibold transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              title="Copy Markdown Trust Report"
+            >
+              {copiedMarkdown ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+              <span className="hidden sm:inline">{copiedMarkdown ? 'Copied' : 'Copy Report'}</span>
+            </button>
             <button
               type="button"
               onClick={handleExportSignedProof}

@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-112
-- Last verified working: TypeScript typecheck passing (0 errors on `tsc --noEmit`), full test suite passing (81/81 test files, 631/631 tests passing), ESLint clean (0 errors), and production build compiling successfully. Added `@vitest-environment happy-dom` to `webllm.test.ts` for Node 20 CI environment compatibility and cleaned up unused imports in `src/App.tsx`.
+- Phase: HOTFIX-113
+- Last verified working: Global `happy-dom` Vitest environment configured in `vite.config.ts`, Node 20 pinned via `.nvmrc` and `package.json` engines `"node": "20.x"`, ESLint `@typescript-eslint/no-unused-vars` upgraded to `'error'` to gate CI, and unused variables cleaned across `App.tsx`, `ChatPanel.tsx`, `Editor.tsx`, and `TrustReportModal.tsx`. Full test suite passing (81/81 test files, 631/631 tests), `npm run typecheck` (`tsc --noEmit`) clean (0 errors), `npm run lint` clean (0 errors), and production build succeeding.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -906,19 +906,28 @@ Verified: `npm ci` completed cleanly, `npm run typecheck` (`tsc --noEmit`) passe
 Commit: pending
 Open questions: none
 
-### [HOTFIX-112] Happy-DOM Test Environment Directive & App.tsx Imports Cleanup — 2026-09-02
-Prompt: Fix the CI test failure in src/services/llm/providers/webllm.test.ts and clean up unused imports in src/App.tsx.
+### [HOTFIX-113] Global Happy-DOM Environment, Node 20 Pinning & Strict Lint Unused-Vars Gating — 2026-09-02
+Prompt: Set test environment happy-dom globally in vite.config.ts, pin Node 20 via .nvmrc and package.json engines, and upgrade no-unused-vars in eslint.config.js to error so lint gates CI.
 Files touched:
-- `src/services/llm/providers/webllm.test.ts` (modified)
+- `vite.config.ts` (modified)
+- `.nvmrc` (new)
+- `package.json` (modified)
+- `eslint.config.js` (modified)
 - `src/App.tsx` (modified)
+- `src/components/chat/ChatPanel.tsx` (modified)
+- `src/components/editor/Editor.tsx` (modified)
+- `src/components/modals/TrustReportModal.tsx` (modified)
 - `AI_CHANGELOG.md` (modified)
 Changed:
-- Added `// @vitest-environment happy-dom` at the very first line of `src/services/llm/providers/webllm.test.ts` to provide browser globals (including `navigator`) under Node 20 in CI.
-- Removed unused imports in `src/App.tsx` (`useState`, `Upload`, `FolderPlus`, `Plus`, `ChevronDown`, `BarChart3`, `exportZip`, `exportProjectAsMarkdown`, `generateProjectMarkdown`, `FileTree`, `ProjectActionsMenu`).
+- Configured `test: { environment: 'happy-dom' }` globally in `vite.config.ts` along with `/// <reference types="vitest" />`.
+- Created `.nvmrc` (`20`) and pinned `engines` in `package.json` to `"node": "20.x"` to match CI Node.js 20 environment.
+- Upgraded `@typescript-eslint/no-unused-vars` to `'error'` in `eslint.config.js` to strictly gate the build against dead code and unused variables.
+- Removed unused variables and imports across `App.tsx` (`GithubIcon`, `openFile`), `ChatPanel.tsx` (`AlertCircle`), `Editor.tsx` (`getTrustColorStyles`, `trustColorStyles`), and `TrustReportModal.tsx` (`Sparkles`), and wired the Copy Markdown Report action in `TrustReportModal.tsx`.
 Decisions:
-- Maintained exact test logic in `webllm.test.ts` without modification beyond the top-level test environment directive to align with all other test files in the codebase.
+- Set global Vitest environment in `vite.config.ts` so future browser tests run without requiring per-file directives, while preserving support for per-file environment overrides.
+- Upgraded `@typescript-eslint/no-unused-vars` to `'error'` rather than adding CLI flags so both IDEs and `npm run lint` enforce unused variable elimination automatically.
 Deviations: none
-Verified: `npm run typecheck` (`tsc --noEmit`) passed with 0 errors, `npm run lint` passed with 0 errors, Vitest test suite (81/81 test files, 631/631 tests) passed, and `compile_applet` build succeeded.
+Verified: `npm run typecheck` (`tsc --noEmit`) clean with 0 errors, `npm run lint` clean with 0 errors, Vitest test suite (81/81 test files, 631/631 tests) passing, and `compile_applet` production build succeeded.
 Commit: pending
 Open questions: none
 

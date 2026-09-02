@@ -9,7 +9,6 @@ import {
   ChevronUp, 
   Files, 
   Sparkles, 
-  AlertCircle,
   AlertTriangle,
   Server,
   Eye,

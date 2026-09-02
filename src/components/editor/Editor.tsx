@@ -23,7 +23,7 @@ import { useShellBreakpoint } from '../../hooks/useShellBreakpoint';
 import { EditorFindReplace } from './EditorFindReplace';
 import { getFileAiBlameCached } from '../../services/provenance/blame';
 import { createAiBlameHoverTooltip, createAiBlameCursorListener, createAiTrustGutter, AiBlameSidePanel } from './EditorAiBlame';
-import { calculateFileTrustScore, getTrustColorStyles } from '../../services/provenance/trustScore';
+import { calculateFileTrustScore } from '../../services/provenance/trustScore';
 
 export const oledEditorTheme = createTheme({
   theme: 'dark',
@@ -251,7 +251,6 @@ export function Editor({
     return calculateFileTrustScore(file.path, content, provenanceEntries);
   }, [file.path, content, provenanceEntries]);
 
-  const trustColorStyles = getTrustColorStyles(fileTrustScore.score, theme);
   const activeBlameEntry = blameResult.blameMap.get(activeLineNumber ?? 1) || null;
 
   const handleCopyPath = () => {
