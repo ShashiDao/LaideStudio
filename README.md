@@ -6,7 +6,7 @@ A local-first, privacy-focused in-browser AI development environment and progres
 
 ## Features
 
-- **Client-Side Encrypted Vault**: Passphrase-derived master encryption (PBKDF2 + AES-GCM) with passkey support and BIP-39 recovery phrases. All API keys and GitHub tokens are encrypted locally in IndexedDB.
+- **Client-Side Encrypted Vault**: Passphrase-derived master encryption (Argon2id + AES-256-GCM) with passkey support and BIP-39 recovery phrases. All API keys and GitHub tokens are encrypted locally in IndexedDB.
 - **Multi-Provider LLM Integration**: Connect to Google Gemini, Anthropic Claude, OpenAI, or any OpenAI-compatible API (e.g. OpenRouter, Groq, Ollama, DeepSeek).
 - **Virtual File System (VFS)**: Persistent file storage backed by Dexie / IndexedDB with ZIP import/export, snapshots, and file management.
 - **In-Browser Bundler & Live Preview**: Fast in-browser module bundling and sandboxed preview powered by `esbuild-wasm` Web Workers.

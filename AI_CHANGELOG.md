@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-115
-- Last verified working: Added origin/source validation (`e.source === iframeRef.current?.contentWindow`) to preview message listener in `PreviewPanel.tsx` to prevent window spoofing of runtime errors, console logs, and inspection state. Added test in `PreviewPanel.test.tsx` verifying spoofed events from non-matching sources are ignored while matching iframe events update state. Full Vitest suite passing (81/81 test files, 635/635 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
+- Phase: HOTFIX-116
+- Last verified working: Synchronized encryption scheme documentation in `README.md` to reflect Argon2id + AES-256-GCM across all sections (eliminated outdated PBKDF2 reference). Full Vitest suite passing (81/81 test files, 635/635 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -963,6 +963,21 @@ Decisions:
 - Used strict `e.source !== iframeRef.current?.contentWindow` reference comparison rather than `e.origin` because the sandboxed preview iframe uses `srcdoc` (without `allow-same-origin`), causing `e.origin` to report `"null"`.
 Deviations: none
 Verified: `npx vitest run src/components/preview/PreviewPanel.test.tsx` (13/13 tests passing), full Vitest suite (81/81 test files, 635/635 tests passing), `npm run lint` (0 errors), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-116] Synchronize Encryption KDF Documentation in README — 2026-09-02
+Prompt: FIX 3 — Change "PBKDF2 + AES-GCM" to "Argon2id + AES-256-GCM" in README.md so features list matches the actual Argon2id implementation described in Architecture & Security.
+Files touched:
+- `README.md` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated the "Client-Side Encrypted Vault" feature bullet in `README.md` from `PBKDF2 + AES-GCM` to `Argon2id + AES-256-GCM`.
+- Ensured uniform documentation of key derivation and cipher suite across the overview and security architecture sections.
+Decisions:
+- Kept all surrounding phrasing intact without adding or removing unrelated markdown sections.
+Deviations: none
+Verified: `grep -i "PBKDF2" README.md` returned 0 matches, `npm run lint` passed (0 errors), and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
 
