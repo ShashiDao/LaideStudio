@@ -68,7 +68,6 @@ describe('Accessibility Hygiene Pass (axe-core)', () => {
     const { container } = render(
       <TerminalPanel
         projectId="test-proj"
-        theme="oled"
       />
     );
 
@@ -106,5 +105,56 @@ describe('Accessibility Hygiene Pass (axe-core)', () => {
 
     console.log('PatchReviewSheet axe violations:', results.violations.length, results.violations.map(v => ({ id: v.id, help: v.help, nodes: v.nodes.length })));
     expect(results.violations.length).toBe(0);
+  });
+
+  it('closes PatchReviewSheet on Escape key', async () => {
+    useAppStore.getState().setIsPatchReviewOpen(true);
+    useAppStore.getState().setPendingPatches([
+      {
+        path: '/src/App.tsx',
+        type: 'replace',
+        oldContent: 'const a = 1;\n',
+        newContent: 'const a = 2;\n',
+        rationale: 'Update variable value'
+      }
+    ]);
+
+    render(<PatchReviewSheet projectId="test-proj" />);
+    expect(useAppStore.getState().isPatchReviewOpen).toBe(true);
+
+    // Press Escape
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(useAppStore.getState().isPatchReviewOpen).toBe(false);
+  });
+
+  it('traps Tab focus inside open PatchReviewSheet', async () => {
+    useAppStore.getState().setIsPatchReviewOpen(true);
+    useAppStore.getState().setPendingPatches([
+      {
+        path: '/src/App.tsx',
+        type: 'replace',
+        oldContent: 'const a = 1;\n',
+        newContent: 'const a = 2;\n',
+        rationale: 'Update variable'
+      }
+    ]);
+
+    const { container } = render(<PatchReviewSheet projectId="test-proj" />);
+    const buttons = container.querySelectorAll('button');
+    expect(buttons.length).toBeGreaterThan(1);
+
+    const firstButton = buttons[0];
+    const lastButton = buttons[buttons.length - 1];
+
+    // Focus last button and press Tab -> should wrap to first button
+    lastButton.focus();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: false, bubbles: true }));
+    // In happy-dom event dispatching, focus trap prevents default and focuses firstButton
+    expect(document.activeElement).toBe(firstButton);
+
+    // Focus first button and press Shift+Tab -> should wrap to last button
+    firstButton.focus();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+    expect(document.activeElement).toBe(lastButton);
   });
 });

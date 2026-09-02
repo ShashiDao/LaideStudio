@@ -1,5 +1,11 @@
 import { BIP39_WORDS } from './bip39Words';
-
+import { 
+  arrayBufferToBase64, 
+  base64ToArrayBuffer, 
+  deriveKeys, 
+  generateVerifier, 
+  verifyPassphrase 
+} from './crypto';
 
 export interface RecoveryData {
   saltBase64: string;
@@ -59,7 +65,6 @@ export function validateRecoveryPhrase(phrase: string): { valid: boolean; error?
  * Wraps raw master key bytes using an AES-GCM wrapping key.
  */
 export async function wrapMasterKey(wrappingAesKey: CryptoKey, masterKeyBytes: Uint8Array): Promise<string> {
-  const { arrayBufferToBase64 } = await import('./crypto');
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
@@ -77,7 +82,6 @@ export async function wrapMasterKey(wrappingAesKey: CryptoKey, masterKeyBytes: U
  * Unwraps raw master key bytes using an AES-GCM wrapping key.
  */
 export async function unwrapMasterKey(wrappingAesKey: CryptoKey, wrappedPayload: string): Promise<Uint8Array> {
-  const { base64ToArrayBuffer } = await import('./crypto');
   const parts = wrappedPayload.split('.');
   if (parts.length !== 4 || parts[0] !== 'enc' || parts[1] !== 'v1') {
     throw new Error('Invalid wrapped master key format');
@@ -105,7 +109,6 @@ export async function createRecoveryBundle(
   masterKeyBytes: Uint8Array,
   recoveryPhrase: string
 ): Promise<RecoveryData> {
-  const { deriveKeys, generateVerifier, arrayBufferToBase64 } = await import('./crypto');
   const normalized = normalizeRecoveryPhrase(recoveryPhrase);
   const recoverySalt = crypto.getRandomValues(new Uint8Array(16));
   
@@ -127,7 +130,6 @@ export async function unlockWithRecoveryPhrase(
   recoveryData: RecoveryData,
   recoveryPhrase: string
 ): Promise<Uint8Array | null> {
-  const { deriveKeys, verifyPassphrase, base64ToArrayBuffer } = await import('./crypto');
   const normalized = normalizeRecoveryPhrase(recoveryPhrase);
   if (!normalized) return null;
 

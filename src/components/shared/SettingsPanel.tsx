@@ -53,6 +53,8 @@ import {
   restoreBackup, 
   type BackupValidationResult 
 } from '../../services/security/backup';
+import { encryptData, decryptData } from '../../services/security/crypto';
+import { getDependencyCacheInfo, clearDependencyCache } from '../../services/bundler/bundler';
 
 function formatTokens(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -260,7 +262,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
 
   const handleAddMcpServer = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { encryptData } = await import('../../services/security/crypto');
     if (!keys || !mcpServerUrlInput.trim()) return;
     try {
       const newServers = [...mcpServers, { id: crypto.randomUUID(), url: mcpServerUrlInput.trim() }];
@@ -283,7 +284,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       if (newServers.length === 0) {
         localStorage.removeItem('laide_mcp_servers');
       } else {
-        const { encryptData } = await import('../../services/security/crypto');
         const enc = await encryptData(keys.aesKey, JSON.stringify(newServers));
         localStorage.setItem('laide_mcp_servers', enc);
       }
@@ -315,7 +315,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
 
   const loadCacheInfo = async () => {
     try {
-      const { getDependencyCacheInfo } = await import('../../services/bundler/bundler');
       const info = await getDependencyCacheInfo();
       setCachedDepCount(info.count);
     } catch {
@@ -472,7 +471,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   useEffect(() => {
     let active = true;
     async function loadTokens() {
-      const { decryptData } = await import('../../services/security/crypto');
       if (!keys) return;
       
       const githubRecord = await db.secureTokens.get('github_pat');
@@ -517,7 +515,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
   const handleClearDepCache = async () => {
     try {
       setClearingCache(true);
-      const { clearDependencyCache } = await import('../../services/bundler/bundler');
       await clearDependencyCache();
       await loadCacheInfo();
       setCacheClearedMsg(true);
@@ -549,7 +546,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
     // Attempt to decrypt to show it, or keep it empty
     if (keys) {
       try {
-        const { decryptData } = await import('../../services/security/crypto');
         const decrypted = await decryptData(keys.aesKey, p.encryptedApiKey);
         setApiKey(decrypted);
       } catch (_e) {
@@ -571,7 +567,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       if (existing) finalEncryptedKey = existing.encryptedApiKey;
     } else {
       // Encrypt new API key
-      const { encryptData } = await import('../../services/security/crypto');
       finalEncryptedKey = await encryptData(keys.aesKey, apiKey);
     }
 
@@ -634,7 +629,6 @@ export function SettingsPanel({ onOpenShortcuts }: { onOpenShortcuts?: () => voi
       }
 
       // Decrypt API key
-      const { decryptData } = await import('../../services/security/crypto');
       const rawKey = await decryptData(keys.aesKey, p.encryptedApiKey);
 
       if (!rawKey) throw new Error('API key could not be decrypted');

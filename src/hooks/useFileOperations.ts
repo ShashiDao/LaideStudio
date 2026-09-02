@@ -48,10 +48,11 @@ export function useFileOperations({
   };
 
   // Reload the file list whenever the active project changes.
+  const activeProjectId = activeProject?.id;
   useEffect(() => {
     let ignore = false;
-    if (activeProject) {
-      listFiles(activeProject.id).then(fileList => {
+    if (activeProjectId) {
+      listFiles(activeProjectId).then(fileList => {
         if (!ignore) {
           setFiles(fileList);
         }
@@ -60,7 +61,7 @@ export function useFileOperations({
     return () => {
       ignore = true;
     };
-  }, [activeProject?.id]);
+  }, [activeProjectId]);
 
   const readFileAsContent = async (file: File): Promise<{ path: string; content: string }> => {
     const buffer = await file.arrayBuffer();

@@ -660,4 +660,31 @@ describe('esbuild.worker bundler plugins and loaders', () => {
       expect(matchesV4?.length).toBe(1);
     });
   });
+
+  describe('Cache storage versioning and migration', () => {
+    it('uses laide-esm-dep-cache-v2 as current CACHE_NAME', async () => {
+      const { CACHE_NAME, LEGACY_CACHE_NAMES } = await import('./esbuild.worker');
+      expect(CACHE_NAME).toBe('laide-esm-dep-cache-v2');
+      expect(LEGACY_CACHE_NAMES).toContain('xiom-esm-dep-cache-v1');
+      expect(LEGACY_CACHE_NAMES).toContain('laide-esm-dep-cache-v1');
+    });
+
+    it('cleans up legacy caches via cleanLegacyCaches', async () => {
+      const { cleanLegacyCaches } = await import('./esbuild.worker');
+      const deletedKeys: string[] = [];
+      (globalThis as any).caches = {
+        keys: vi.fn().mockResolvedValue(['xiom-esm-dep-cache-v1', 'laide-esm-dep-cache-v1', 'laide-esm-dep-cache-v2', 'other-cache']),
+        delete: vi.fn().mockImplementation(async (key: string) => {
+          deletedKeys.push(key);
+          return true;
+        })
+      };
+
+      await cleanLegacyCaches();
+      expect(deletedKeys).toContain('xiom-esm-dep-cache-v1');
+      expect(deletedKeys).toContain('laide-esm-dep-cache-v1');
+      expect(deletedKeys).not.toContain('laide-esm-dep-cache-v2');
+      expect(deletedKeys).not.toContain('other-cache');
+    });
+  });
 });

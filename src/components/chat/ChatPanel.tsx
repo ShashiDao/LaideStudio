@@ -330,6 +330,9 @@ export function ChatPanel({
     }
   };
 
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
+
   useEffect(() => {
     let active = true;
     if (activeProfileId) {
@@ -365,12 +368,12 @@ export function ChatPanel({
     Promise.resolve().then(() => {
       setQueuedPrompt(null);
       if (activeProfileId && keys && !loading) {
-        handleSend(prompt);
+        handleSendRef.current(prompt);
       } else {
         setInput(prompt);
       }
     });
-  }, [queuedPrompt, activeProfileId, keys, loading]);
+  }, [queuedPrompt, activeProfileId, keys, loading, setQueuedPrompt, setInput]);
 
   // Update context files & token usage
   useEffect(() => {

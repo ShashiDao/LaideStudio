@@ -80,16 +80,16 @@ function showPreviewErrorBanner(message, stack) {
 window.addEventListener('error', function(e) {
   showPreviewErrorBanner(e.message, e.error && e.error.stack);
   try {
-    window.parent.postMessage({ type: 'XIOM_PREVIEW_RUNTIME_ERROR', message: e.message, stack: e.error && e.error.stack }, '*');
-    window.parent.postMessage({ type: 'XIOM_PREVIEW_CONSOLE_LOG', logType: 'error', args: [e.message] }, '*');
+    window.parent.postMessage({ type: 'LAIDE_PREVIEW_RUNTIME_ERROR', message: e.message, stack: e.error && e.error.stack }, '*');
+    window.parent.postMessage({ type: 'LAIDE_PREVIEW_CONSOLE_LOG', logType: 'error', args: [e.message] }, '*');
   } catch (_) {}
 });
 window.addEventListener('unhandledrejection', function(e) {
   var msg = e.reason && e.reason.message ? e.reason.message : String(e.reason);
   showPreviewErrorBanner(msg, e.reason && e.reason.stack);
   try {
-    window.parent.postMessage({ type: 'XIOM_PREVIEW_RUNTIME_ERROR', message: msg, stack: e.reason && e.reason.stack }, '*');
-    window.parent.postMessage({ type: 'XIOM_PREVIEW_CONSOLE_LOG', logType: 'error', args: [msg] }, '*');
+    window.parent.postMessage({ type: 'LAIDE_PREVIEW_RUNTIME_ERROR', message: msg, stack: e.reason && e.reason.stack }, '*');
+    window.parent.postMessage({ type: 'LAIDE_PREVIEW_CONSOLE_LOG', logType: 'error', args: [msg] }, '*');
   } catch (_) {}
 });
 
@@ -112,7 +112,7 @@ window.addEventListener('unhandledrejection', function(e) {
       });
       try {
         window.parent.postMessage({
-          type: 'XIOM_PREVIEW_CONSOLE_LOG',
+          type: 'LAIDE_PREVIEW_CONSOLE_LOG',
           logType: method,
           args: args,
           timestamp: Date.now()
@@ -182,7 +182,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
     try {
       window.parent.postMessage({
-        type: 'XIOM_PREVIEW_INSPECT_RESULT',
+        type: 'LAIDE_PREVIEW_INSPECT_RESULT',
         element: {
           tagName: tagName,
           id: id,
@@ -197,7 +197,7 @@ window.addEventListener('unhandledrejection', function(e) {
 
   window.addEventListener('message', function(e) {
     if (!e.data) return;
-    if (e.data.type === 'XIOM_TOGGLE_INSPECT_MODE') {
+    if (e.data.type === 'LAIDE_TOGGLE_INSPECT_MODE' || e.data.type === 'XIOM_TOGGLE_INSPECT_MODE') {
       inspectEnabled = Boolean(e.data.enabled);
       if (!inspectEnabled && highlightOverlay) {
         highlightOverlay.style.display = 'none';
@@ -215,11 +215,11 @@ window.addEventListener('unhandledrejection', function(e) {
 })();
 
 (function() {
-  if (window.__XIOM_CAPTURE_INITIALIZED__) return;
-  window.__XIOM_CAPTURE_INITIALIZED__ = true;
+  if (window.__LAIDE_CAPTURE_INITIALIZED__ || (window as any).__XIOM_CAPTURE_INITIALIZED__) return;
+  (window as any).__LAIDE_CAPTURE_INITIALIZED__ = true;
 
   window.addEventListener('message', async function(e) {
-    if (!e.data || e.data.type !== 'XIOM_CAPTURE_SCREENSHOT_REQUEST') return;
+    if (!e.data || (e.data.type !== 'LAIDE_CAPTURE_SCREENSHOT_REQUEST' && e.data.type !== 'XIOM_CAPTURE_SCREENSHOT_REQUEST')) return;
     var reqId = e.data.id;
     try {
       var width = Math.max(document.documentElement.scrollWidth, window.innerWidth || 800);
@@ -301,7 +301,7 @@ window.addEventListener('unhandledrejection', function(e) {
       var base64Data = dataUrl.split(',')[1] || '';
 
       window.parent.postMessage({
-        type: 'XIOM_CAPTURE_SCREENSHOT_RESPONSE',
+        type: 'LAIDE_CAPTURE_SCREENSHOT_RESPONSE',
         id: reqId,
         success: true,
         dataUrl: dataUrl,
@@ -311,7 +311,7 @@ window.addEventListener('unhandledrejection', function(e) {
       }, '*');
     } catch (err) {
       window.parent.postMessage({
-        type: 'XIOM_CAPTURE_SCREENSHOT_RESPONSE',
+        type: 'LAIDE_CAPTURE_SCREENSHOT_RESPONSE',
         id: reqId,
         success: false,
         error: String(err && (err as any).message ? (err as any).message : err)
@@ -319,12 +319,12 @@ window.addEventListener('unhandledrejection', function(e) {
     }
   });
 
-  window.parent.postMessage({ type: 'XIOM_PREVIEW_READY' }, '*');
+  window.parent.postMessage({ type: 'LAIDE_PREVIEW_READY' }, '*');
 })();
 `;
 
 export function injectCaptureScriptIntoHtml(html: string): string {
-  const scriptTag = `<script id="xiom-preview-capture-helper">${INJECTED_PREVIEW_CAPTURE_SCRIPT}</script>`;
+  const scriptTag = `<script id="laide-preview-capture-helper">${INJECTED_PREVIEW_CAPTURE_SCRIPT}</script>`;
   const headMatch = html.match(/<head[^>]*>/i);
   if (headMatch) {
     return html.slice(0, headMatch.index! + headMatch[0].length) + scriptTag + html.slice(headMatch.index! + headMatch[0].length);
@@ -359,7 +359,7 @@ export async function captureIframeScreenshot(
     }, timeoutMs);
 
     const handleMsg = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'XIOM_CAPTURE_SCREENSHOT_RESPONSE' && e.data.id === reqId) {
+      if (e.data && (e.data.type === 'LAIDE_CAPTURE_SCREENSHOT_RESPONSE' || e.data.type === 'XIOM_CAPTURE_SCREENSHOT_RESPONSE') && e.data.id === reqId) {
         if (!resolved) {
           resolved = true;
           clearTimeout(timer);
@@ -382,7 +382,7 @@ export async function captureIframeScreenshot(
 
     window.addEventListener('message', handleMsg);
     try {
-      contentWindow.postMessage({ type: 'XIOM_CAPTURE_SCREENSHOT_REQUEST', id: reqId }, '*');
+      contentWindow.postMessage({ type: 'LAIDE_CAPTURE_SCREENSHOT_REQUEST', id: reqId }, '*');
     } catch {
       if (!resolved) {
         resolved = true;

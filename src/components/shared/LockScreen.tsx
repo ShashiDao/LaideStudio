@@ -2,7 +2,16 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Lock, ShieldCheck, ArrowRight, ShieldAlert, Fingerprint, LifeBuoy, ArrowLeft, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { LaideLogo } from './LaideLogo';
 import { getLockConfig, saveLockConfig, type LockConfig } from '../../services/security/lockConfig';
-import type { KeyMaterial } from '../../services/security/crypto';
+import { 
+  importMasterKey, 
+  deriveKeys, 
+  generateVerifier, 
+  verifyPassphrase, 
+  arrayBufferToBase64, 
+  base64ToArrayBuffer, 
+  type KeyMaterial 
+} from '../../services/security/crypto';
+import { getPersistentSession, savePersistentSession } from '../../services/security/session';
 import { isPasskeyPrfSupported, enrollPasskey, unlockWithPasskey, type PasskeyData } from '../../services/security/passkeyCrypto';
 import { generateRecoveryPhrase, createRecoveryBundle, unlockWithRecoveryPhrase, validateRecoveryPhrase, type RecoveryData } from '../../services/security/recovery';
 import { useAppStore } from '../../store';
@@ -49,7 +58,6 @@ export function LockScreen() {
   const strength = getStrength(passphrase);
   
   const handlePasskeyUnlock = useCallback(async (c: LockConfig) => {
-    const { importMasterKey } = await import('../../services/security/crypto');
     if (!c.passkeyData) return;
     setBusy(true);
     try {
@@ -75,10 +83,8 @@ export function LockScreen() {
     let active = true;
     (async () => {
       try {
-        const { getPersistentSession } = await import('../../services/security/session');
         const session = await getPersistentSession();
         if (session && active) {
-          const { importMasterKey } = await import('../../services/security/crypto');
           const keys = await importMasterKey(session.masterKeyBytes);
           if (active) {
             setKeys(keys);
@@ -109,7 +115,6 @@ export function LockScreen() {
 
   const handleStartSetup = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { deriveKeys, generateVerifier } = await import('../../services/security/crypto');
     if (passphrase.length < 10) {
       setError('Passphrase is too short (minimum 10 characters required)');
       return;
@@ -175,7 +180,6 @@ export function LockScreen() {
   };
 
   const finalizeSetup = async (passkeyData: PasskeyData | null) => {
-    const { arrayBufferToBase64 } = await import('../../services/security/crypto');
     if (!pendingSetup) return;
     
     const newConfig: LockConfig = {
@@ -189,7 +193,6 @@ export function LockScreen() {
 
     if (keepMeLoggedIn) {
       try {
-        const { savePersistentSession } = await import('../../services/security/session');
         await savePersistentSession(pendingSetup.masterKey);
       } catch (err) {
         console.error('Failed to save persistent session during setup', err);
@@ -219,7 +222,6 @@ export function LockScreen() {
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { base64ToArrayBuffer, deriveKeys, verifyPassphrase } = await import('../../services/security/crypto');
     if (!config) return;
     
     setBusy(true);
@@ -232,7 +234,6 @@ export function LockScreen() {
       if (isValid) {
         if (keepMeLoggedIn) {
           try {
-            const { savePersistentSession } = await import('../../services/security/session');
             await savePersistentSession(keys.masterKeyBytes);
           } catch (sessionErr) {
             console.error('Failed to save persistent session', sessionErr);
@@ -251,7 +252,6 @@ export function LockScreen() {
 
   const handleRecoveryUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { importMasterKey } = await import('../../services/security/crypto');
     if (!config) return;
     
     if (!config.recoveryData) {
@@ -273,7 +273,6 @@ export function LockScreen() {
         const keys = await importMasterKey(masterKeyBytes);
         if (keepMeLoggedIn) {
           try {
-            const { savePersistentSession } = await import('../../services/security/session');
             await savePersistentSession(masterKeyBytes);
           } catch (sessionErr) {
             console.error('Failed to save persistent session', sessionErr);

@@ -5,14 +5,13 @@ import { OpenAIProvider } from './providers/openai';
 import { GoogleProvider } from './providers/google';
 import { OpenAICompatibleProvider } from './providers/openaiCompatible';
 import { WebLLMProvider } from './providers/webllm';
-
+import { decryptData } from '../security/crypto';
 
 export async function createLLMAdapter(profile: ConnectionProfile, aesKey: CryptoKey): Promise<LLMAdapter> {
   if (profile.provider === 'webllm' || profile.provider === 'offline') {
     return new WebLLMProvider(profile.model);
   }
 
-  const { decryptData } = await import('../security/crypto');
   const apiKey = await decryptData(aesKey, profile.encryptedApiKey);
   if (!apiKey && profile.provider !== 'openai-compatible') {
     throw new Error('Failed to decrypt API key for profile');

@@ -1,5 +1,6 @@
 import { binaryExtensions } from '../fs/zipExport';
-import type { KeyMaterial } from '../security/crypto';
+import { decryptData, type KeyMaterial } from '../security/crypto';
+import { db } from '../../db';
 
 export interface GitTreeEntry {
   path: string;
@@ -203,8 +204,6 @@ export class GithubClient {
 }
 
 export async function createGithubClient(keys: KeyMaterial): Promise<GithubClient> {
-  const { decryptData } = await import('../security/crypto');
-  const { db } = await import('../../db');
   const record = await db.secureTokens.get('github_pat');
   const enc = record?.encryptedValue;
   if (!enc) {

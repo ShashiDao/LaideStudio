@@ -1,4 +1,6 @@
 
+import { arrayBufferToBase64, base64ToArrayBuffer } from './crypto';
+
 export interface PasskeyData {
   credentialId: string;
   prfSalt: string;
@@ -46,7 +48,6 @@ async function deriveWrappingKey(prfOutput: ArrayBuffer): Promise<CryptoKey> {
 }
 
 export async function enrollPasskey(masterKeyBytes: Uint8Array): Promise<PasskeyData | null> {
-  const { arrayBufferToBase64 } = await import('./crypto');
   if (typeof window === 'undefined' || !window.PublicKeyCredential) {
     return null;
   }
@@ -132,7 +133,6 @@ export async function enrollPasskey(masterKeyBytes: Uint8Array): Promise<Passkey
 }
 
 export async function unlockWithPasskey(passkeyData: PasskeyData): Promise<Uint8Array | null> {
-  const { base64ToArrayBuffer } = await import('./crypto');
   if (typeof window === 'undefined' || !window.PublicKeyCredential) {
     return null;
   }

@@ -606,9 +606,9 @@ export function Editor({
     keymap.of([
       {
         key: 'Mod-s',
-        run: () => {
+        run: (view) => {
           if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-          doSave(contentRef.current);
+          doSave(view.state.doc.toString());
           return true;
         }
       },

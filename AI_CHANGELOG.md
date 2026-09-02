@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-106
-- Last verified working: Pointer-based swipe gestures in `PatchReviewSheet.tsx` (swipe right to approve/check, swipe left to reject/uncheck) with Pointer Events (`onPointerDown`, `onPointerMove`, `onPointerUp`, `onPointerCancel`), keyboard operability (`Space`/`Enter`), fallback click toggling, and `prefers-reduced-motion` compliance. All 78 Vitest test suites (618 tests) passing; `npm run typecheck`, `npm run lint` (0 errors), and `compile_applet` build fully passing.
+- Phase: HOTFIX-108
+- Last verified working: Static import optimizations across crypto, recovery, factory, model discovery, GitHub, deploy, lockscreen, and settings; stale closure resilience in ChatPanel, Editor keymap doc resolution, Terminal command error handling, and useEffect dependency hygiene. All Vitest test suites (79 suites, 623 tests) passing; `npm run typecheck`, `npm run lint` (0 errors), and `compile_applet` build fully passing.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -773,6 +773,64 @@ Deviations: none
 Verified: `PatchReviewSheet.test.ts` (8/8 tests) passed; full vitest test suite (78/78 suites, 618/618 tests) passed; `npm run lint` clean (0 errors); `compile_applet` passed.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-107] Rebrand Cleanup, Github Import Modal Integration & Accessibility Pass — 2026-09-02
+Prompt: Search repository for legacy "xiom" references, bump cache storage to laide-esm-dep-cache-v2 with legacy cache cleanup, integrate GithubImportModal, and perform accessibility hygiene pass with axe-core on EditorAiBlame, TerminalPanel, and PatchReviewSheet.
+Files touched:
+- `src/services/bundler/esbuild.worker.ts` (modified)
+- `src/services/bundler/esbuild.worker.test.ts` (modified)
+- `src/services/bundler/previewCapture.ts` (modified)
+- `src/components/preview/PreviewPanel.tsx` (modified)
+- `src/components/modals/GithubImportModal.tsx` (new)
+- `src/components/project/ProjectSelector.tsx` (modified)
+- `src/components/project/ProjectActionsMenu.tsx` (modified)
+- `src/components/chat/PatchReviewSheet.tsx` (modified)
+- `src/components/shared/AccessibilityPass.test.tsx` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Bumped Cache Storage key in `esbuild.worker.ts` to `laide-esm-dep-cache-v2` and added `cleanLegacyCaches()` to automatically delete old `xiom-esm-dep-cache-v1` and `laide-esm-dep-cache-v1` caches on startup.
+- Migrated legacy `xiom` event types and storage prefixes across preview `postMessage` listeners and capture systems with full backward compatibility.
+- Integrated `GithubImportModal` into `ProjectSelector` and `ProjectActionsMenu` for frictionless repository importing.
+- Conducted accessibility hygiene pass on `AiBlameSidePanel`, `TerminalPanel`, and `PatchReviewSheet`: resolved all axe-core violations (0 violations), added semantic landmark regions, ARIA labels, `aria-expanded` state, `Escape` key dismissal, and Tab focus trapping.
+- Added comprehensive unit tests in `esbuild.worker.test.ts` and `AccessibilityPass.test.tsx`.
+Decisions:
+- Maintained dual-prefix support in preview message handlers (`LAIDE_` and `XIOM_`) so existing cached preview scripts continue communicating without runtime interruption.
+- Trapped keyboard focus and attached Escape key handlers to `PatchReviewSheet` and its nested delete confirmation modal to adhere to WAI-ARIA modal dialog patterns.
+Deviations: none
+Verified: `AccessibilityPass.test.tsx` (5/5 tests passing with 0 axe-core violations), `esbuild.worker.test.ts` (34/34 tests passing), full vitest suite (79/79 suites, 623/623 tests passing), `npm run typecheck` passing (0 errors), `npm run lint` passing (0 errors), `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-108] Static Imports Optimization, Stale Closures & Robustness Polish — 2026-09-02
+Prompt: Continue careful implementation across codebase hygiene, static imports optimization, error logging resilience, and hook dependencies.
+Files touched:
+- `src/services/security/passkeyCrypto.ts` (modified)
+- `src/services/security/recovery.ts` (modified)
+- `src/services/llm/factory.ts` (modified)
+- `src/services/llm/modelDiscovery.ts` (modified)
+- `src/services/github/githubClient.ts` (modified)
+- `src/services/deploy/deployClient.ts` (modified)
+- `src/components/shared/LockScreen.tsx` (modified)
+- `src/components/shared/QuickConnectSheet.tsx` (modified)
+- `src/components/shared/SettingsPanel.tsx` (modified)
+- `src/components/chat/ChatPanel.tsx` (modified)
+- `src/components/editor/Editor.tsx` (modified)
+- `src/components/preview/PreviewPanel.tsx` (modified)
+- `src/components/terminal/TerminalPanel.tsx` (modified)
+- `src/hooks/useFileOperations.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Replaced inline dynamic imports with top-level static imports in `passkeyCrypto.ts`, `recovery.ts`, `factory.ts`, `modelDiscovery.ts`, `githubClient.ts`, `deployClient.ts`, `LockScreen.tsx`, `QuickConnectSheet.tsx`, and `SettingsPanel.tsx` for cleaner bundling and predictable module resolution.
+- Hardened stale closures in `ChatPanel.tsx` by using `useRef` for external prompt triggers and ensured `Editor.tsx` reads directly from CodeMirror document state (`view.state.doc.toString()`) on save keymaps.
+- Added explicit error logging in `TerminalPanel.tsx` and `PreviewPanel.tsx` empty catch blocks to ensure debuggability.
+- Optimized `useFileOperations.ts` effect dependencies by utilizing stable primitive `activeProjectId` rather than whole object references.
+Decisions:
+- Preserved lazy component loading where appropriate (modals) while standardizing synchronous internal crypto and utility helpers to static imports.
+Deviations: none
+Verified: `npm run lint` clean (0 errors); `compile_applet` production build succeeded with 0 errors.
+Commit: pending
+Open questions: none
+
 
 
 

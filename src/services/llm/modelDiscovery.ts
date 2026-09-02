@@ -1,3 +1,5 @@
+import { OFFLINE_MODELS } from './providers/webllm';
+
 export interface DiscoveredModel {
   id: string;
   name?: string;
@@ -195,7 +197,6 @@ export async function fetchAvailableModels(
 
   try {
     if (provider === 'webllm' || provider === 'offline') {
-      const { OFFLINE_MODELS } = await import('./providers/webllm');
       return OFFLINE_MODELS.map(m => ({
         id: m.id,
         name: m.name,

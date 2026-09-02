@@ -316,6 +316,59 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
     triggerInstallEngagement,
     flashPatchedPaths
   } = useAppStore();
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [applyErrors, setApplyErrors] = useState<string[]>([]);
+  const sheetContainerRef = useRef<HTMLDivElement>(null);
+
+  // Escape key handler and focus trap when review sheet is open
+  useEffect(() => {
+    if (!isPatchReviewOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (showDeleteConfirm) {
+          setShowDeleteConfirm(false);
+        } else {
+          setIsPatchReviewOpen(false);
+        }
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const container = sheetContainerRef.current;
+        if (!container) return;
+
+        const focusableElements = Array.from(
+          container.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter(el => el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0);
+
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement || !container.contains(document.activeElement)) {
+            e.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement || !container.contains(document.activeElement)) {
+            e.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPatchReviewOpen, showDeleteConfirm, setIsPatchReviewOpen]);
+
   // Compute all hunks on mount or when patches change
   const computedData = useMemo(() => {
     const data: { patch: PendingPatch, hunks: DiffHunk[] }[] = [];
@@ -360,8 +413,6 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const [prevPatches, setPrevPatches] = useState(pendingPatches);
   const [hunkStates, setHunkStates] = useState<HunkState[]>(() => computedData.stateList);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [applyErrors, setApplyErrors] = useState<string[]>([]);
 
   if (pendingPatches !== prevPatches) {
     setPrevPatches(pendingPatches);
@@ -548,19 +599,27 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 bg-surface border-t border-border shadow-2xl transition-all duration-300 z-50 flex flex-col pl-safe pr-safe ${isPatchReviewOpen ? 'h-[80vh] sm:h-[75vh]' : 'h-[calc(48px+env(safe-area-inset-bottom,0px))]'}`}>
-      {/* Header (swipe handle) */}
-      <div 
-        className="h-12 flex items-center justify-between px-3 sm:px-4 cursor-pointer hover:bg-black/5 transition-colors shrink-0 select-none"
+    <aside 
+      ref={sheetContainerRef}
+      role="region"
+      aria-label="Patch Review Sheet"
+      className={`fixed bottom-0 left-0 right-0 bg-surface border-t border-border shadow-2xl transition-all duration-300 z-50 flex flex-col pl-safe pr-safe ${isPatchReviewOpen ? 'h-[80vh] sm:h-[75vh]' : 'h-[calc(48px+env(safe-area-inset-bottom,0px))]'}`}
+    >
+      {/* Header (swipe handle / toggle button) */}
+      <button
+        type="button"
+        aria-expanded={isPatchReviewOpen}
+        aria-label={`Review ${pendingPatches.length} pending patches. Click to ${isPatchReviewOpen ? 'collapse' : 'expand'}`}
+        className="h-12 w-full flex items-center justify-between px-3 sm:px-4 cursor-pointer hover:bg-black/5 transition-colors shrink-0 select-none text-left bg-transparent border-0"
         onClick={() => setIsPatchReviewOpen(!isPatchReviewOpen)}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
           <Eye size={16} className="text-moss shrink-0" />
-          <span className="font-sans text-xs sm:text-sm text-text font-bold   truncate">
+          <span className="font-sans text-xs sm:text-sm text-text font-bold truncate">
             Review Patches ({pendingPatches.length})
           </span>
           {pendingPatches.some(p => p.type === 'delete') && (
-            <span className="text-[10px] font-sans bg-oxide/20 text-oxide border border-oxide/40 px-1.5 py-0.5 rounded  font-semibold flex items-center gap-1 shrink-0">
+            <span className="text-[10px] font-sans bg-oxide/20 text-oxide border border-oxide/40 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 shrink-0">
               <AlertTriangle size={10} />
               Contains Deletes
             </span>
@@ -569,7 +628,7 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
         <div className="shrink-0">
           {isPatchReviewOpen ? <ChevronDown size={20} className="text-muted" /> : <ChevronUp size={20} className="text-muted" />}
         </div>
-      </div>
+      </button>
 
       {/* Content */}
       {isPatchReviewOpen && (
@@ -747,6 +806,6 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
           </div>
         </div>
       )}
-    </div>
+    </aside>
   );
 }

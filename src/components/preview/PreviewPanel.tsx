@@ -15,7 +15,6 @@ import {
   Crosshair, 
   QrCode, 
   ChevronDown, 
-  ChevronUp, 
   Trash2,
   X
 } from 'lucide-react';
@@ -158,9 +157,9 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       if (!e.data) return;
-      if (e.data.type === 'XIOM_PREVIEW_RUNTIME_ERROR') {
+      if (e.data.type === 'LAIDE_PREVIEW_RUNTIME_ERROR' || e.data.type === 'XIOM_PREVIEW_RUNTIME_ERROR') {
         setRuntimeError({ message: e.data.message, stack: e.data.stack });
-      } else if (e.data.type === 'XIOM_PREVIEW_CONSOLE_LOG') {
+      } else if (e.data.type === 'LAIDE_PREVIEW_CONSOLE_LOG' || e.data.type === 'XIOM_PREVIEW_CONSOLE_LOG') {
         setConsoleLogs(prev => [
           ...prev.slice(-99),
           {
@@ -170,7 +169,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
             timestamp: e.data.timestamp || Date.now()
           }
         ]);
-      } else if (e.data.type === 'XIOM_PREVIEW_INSPECT_RESULT') {
+      } else if (e.data.type === 'LAIDE_PREVIEW_INSPECT_RESULT' || e.data.type === 'XIOM_PREVIEW_INSPECT_RESULT') {
         setInspectedElement(e.data.element);
       }
     };
@@ -187,7 +186,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
     if (iframeRef.current && iframeRef.current.contentWindow) {
       try {
         iframeRef.current.contentWindow.postMessage({
-          type: 'XIOM_TOGGLE_INSPECT_MODE',
+          type: 'LAIDE_TOGGLE_INSPECT_MODE',
           enabled: nextState
         }, '*');
       } catch {
@@ -363,10 +362,12 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
     if (isInspectMode && iframeRef.current?.contentWindow) {
       try {
         iframeRef.current.contentWindow.postMessage({
-          type: 'XIOM_TOGGLE_INSPECT_MODE',
+          type: 'LAIDE_TOGGLE_INSPECT_MODE',
           enabled: true
         }, '*');
-      } catch {}
+      } catch (err) {
+        console.warn('Failed to post toggle inspect mode message', err);
+      }
     }
 
     if (autoVisionOnPatch && iframeRef.current) {

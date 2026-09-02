@@ -294,5 +294,18 @@ describe('Virtual File System', () => {
     it('should report isOpfsSupported accurately', () => {
       expect(typeof isOpfsSupported()).toBe('boolean');
     });
+
+    it('should retain durable content in Dexie even if OPFS write fails', async () => {
+      const created = await createFile(projectId, '/durable.txt', 'vital source code');
+      expect(created.content).toBe('vital source code');
+
+      // Direct Dexie fetch without hydration
+      const rawDbFile = await db.files.get(created.id);
+      expect(rawDbFile?.content).toBe('vital source code');
+
+      // getAllFileContent returns durable content
+      const [read] = await getAllFileContent([rawDbFile!]);
+      expect(read.content).toBe('vital source code');
+    });
   });
 });

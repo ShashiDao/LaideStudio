@@ -22,15 +22,17 @@ export async function getOpfsFileHandle(projectId: string, path: string, create:
   return await currentDir.getFileHandle(fileName, { create });
 }
 
-export async function writeOpfsFile(projectId: string, path: string, content: string): Promise<void> {
-  if (!isOpfsSupported()) return;
+export async function writeOpfsFile(projectId: string, path: string, content: string): Promise<boolean> {
+  if (!isOpfsSupported()) return false;
   try {
     const handle = await getOpfsFileHandle(projectId, path, true);
     const writable = await handle.createWritable();
     await writable.write(content);
     await writable.close();
+    return true;
   } catch (e) {
     console.warn(`OPFS write failed for ${path}`, e);
+    return false;
   }
 }
 
@@ -158,7 +160,11 @@ export async function getAllFileContent(projectIdOrFiles?: string | FileItem[]):
         try {
           const handle = await getOpfsFileHandle(file.projectId, file.path, false);
           const opfsFile = await handle.getFile();
-          file.content = await opfsFile.text();
+          const text = await opfsFile.text();
+          // Use OPFS content when available; fallback to Dexie content if empty or read fails
+          if (text || !file.content) {
+            file.content = text;
+          }
         } catch {
           // Fallback to what's in Dexie if OPFS read fails or file is only in Dexie
         }
@@ -184,23 +190,22 @@ export async function writeFile(id: string, content: string): Promise<FileItem> 
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
   
-  await writeOpfsFile(file.projectId, file.path, content);
-  
-  // Store empty content in Dexie if OPFS is supported, to save DB space
-  const dbContent = isOpfsSupported() ? '' : content;
-  const updated = { ...file, content: dbContent, updatedAt: Date.now() };
+  // Store full content in Dexie as durable source of truth
+  const updated = { ...file, content, updatedAt: Date.now() };
   await db.files.put(updated);
   
-  return { ...updated, content };
+  // Also mirror to OPFS if supported
+  await writeOpfsFile(file.projectId, file.path, content);
+  
+  return updated;
 }
 
 export async function createFile(projectId: string, path: string, content: string): Promise<FileItem> {
-  const dbContent = isOpfsSupported() ? '' : content;
   const newFile: FileItem = {
     id: generateId(),
     projectId,
     path,
-    content: dbContent,
+    content,
     updatedAt: Date.now()
   };
   
@@ -211,7 +216,7 @@ export async function createFile(projectId: string, path: string, content: strin
   
   await writeOpfsFile(projectId, path, content);
   
-  return { ...newFile, content };
+  return newFile;
 }
 
 export async function bulkCreateOrUpdateFiles(
@@ -242,25 +247,24 @@ export async function bulkCreateOrUpdateFiles(
 
   for (const [path, content] of uniqueMap.entries()) {
     const existing = existingMap.get(path);
-    const dbContent = isOpfsSupported() ? '' : content;
     if (existing) {
       const updated: FileItem = {
         ...existing,
-        content: dbContent,
+        content,
         updatedAt: Date.now()
       };
       filesToPut.push(updated);
-      results.push({ ...updated, content });
+      results.push(updated);
     } else {
       const created: FileItem = {
         id: generateId(),
         projectId,
         path,
-        content: dbContent,
+        content,
         updatedAt: Date.now()
       };
       filesToPut.push(created);
-      results.push({ ...created, content });
+      results.push(created);
     }
   }
 
@@ -435,7 +439,7 @@ export async function restoreProject(projectId: string): Promise<Project> {
     id: f.id,
     projectId: f.projectId,
     path: f.path,
-    content: isOpfsSupported() ? '' : f.content,
+    content: f.content,
     updatedAt: f.updatedAt,
   }));
 

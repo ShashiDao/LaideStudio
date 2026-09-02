@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
-import type { FileItem } from '../../db';
-import type { KeyMaterial } from '../security/crypto';
+import { db, type FileItem } from '../../db';
+import { encryptData, decryptData, type KeyMaterial } from '../security/crypto';
 import { binaryExtensions } from '../fs/zipExport';
 import { detectBundledProject } from '../bundler/entryDetection';
 import { buildBundledHtml, detectProjectTailwindVersion, injectTailwindScriptIntoHtml } from '../../components/preview/PreviewPanel';
@@ -506,9 +506,6 @@ export async function saveDeployToken(
   token: string,
   accountId?: string
 ): Promise<void> {
-  const { encryptData } = await import('../security/crypto');
-  const { db } = await import('../../db');
-  
   if (provider === 'cloudflare') {
     if (!token.trim()) {
       await db.secureTokens.delete('cloudflare_token');
@@ -540,7 +537,6 @@ export async function getDeployToken(
   provider: 'netlify' | 'vercel' | 'cloudflare'
 ): Promise<string | { token: string; accountId: string } | null> {
   if (!keys) return null;
-  const { db } = await import('../../db');
   
   if (provider === 'cloudflare') {
     const tokenRec = await db.secureTokens.get('cloudflare_token');
@@ -548,7 +544,6 @@ export async function getDeployToken(
     if (!tokenRec?.encryptedValue) return null;
     
     try {
-      const { decryptData } = await import('../security/crypto');
       const token = await decryptData(keys.aesKey, tokenRec.encryptedValue);
       let accountId = '';
       if (accountRec?.encryptedValue) {
@@ -565,7 +560,6 @@ export async function getDeployToken(
   const enc = record?.encryptedValue;
   if (!enc) return null;
   try {
-    const { decryptData } = await import('../security/crypto');
     return await decryptData(keys.aesKey, enc);
   } catch {
     return null;
@@ -573,7 +567,6 @@ export async function getDeployToken(
 }
 
 export async function deleteDeployToken(provider: 'netlify' | 'vercel' | 'cloudflare'): Promise<void> {
-  const { db } = await import('../../db');
   if (provider === 'cloudflare') {
     await db.secureTokens.delete('cloudflare_token');
     await db.secureTokens.delete('cloudflare_account_id');

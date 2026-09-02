@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { db, type ConnectionProfile } from '../../db';
 import { useAppStore } from '../../store';
+import { encryptData } from '../../services/security/crypto';
 import { getModelContextWindow } from '../../services/llm/modelDiscovery';
 
 interface QuickConnectSheetProps {
@@ -184,7 +185,6 @@ export function QuickConnectSheet({ isOpen, onClose, onProfileConnected }: Quick
     try {
       let finalEncryptedKey = '';
       if (keys) {
-        const { encryptData } = await import('../../services/security/crypto');
         finalEncryptedKey = await encryptData(keys.aesKey, finalKey || 'none');
       } else {
         // Fallback placeholder if vault is not yet generated

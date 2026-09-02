@@ -1394,7 +1394,9 @@ Access: 0644/-rw-r--r--`;
                   try {
                     const parsed = JSON.parse(pkgJsonFile.content);
                     requestedVersion = parsed.dependencies?.[pkgName] || parsed.devDependencies?.[pkgName] || '';
-                  } catch {}
+                  } catch (e) {
+                    console.warn('Failed to parse package.json for requested version:', e);
+                  }
                 }
               }
 
@@ -1460,7 +1462,9 @@ Access: 0644/-rw-r--r--`;
               if (pkgJsonFile) {
                 try {
                   pkgObj = JSON.parse(pkgJsonFile.content);
-                } catch {}
+                } catch (e) {
+                  console.warn('Failed to parse package.json during update-lock:', e);
+                }
               }
               const allDeps: Record<string, string> = {
                 ...(pkgObj.dependencies || {}),
@@ -1549,7 +1553,9 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
                 try {
                   const parsed = JSON.parse(pkgJsonFile.content);
                   requestedVersion = parsed.dependencies?.[pkgName] || parsed.devDependencies?.[pkgName] || '';
-                } catch {}
+                } catch (e) {
+                  console.warn('Failed to parse package.json during vendor command:', e);
+                }
               }
             }
 
@@ -1634,7 +1640,9 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
               if (pkgJsonFile) {
                 try {
                   pkgObj = JSON.parse(pkgJsonFile.content);
-                } catch {}
+                } catch (e) {
+                  console.warn('Failed to parse package.json during lockfile update:', e);
+                }
               }
               const allDeps: Record<string, string> = {
                 ...(pkgObj.dependencies || {}),
