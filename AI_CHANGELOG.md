@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-114
-- Last verified working: Pre-push secret scanning implemented in `GithubPushModal.tsx` using `scanFilesForSecrets()`, mirroring `DeployModal.tsx` pattern with blocking warning UI and explicit "Push anyway" bypass option. Unit tests added to `GithubPushModal.test.ts`. Full Vitest suite passing (81/81 test files, 634/634 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
+- Phase: HOTFIX-115
+- Last verified working: Added origin/source validation (`e.source === iframeRef.current?.contentWindow`) to preview message listener in `PreviewPanel.tsx` to prevent window spoofing of runtime errors, console logs, and inspection state. Added test in `PreviewPanel.test.tsx` verifying spoofed events from non-matching sources are ignored while matching iframe events update state. Full Vitest suite passing (81/81 test files, 635/635 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -948,6 +948,24 @@ Deviations: none
 Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` (16/16 tests passing), full Vitest suite (81/81 test files, 634/634 tests passing), `npm run lint` (0 errors), and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-115] Preview Iframe Message Listener Source Validation — 2026-09-02
+Prompt: FIX 2 — Add check that e.source === iframeRef.current?.contentWindow before processing preview messages in PreviewPanel.tsx and return early to prevent window spoofing of runtime errors, logs, and inspect mode. Add test.
+Files touched:
+- `src/components/preview/PreviewPanel.tsx` (modified)
+- `src/components/preview/PreviewPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added strict source verification `if (e.source !== iframeRef.current?.contentWindow) return;` at the entry of the `handleMessage` listener in `PreviewPanel.tsx` before evaluating `e.data`.
+- Guarded preview state updates (`runtimeError`, `consoleLogs`, `inspectedElement`) against spoofed message events originating from other frames, windows, or non-matching origins.
+- Added comprehensive test in `PreviewPanel.test.tsx` verifying that spoofed runtime errors and console log messages from non-matching sources (such as parent `window` or `null`) are ignored, while messages originating from `iframe.contentWindow` are correctly processed and rendered.
+Decisions:
+- Used strict `e.source !== iframeRef.current?.contentWindow` reference comparison rather than `e.origin` because the sandboxed preview iframe uses `srcdoc` (without `allow-same-origin`), causing `e.origin` to report `"null"`.
+Deviations: none
+Verified: `npx vitest run src/components/preview/PreviewPanel.test.tsx` (13/13 tests passing), full Vitest suite (81/81 test files, 635/635 tests passing), `npm run lint` (0 errors), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
 
 
 

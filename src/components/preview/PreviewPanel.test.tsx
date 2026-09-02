@@ -358,5 +358,66 @@ describe('PreviewPanel script injection sanitization', () => {
 
       unmount();
     });
+
+    it('ignores message events from non-matching sources (spoofing prevention)', async () => {
+      const { unmount } = render(<PreviewPanel files={sampleFiles as any} />);
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Preview')).toBeDefined();
+      });
+
+      const iframe = screen.getByTitle('Preview') as HTMLIFrameElement;
+      expect(iframe).toBeDefined();
+
+      // 1. Dispatch spoofed runtime error with window as source (non-matching)
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'LAIDE_PREVIEW_RUNTIME_ERROR',
+            message: 'Spoofed Untrusted Error'
+          },
+          source: window
+        })
+      );
+
+      // Verify spoofed error did NOT render
+      expect(screen.queryByText('Spoofed Untrusted Error')).toBeNull();
+      expect(screen.queryByText('Runtime Error:')).toBeNull();
+
+      // 2. Dispatch spoofed console log with null source
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'LAIDE_PREVIEW_CONSOLE_LOG',
+            logType: 'error',
+            args: ['Spoofed console log']
+          },
+          source: null
+        })
+      );
+
+      // Verify no console log badge/notification updated
+      expect(screen.queryByText('1')).toBeNull();
+
+      // 3. Dispatch legitimate runtime error from the iframe's contentWindow
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: {
+            type: 'LAIDE_PREVIEW_RUNTIME_ERROR',
+            message: 'Legitimate Sandbox Error'
+          },
+          source: iframe.contentWindow
+        })
+      );
+
+      // Verify legitimate runtime error was accepted and rendered
+      await waitFor(() => {
+        expect(screen.getByText('Runtime Error:')).toBeDefined();
+        expect(screen.getByText('Legitimate Sandbox Error')).toBeDefined();
+      });
+
+      unmount();
+    });
   });
 });
+

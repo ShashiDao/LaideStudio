@@ -156,6 +156,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
+      if (e.source !== iframeRef.current?.contentWindow) return;
       if (!e.data) return;
       if (e.data.type === 'LAIDE_PREVIEW_RUNTIME_ERROR' || e.data.type === 'XIOM_PREVIEW_RUNTIME_ERROR') {
         setRuntimeError({ message: e.data.message, stack: e.data.stack });
