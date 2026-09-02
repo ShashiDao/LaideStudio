@@ -2,13 +2,10 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import React, { useEffect, useRef, useState } from 'react';
-import { FileText, MessageSquare, MonitorPlay, Upload, FolderPlus, Plus, Settings, ChevronDown, Trash2, AlertTriangle, X, Terminal, BarChart3 } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { FileText, MessageSquare, MonitorPlay, Settings, Trash2, AlertTriangle, X, Terminal } from 'lucide-react';
 import { useAppStore, type TabId } from './store';
 import type { BeforeInstallPromptEvent } from './types';
-import { exportZip } from './services/fs/zipExport';
-import { exportProjectAsMarkdown, generateProjectMarkdown } from './services/fs/markdownExport';
-import { FileTree } from './components/shared/FileTree';
 import { Editor } from './components/editor/Editor';
 import { LockScreen } from './components/shared/LockScreen';
 
@@ -21,7 +18,6 @@ import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { PreviewPanel } from './components/preview/PreviewPanel';
 import { KeyboardShortcutsModal } from './components/modals/KeyboardShortcutsModal';
 import { RenameProjectModal } from './components/project/RenameProjectModal';
-import { ProjectActionsMenu } from './components/project/ProjectActionsMenu';
 import { ProjectFilesPane } from './components/project/ProjectFilesPane';
 import { ActivityRail } from './components/shared/ActivityRail';
 import { EditorTabs } from './components/editor/EditorTabs';

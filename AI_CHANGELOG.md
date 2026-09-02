@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-111
-- Last verified working: TypeScript typecheck passing (0 errors on `tsc --noEmit`), unit test suites passing, ESLint clean (0 errors), and production build compiling successfully. Fixed terminal panel props type, LockScreen recovery masterKeyBytes null guard, ToastSlice warning type support with AlertTriangle icon in Toaster, and recovery test type assertions.
+- Phase: HOTFIX-112
+- Last verified working: TypeScript typecheck passing (0 errors on `tsc --noEmit`), full test suite passing (81/81 test files, 631/631 tests passing), ESLint clean (0 errors), and production build compiling successfully. Added `@vitest-environment happy-dom` to `webllm.test.ts` for Node 20 CI environment compatibility and cleaned up unused imports in `src/App.tsx`.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -903,6 +903,22 @@ Decisions:
 - Updated `ToastSlice` type definition to include `'warning'` to align with usages across file operations and security notifications while providing distinct amber visual feedback.
 Deviations: none
 Verified: `npm ci` completed cleanly, `npm run typecheck` (`tsc --noEmit`) passed with 0 errors, ESLint passed with 0 errors, full Vitest suite (81/81 test files, 631/631 tests) passed, and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-112] Happy-DOM Test Environment Directive & App.tsx Imports Cleanup — 2026-09-02
+Prompt: Fix the CI test failure in src/services/llm/providers/webllm.test.ts and clean up unused imports in src/App.tsx.
+Files touched:
+- `src/services/llm/providers/webllm.test.ts` (modified)
+- `src/App.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Added `// @vitest-environment happy-dom` at the very first line of `src/services/llm/providers/webllm.test.ts` to provide browser globals (including `navigator`) under Node 20 in CI.
+- Removed unused imports in `src/App.tsx` (`useState`, `Upload`, `FolderPlus`, `Plus`, `ChevronDown`, `BarChart3`, `exportZip`, `exportProjectAsMarkdown`, `generateProjectMarkdown`, `FileTree`, `ProjectActionsMenu`).
+Decisions:
+- Maintained exact test logic in `webllm.test.ts` without modification beyond the top-level test environment directive to align with all other test files in the codebase.
+Deviations: none
+Verified: `npm run typecheck` (`tsc --noEmit`) passed with 0 errors, `npm run lint` passed with 0 errors, Vitest test suite (81/81 test files, 631/631 tests) passed, and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
 
