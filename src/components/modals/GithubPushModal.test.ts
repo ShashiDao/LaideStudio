@@ -848,4 +848,153 @@ describe('GithubPushModal', () => {
       expect(screen.getByText('Branch Created!')).toBeDefined();
     });
   });
+
+  it('blocks push and displays secret warnings when sensitive secrets are detected in workspace files', async () => {
+    const onClose = vi.fn();
+    const secretContent = 'export const apiKey = "sk-ant-api03-abcdef1234567890abcdef1234567890abcdef1234567890";';
+    await createFile(projectId, '/src/config.ts', secretContent);
+
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy;
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    const repoInput = screen.getByPlaceholderText('owner/repo (e.g. facebook/react)');
+    fireEvent.change(repoInput, { target: { value: 'testorg/secretrepo' } });
+
+    const pushButton = screen.getByRole('button', { name: /push to remote branch/i });
+    fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Potential Secrets Detected Before Pushing')).toBeDefined();
+      expect(screen.getByText(/The push scanner detected/i)).toBeDefined();
+      expect(screen.getAllByText('/src/config.ts').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Anthropic API key')).toBeDefined();
+      expect(screen.getAllByText('Line 1').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByRole('button', { name: /cancel & review files/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /push anyway/i })).toBeDefined();
+    });
+
+    // Verify git API (blobs, trees, commits, refs) was NOT called for push
+    const gitCalls = fetchSpy.mock.calls.filter((call: any[]) => call[0]?.includes('/git/'));
+    expect(gitCalls).toHaveLength(0);
+
+    // Click Cancel & Review Files
+    fireEvent.click(screen.getByRole('button', { name: /cancel & review files/i }));
+
+    // Warning is dismissed and form is back
+    await waitFor(() => {
+      expect(screen.queryByText('Potential Secrets Detected Before Pushing')).toBeNull();
+      expect(screen.getByRole('button', { name: /push to remote branch/i })).toBeDefined();
+    });
+  });
+
+  it('allows user to bypass secret warning with "Push anyway" confirmation', async () => {
+    const onClose = vi.fn();
+    const secretContent = 'export const apiKey = "sk-ant-api03-abcdef1234567890abcdef1234567890abcdef1234567890";';
+    await createFile(projectId, '/src/config.ts', secretContent);
+
+    let createdCommitMessage = '';
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, options: any = {}) => {
+      if (url.includes('/repos/') && !url.includes('/git/')) {
+        return { ok: true, status: 200, json: async () => ({ default_branch: 'main' }) } as any;
+      }
+      if (url.includes('/git/ref/heads/main')) {
+        return { ok: true, status: 200, json: async () => ({ object: { sha: 'base_sha' } }) } as any;
+      }
+      if (url.includes('/git/commits/base_sha')) {
+        return { ok: true, status: 200, json: async () => ({ tree: { sha: 'base_tree' } }) } as any;
+      }
+      if (url.includes('/git/trees/main?recursive=1')) {
+        return { ok: true, status: 200, json: async () => ({ tree: [] }) } as any;
+      }
+      if (url.includes('/git/blobs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'blob_secret_sha' }) } as any;
+      }
+      if (url.includes('/git/trees') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'tree_secret_sha' }) } as any;
+      }
+      if (url.includes('/git/commits') && options.method === 'POST') {
+        const body = JSON.parse(options.body);
+        createdCommitMessage = body.message;
+        return { ok: true, status: 201, json: async () => ({ sha: 'commit_secret_sha' }) } as any;
+      }
+      if (url.includes('/git/refs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ ref: 'refs/heads/laide-push-branch' }) } as any;
+      }
+      return { ok: false, status: 404, json: async () => ({ message: 'Not found' }) } as any;
+    });
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    const repoInput = screen.getByPlaceholderText('owner/repo (e.g. facebook/react)');
+    fireEvent.change(repoInput, { target: { value: 'testorg/bypass-repo' } });
+
+    const pushButton = screen.getByRole('button', { name: /push to remote branch/i });
+    fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Potential Secrets Detected Before Pushing')).toBeDefined();
+    });
+
+    // Click "Push anyway"
+    const pushAnywayBtn = screen.getByRole('button', { name: /push anyway/i });
+    fireEvent.click(pushAnywayBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Branch Created!')).toBeDefined();
+      expect(screen.getByRole('link', { name: /open pull request/i })).toBeDefined();
+    });
+
+    expect(createdCommitMessage).toContain('Update from LAIDE Studio');
+  });
+
+  it('pushes cleanly without secret warning prompt when files contain no secrets', async () => {
+    const onClose = vi.fn();
+    const cleanContent = 'export const greeting = "Hello World";';
+    await createFile(projectId, '/src/index.ts', cleanContent);
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, options: any = {}) => {
+      if (url.includes('/repos/') && !url.includes('/git/')) {
+        return { ok: true, status: 200, json: async () => ({ default_branch: 'main' }) } as any;
+      }
+      if (url.includes('/git/ref/heads/main')) {
+        return { ok: true, status: 200, json: async () => ({ object: { sha: 'base_sha' } }) } as any;
+      }
+      if (url.includes('/git/commits/base_sha')) {
+        return { ok: true, status: 200, json: async () => ({ tree: { sha: 'base_tree' } }) } as any;
+      }
+      if (url.includes('/git/trees/main?recursive=1')) {
+        return { ok: true, status: 200, json: async () => ({ tree: [] }) } as any;
+      }
+      if (url.includes('/git/blobs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'blob_clean_sha' }) } as any;
+      }
+      if (url.includes('/git/trees') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'tree_clean_sha' }) } as any;
+      }
+      if (url.includes('/git/commits') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ sha: 'commit_clean_sha' }) } as any;
+      }
+      if (url.includes('/git/refs') && options.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ ref: 'refs/heads/laide-clean-branch' }) } as any;
+      }
+      return { ok: false, status: 404, json: async () => ({ message: 'Not found' }) } as any;
+    });
+
+    render(React.createElement(GithubPushModal, { projectId, onClose }));
+
+    const repoInput = screen.getByPlaceholderText('owner/repo (e.g. facebook/react)');
+    fireEvent.change(repoInput, { target: { value: 'testorg/clean-repo' } });
+
+    const pushButton = screen.getByRole('button', { name: /push to remote branch/i });
+    fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Branch Created!')).toBeDefined();
+    });
+
+    // Ensure secret warnings were never displayed
+    expect(screen.queryByText('Potential Secrets Detected Before Pushing')).toBeNull();
+  });
 });

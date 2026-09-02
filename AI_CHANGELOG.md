@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-113
-- Last verified working: Global `happy-dom` Vitest environment configured in `vite.config.ts`, Node 20 pinned via `.nvmrc` and `package.json` engines `"node": "20.x"`, ESLint `@typescript-eslint/no-unused-vars` upgraded to `'error'` to gate CI, and unused variables cleaned across `App.tsx`, `ChatPanel.tsx`, `Editor.tsx`, and `TrustReportModal.tsx`. Full test suite passing (81/81 test files, 631/631 tests), `npm run typecheck` (`tsc --noEmit`) clean (0 errors), `npm run lint` clean (0 errors), and production build succeeding.
+- Phase: HOTFIX-114
+- Last verified working: Pre-push secret scanning implemented in `GithubPushModal.tsx` using `scanFilesForSecrets()`, mirroring `DeployModal.tsx` pattern with blocking warning UI and explicit "Push anyway" bypass option. Unit tests added to `GithubPushModal.test.ts`. Full Vitest suite passing (81/81 test files, 634/634 tests), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 
@@ -928,6 +928,24 @@ Decisions:
 - Upgraded `@typescript-eslint/no-unused-vars` to `'error'` rather than adding CLI flags so both IDEs and `npm run lint` enforce unused variable elimination automatically.
 Deviations: none
 Verified: `npm run typecheck` (`tsc --noEmit`) clean with 0 errors, `npm run lint` clean with 0 errors, Vitest test suite (81/81 test files, 631/631 tests) passing, and `compile_applet` production build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-114] Secret Scanning in GitHub Push Flow & Bypass Confirmation — 2026-09-02
+Prompt: Before the push actually sends files to GitHub in GithubPushModal.tsx, call scanFilesForSecrets on the file set about to be committed, mirroring DeployModal.tsx. If matches are found, block the push and show warning UI requiring explicit confirmation. Add test.
+Files touched:
+- `src/components/modals/GithubPushModal.tsx` (modified)
+- `src/components/modals/GithubPushModal.test.ts` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Integrated `scanFilesForSecrets` from `src/services/security/secretScan.ts` into `handlePush` in `GithubPushModal.tsx` to inspect all workspace files prior to calling GitHub Git Data APIs.
+- Implemented warning and confirmation UI in `GithubPushModal.tsx` mirroring `DeployModal.tsx`, presenting detected secret matches (path, line number, pattern, redacted preview) and blocking push execution until user clicks "Push anyway".
+- Added unit tests in `GithubPushModal.test.ts` verifying that flagged secrets halt git API requests, display the warning list, allow cancellation to review files, allow bypass via "Push anyway", and ensure clean file sets push without friction.
+Decisions:
+- Maintained a `forceBypass?: boolean` flag in `handlePush` so user confirmation seamlessly proceeds with repository creation and branch pushes without re-scanning or resetting branch options.
+- Retained full modal dismissibility and review mode via "Cancel & Review Files" button to allow users to clean up accidental secrets before re-attempting a push.
+Deviations: none
+Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` (16/16 tests passing), full Vitest suite (81/81 test files, 634/634 tests passing), `npm run lint` (0 errors), and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
 

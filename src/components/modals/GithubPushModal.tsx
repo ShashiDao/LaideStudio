@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, X, GitPullRequest, GitBranch, ShieldCheck, Cpu, Lock, ChevronDown } from 'lucide-react';
+import { Loader2, X, GitPullRequest, GitBranch, ShieldCheck, Cpu, Lock, ChevronDown, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { db } from '../../db';
 import { createGithubClient, type GitTreeEntry, type GithubRepo, type GithubTreeResponse } from '../../services/github/githubClient';
 import { listFiles } from '../../services/fs/vfs';
 import { binaryExtensions } from '../../services/fs/zipExport';
+import { scanFilesForSecrets, type SecretMatch } from '../../services/security/secretScan';
 import { 
   calculateProjectTrustScore, 
   generateTrustMarkdownReport, 
@@ -86,6 +87,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
   const [includeTrustLedger, setIncludeTrustLedger] = useState(true);
   const [projectTrust, setProjectTrust] = useState<ProjectTrustScore | null>(null);
   
+  const [secretWarnings, setSecretWarnings] = useState<SecretMatch[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string>('');
@@ -257,8 +259,8 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
     return fullName.includes(filterQuery);
   });
 
-  const handlePush = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handlePush = async (e?: React.FormEvent, forceBypass: boolean = false) => {
+    if (e) e.preventDefault();
     if (!keys) return;
     if (mode === 'existing' && (!owner || !repo)) return;
     if (mode === 'create' && !newRepoName.trim()) return;
@@ -270,6 +272,22 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
     setCreatedRepoUrl(null);
     
     try {
+      setProgress('Analyzing local changes...');
+      const localFiles = await listFiles(projectId);
+      if (localFiles.length === 0) {
+        throw new Error('Project contains no files to push.');
+      }
+
+      // Check for secret warnings before proceeding
+      if (!forceBypass) {
+        const findings = scanFilesForSecrets(localFiles);
+        if (findings.length > 0) {
+          setSecretWarnings(findings);
+          setLoading(false);
+          return;
+        }
+      }
+
       const client = await createGithubClient(keys);
       const targetBranch = (newBranch || defaultBranchName).trim();
       
@@ -366,7 +384,6 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       const remoteFiles = new Map(treeData.tree.filter((t) => t.type === 'blob').map((t) => [t.path, t.sha]));
       
       setProgress('Analyzing local changes...');
-      const localFiles = await listFiles(projectId);
       
       const createdEntries: GitTreeEntry[] = [];
       let uploadCount = 0;
@@ -460,6 +477,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
       }));
 
       // Generate compare URL
+      setSecretWarnings(null);
       const compareUrl = `https://github.com/${finalOwner}/${finalRepo}/compare/${finalBaseBranch}...${targetBranch}?expand=1`;
       setPrUrl(compareUrl);
       setCreatedBranch(targetBranch);
@@ -478,7 +496,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
 
   return (
     <div className="absolute inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-surface border border-border p-5 rounded-lg shadow-2xl w-full max-w-md relative corner-ticks">
+      <div className="bg-surface border border-border p-5 rounded-lg shadow-2xl w-full max-w-md relative corner-ticks max-h-[90vh] overflow-y-auto">
         <button 
           type="button"
           onClick={onClose} 
@@ -530,6 +548,65 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
               </a>
             </div>
           </div>
+        ) : secretWarnings && secretWarnings.length > 0 ? (
+          /* Secret Detection Warning View */
+          <div className="space-y-4 animate-in fade-in duration-150">
+            <div className="p-4 bg-oxide/10 border border-oxide/30 rounded-xl space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-oxide/20 rounded-lg border border-oxide/40 text-oxide shrink-0 mt-0.5">
+                  <AlertTriangle size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-xs font-bold text-text">Potential Secrets Detected Before Pushing</h3>
+                  <p className="text-[11px] text-muted leading-relaxed font-sans">
+                    The push scanner detected <span className="text-oxide font-bold">{secretWarnings.length}</span> potential secret{secretWarnings.length > 1 ? 's' : ''} or credential pattern{secretWarnings.length > 1 ? 's' : ''} in your workspace files. Pushing will upload these files to GitHub.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-bg/90 border border-border/80 rounded-lg p-2 max-h-52 overflow-y-auto space-y-2">
+                {secretWarnings.map((item, idx) => (
+                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-2 bg-surface/80 rounded border border-border/60 text-[11px]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-text font-mono font-bold truncate">{item.file}</span>
+                      <span className="text-[10px] text-muted font-sans shrink-0">
+                        {item.line > 0 ? `Line ${item.line}` : '(file)'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="px-1.5 py-0.5 text-[10px] rounded bg-oxide/15 text-oxide border border-oxide/30 font-sans">
+                        {item.pattern}
+                      </span>
+                      <span className="px-1.5 py-0.5 text-[10px] rounded bg-bg text-muted font-mono border border-border">
+                        {item.preview}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+              <button
+                type="button"
+                onClick={() => {
+                  setSecretWarnings(null);
+                }}
+                className="px-4 py-2 bg-surface hover:bg-surface-elevated text-muted hover:text-text border border-border rounded-lg text-xs transition-colors cursor-pointer font-sans"
+              >
+                Cancel & Review Files
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handlePush(undefined, true)}
+                className="px-5 py-2 bg-oxide hover:bg-oxide/90 text-white font-bold font-sans rounded-lg text-xs transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              >
+                {loading ? <Loader2 size={13} className="animate-spin" /> : <GitBranch size={13} />}
+                <span>Push anyway</span>
+              </button>
+            </div>
+          </div>
         ) : (
           <form onSubmit={handlePush} className="space-y-4">
             <div className="flex rounded-lg p-0.5 bg-bg border border-border">
@@ -538,6 +615,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
                 onClick={() => {
                   setMode('existing');
                   setError(null);
+                  setSecretWarnings(null);
                 }}
                 disabled={loading}
                 className={`flex-1 py-1.5 px-3 text-xs font-sans font-medium rounded-md transition-colors cursor-pointer ${
@@ -553,6 +631,7 @@ export function GithubPushModal({ projectId, onClose }: GithubPushModalProps) {
                 onClick={() => {
                   setMode('create');
                   setError(null);
+                  setSecretWarnings(null);
                 }}
                 disabled={loading}
                 className={`flex-1 py-1.5 px-3 text-xs font-sans font-medium rounded-md transition-colors cursor-pointer ${
