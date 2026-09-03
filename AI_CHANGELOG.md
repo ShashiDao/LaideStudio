@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-123
-- Last verified working: `WorkspaceOverlay` successfully isolates writes without modifying base files, `TaskStateMachine` correctly transitions states, and full typecheck/tests pass (`npx vitest run`, `tsc --noEmit`).
+- Phase: HOTFIX-124
+- Last verified working: Write isolation enforced via WorkspaceOverlay; agent writes never mutate canonical VFS during execution; full test suite passes (57/57 tests passing in vitest), linting passes (0 errors), and compile_applet succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -591,6 +591,28 @@ Decisions:
 - Placed task metadata (`tasks`, `taskRuns`, `patchSets`) into Dexie for durability across sessions, crashes, and unloads.
 Deviations: none
 Verified: `npm run typecheck` passed (0 errors), `npm run lint` passed (0 errors), all 18 newly added unit tests pass across 4 test suites, and production build succeeded (`npm run build`).
+Commit: pending
+Open questions: none
+
+### [HOTFIX-124] Enforce WorkspaceOverlay Write Isolation for Agent Execution — 2026-09-03
+Prompt: Harden LAIDE Studio's agent execution architecture: agents must never mutate canonical VFS during a task; fix write side using WorkspaceOverlay.
+Files touched:
+- `src/services/agent/workspace/overlay.ts` (modified)
+- `src/services/agent/tools.ts` (modified)
+- `src/services/agent/agentLoop.ts` (modified)
+- `src/services/agent/tools.test.ts` (modified)
+- `src/services/agent/workspace/overlayWrite.test.ts` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Refactored `executeAgentTool` in `tools.ts` to accept `ToolExecutionContext` with `overlay: WorkspaceOverlay` and routed `write_file` tool calls directly into the overlay layer, preventing any premature mutations to `useAppStore` pending patches or the canonical VFS.
+- Enhanced `AgentWorkspaceOverlay` to capture `rationale`, `metadata` (model, provider, messageId), and `baseRevision` on overlay writes, and updated `diff()` to produce complete `PendingPatch` objects with proper attribution.
+- Updated `runAgentLoop` in `agentLoop.ts` to instantiate `AgentWorkspaceOverlay` at task start, pass it into all agent tool calls, read and search across overlay buffers, and only commit the final deterministic `overlay.diff()` to `pendingPatches` upon task completion.
+- Added comprehensive unit test suite `overlayWrite.test.ts` proving overlay write isolation, canonical VFS protection, multiple accumulating writes, create/replace/delete operations, and end-to-end agent loop integration.
+Decisions:
+- Passed `overlay` via `context` through `executeAgentTool` so all filesystem tools (`read_file`, `write_file`, `list_directory`, `search_code`) operate on the active overlay layer in a unified manner.
+- Updated `tools.test.ts` to assert against overlay state and the staged overlay diff rather than legacy direct store writes.
+Deviations: none
+Verified: All 57 unit tests passed across 9 test suites (`npx vitest run src/services/agent/`), `npm run lint` passed with 0 errors, and `compile_applet` passed with 0 errors.
 Commit: pending
 Open questions: none
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { executeAgentTool, AGENT_TOOLS, validateProjectPath } from './tools';
+import { AgentWorkspaceOverlay } from './workspace/overlay';
 import { useAppStore } from '../../store';
 import { db } from '../../db';
 
@@ -69,7 +70,8 @@ describe('Agent Tools & Path Validation', () => {
     expect(useAppStore.getState().pendingPatches).toHaveLength(0);
   });
 
-  it('write_file: accepts valid absolute paths starting with "/" and queues pending patch', async () => {
+  it('write_file: accepts valid absolute paths starting with "/" and writes to overlay without mutating store or canonical VFS', async () => {
+    const overlay = new AgentWorkspaceOverlay(projectId, []);
     const validArgs = JSON.stringify({
       path: '/src/App.tsx',
       type: 'create',
@@ -77,17 +79,28 @@ describe('Agent Tools & Path Validation', () => {
       rationale: 'Initial component creation'
     });
 
-    const result = await executeAgentTool('write_file', validArgs, projectId);
+    const result = await executeAgentTool('write_file', validArgs, projectId, { overlay });
     expect(result).toContain('Successfully queued patch for /src/App.tsx');
     
+    // Global store must NOT be used as canonical working state
     const patches = useAppStore.getState().pendingPatches;
-    expect(patches).toHaveLength(1);
-    expect(patches[0].path).toBe('/src/App.tsx');
-    expect(patches[0].type).toBe('create');
-    expect(patches[0].newContent).toBe('export const App = () => <div>Hello</div>;');
+    expect(patches).toHaveLength(0);
+
+    // Overlay has the changes
+    expect(await overlay.read('/src/App.tsx')).toBe('export const App = () => <div>Hello</div>;');
+    const diff = overlay.diff();
+    expect(diff).toHaveLength(1);
+    expect(diff[0].path).toBe('/src/App.tsx');
+    expect(diff[0].type).toBe('create');
+    expect(diff[0].newContent).toBe('export const App = () => <div>Hello</div>;');
+
+    // Canonical VFS is untouched
+    const vfsFiles = await db.files.where({ projectId }).toArray();
+    expect(vfsFiles).toHaveLength(0);
   });
 
-  it('write_file: captures context with model, provider, and messageId onto pending patch', async () => {
+  it('write_file: captures context with model, provider, and messageId onto overlay diff', async () => {
+    const overlay = new AgentWorkspaceOverlay(projectId, []);
     const validArgs = JSON.stringify({
       path: '/src/Header.tsx',
       type: 'create',
@@ -98,28 +111,32 @@ describe('Agent Tools & Path Validation', () => {
     const context = {
       model: 'claude-3-5-sonnet',
       provider: 'anthropic',
-      messageId: 'call_999'
+      messageId: 'call_999',
+      overlay
     };
 
     const result = await executeAgentTool('write_file', validArgs, projectId, context);
     expect(result).toContain('Successfully queued patch for /src/Header.tsx');
 
-    const patches = useAppStore.getState().pendingPatches;
-    expect(patches).toHaveLength(1);
-    expect(patches[0].path).toBe('/src/Header.tsx');
-    expect(patches[0].model).toBe('claude-3-5-sonnet');
-    expect(patches[0].provider).toBe('anthropic');
-    expect(patches[0].messageId).toBe('call_999');
+    const diff = overlay.diff();
+    expect(diff).toHaveLength(1);
+    expect(diff[0].path).toBe('/src/Header.tsx');
+    expect(diff[0].model).toBe('claude-3-5-sonnet');
+    expect(diff[0].provider).toBe('anthropic');
+    expect(diff[0].messageId).toBe('call_999');
   });
 
-  it('write_file: automatically resolves oldContent from VFS for delete patches if omitted', async () => {
-    await db.files.add({
+  it('write_file: automatically resolves oldContent from base files for delete patches', async () => {
+    const baseFile = {
       id: 'f-del-1',
       projectId,
       path: '/src/deprecated.ts',
       content: 'export const oldUtility = () => "legacy code";',
       updatedAt: Date.now()
-    });
+    };
+    await db.files.add(baseFile);
+
+    const overlay = new AgentWorkspaceOverlay(projectId, [baseFile]);
 
     const deleteArgs = JSON.stringify({
       path: '/src/deprecated.ts',
@@ -128,13 +145,21 @@ describe('Agent Tools & Path Validation', () => {
       rationale: 'Remove obsolete utility'
     });
 
-    const result = await executeAgentTool('write_file', deleteArgs, projectId);
+    const result = await executeAgentTool('write_file', deleteArgs, projectId, { overlay });
     expect(result).toContain('Successfully queued patch for /src/deprecated.ts');
 
-    const patches = useAppStore.getState().pendingPatches;
-    expect(patches).toHaveLength(1);
-    expect(patches[0].type).toBe('delete');
-    expect(patches[0].oldContent).toBe('export const oldUtility = () => "legacy code";');
+    // Deleted in overlay
+    expect(await overlay.read('/src/deprecated.ts')).toBeNull();
+
+    // Canonical VFS still has the file
+    const vfsFile = await db.files.get('f-del-1');
+    expect(vfsFile?.content).toBe('export const oldUtility = () => "legacy code";');
+
+    // Overlay diff has the delete patch with oldContent
+    const diff = overlay.diff();
+    expect(diff).toHaveLength(1);
+    expect(diff[0].type).toBe('delete');
+    expect(diff[0].oldContent).toBe('export const oldUtility = () => "legacy code";');
   });
 
   it('read_file and list_directory: interact properly with stored files', async () => {

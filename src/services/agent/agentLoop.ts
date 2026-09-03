@@ -1,8 +1,10 @@
-import { AGENT_TOOLS, executeAgentTool } from './tools';
+import { AGENT_TOOLS, executeAgentTool, type ToolExecutionContext } from './tools';
 import type { LLMAdapter, LLMContentBlock, LLMMessage, LLMToolCall, LLMTool } from '../llm/llmAdapter';
 import { useAppStore } from '../../store';
 import { McpService } from './mcpClient';
 import { countTurnTokens, getModelPricing, calculateEstimatedCost } from '../usage/tokenSpend';
+import { AgentWorkspaceOverlay, type WorkspaceOverlay } from './workspace/overlay';
+import { listFiles } from '../fs/vfs';
 
 export interface RunAgentLoopOptions {
   temperature?: number;
@@ -14,6 +16,7 @@ export interface RunAgentLoopOptions {
   modelName?: string;
   model?: string;
   provider?: string;
+  overlay?: WorkspaceOverlay;
 }
 
 export async function runAgentLoop(
@@ -31,6 +34,9 @@ export async function runAgentLoop(
   const dynamicTools: LLMTool[] = [...AGENT_TOOLS];
   const mcpToolMappings = new Map<string, string>();
   const mcpConnectionErrors: { serverId: string; url: string; error: string }[] = [];
+
+  const baseFiles = await listFiles(projectId);
+  const overlay: WorkspaceOverlay = options?.overlay ?? new AgentWorkspaceOverlay(projectId, baseFiles);
 
   // Initialize MCP tools
   for (const server of mcpServers) {
@@ -232,10 +238,11 @@ export async function runAgentLoop(
         }
       } else {
         const currentAssistantMsg = currentMessages[assistantMsgIndex];
-        const toolContext = {
+        const toolContext: ToolExecutionContext = {
           model: currentAssistantMsg?.model || options?.model || options?.modelName,
           provider: options?.provider,
-          messageId: tc.id
+          messageId: tc.id,
+          overlay
         };
         resultStr = await executeAgentTool(tc.name, tc.args, projectId, toolContext);
       }
@@ -301,6 +308,14 @@ export async function runAgentLoop(
     });
   } catch (e) {
     console.warn('Failed to record token usage in agent loop:', e);
+  }
+
+  // Generate final diff from base vs overlay and publish to pendingPatches
+  if (!signal?.aborted) {
+    const diffPatches = overlay.diff();
+    if (diffPatches.length > 0) {
+      useAppStore.getState().setPendingPatches(diffPatches);
+    }
   }
 
   return currentMessages;

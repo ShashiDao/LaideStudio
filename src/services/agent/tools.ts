@@ -1,7 +1,7 @@
 import { listFiles } from '../fs/vfs';
-import { useAppStore } from '../../store';
 import type { LLMTool } from '../llm/llmAdapter';
 import { runProjectTests } from '../bundler/testRunner';
+import { type WorkspaceOverlay, AgentWorkspaceOverlay } from './workspace/overlay';
 
 export const AGENT_TOOLS: LLMTool[] = [
   {
@@ -85,6 +85,7 @@ export interface ToolExecutionContext {
   model?: string;
   provider?: string;
   messageId?: string;
+  overlay?: WorkspaceOverlay;
 }
 
 export async function executeAgentTool(
@@ -109,16 +110,19 @@ export async function executeAgentTool(
           return pathValidation.error!;
         }
 
-        const files = await listFiles(projectId);
+        const overlay = context?.overlay;
+        const filePaths = overlay 
+          ? await overlay.list('/') 
+          : (await listFiles(projectId)).map(f => f.path);
         
         const prefix = path.endsWith('/') ? path : `${path}/`;
         const prefixLen = prefix === '/' ? 1 : prefix.length;
         
         const children = new Set<string>();
         
-        for (const f of files) {
-          if (f.path.startsWith(prefix) || prefix === '/') {
-            const relPath = prefix === '/' ? f.path.slice(1) : f.path.slice(prefixLen);
+        for (const filePath of filePaths) {
+          if (filePath.startsWith(prefix) || prefix === '/') {
+            const relPath = prefix === '/' ? filePath.slice(1) : filePath.slice(prefixLen);
             if (relPath.includes('/')) {
               children.add(relPath.split('/')[0] + '/');
             } else if (relPath.length > 0) {
@@ -142,6 +146,15 @@ export async function executeAgentTool(
           return pathValidation.error!;
         }
         
+        const overlay = context?.overlay;
+        if (overlay) {
+          const content = await overlay.read(path);
+          if (content === null) {
+            return `Error: File not found: ${path}`;
+          }
+          return content;
+        }
+
         const files = await listFiles(projectId);
         const file = files.find(f => f.path === path);
         
@@ -153,8 +166,7 @@ export async function executeAgentTool(
       
       case 'write_file': {
         const path = typeof args.path === 'string' ? args.path : '';
-        const type = (args.type as 'create' | 'replace' | 'delete') || 'replace';
-        const oldContent = typeof args.oldContent === 'string' ? args.oldContent : undefined;
+        const type = (args.type as 'create' | 'replace' | 'append' | 'delete') || 'replace';
         const newContent = typeof args.newContent === 'string' ? args.newContent : '';
         const rationale = typeof args.rationale === 'string' && args.rationale.length > 0
           ? args.rationale
@@ -164,35 +176,45 @@ export async function executeAgentTool(
         if (!pathValidation.valid) {
           return pathValidation.error!;
         }
-        
-        let resolvedOldContent = oldContent;
-        if (!resolvedOldContent && type === 'delete') {
-          const files = await listFiles(projectId);
-          const existing = files.find(f => f.path === path);
-          if (existing) {
-            resolvedOldContent = existing.content;
-          }
+
+        const overlay = context?.overlay ?? new AgentWorkspaceOverlay(projectId, await listFiles(projectId));
+        if (context && !context.overlay) {
+          context.overlay = overlay;
         }
 
-        useAppStore.getState().addPendingPatch({ 
-          path, 
-          type, 
-          oldContent: resolvedOldContent, 
-          newContent, 
-          rationale,
+        const metadata = {
           model: context?.model,
           provider: context?.provider,
           messageId: context?.messageId
-        });
-        
-        return `Successfully queued patch for ${path}. (Note: This is a pending patch and requires user review before taking effect in VFS).`;
+        };
+
+        if (type === 'delete') {
+          await overlay.delete(path, rationale);
+          return `Successfully queued patch for ${path} in workspace overlay.`;
+        }
+
+        if (type === 'append') {
+          const currentContent = await overlay.read(path);
+          const accumulated = currentContent !== null
+            ? (currentContent.length === 0 || currentContent.endsWith('\n') ? currentContent + newContent : `${currentContent}\n${newContent}`)
+            : newContent;
+          await overlay.write(path, accumulated, rationale, metadata);
+          return `Successfully queued patch for ${path} in workspace overlay.`;
+        }
+
+        // 'create' or 'replace'
+        await overlay.write(path, newContent, rationale, metadata);
+        return `Successfully queued patch for ${path} in workspace overlay.`;
       }
       
       case 'search_code': {
         const query = typeof args.query === 'string' ? args.query : '';
         if (!query) return `Error: Missing query parameter.`;
         
-        const files = await listFiles(projectId);
+        const overlay = context?.overlay;
+        const files: Array<{ path: string; content: string }> = overlay
+          ? await overlay.materialize()
+          : await listFiles(projectId);
         const results: string[] = [];
         
         for (const f of files) {
@@ -218,7 +240,8 @@ export async function executeAgentTool(
       }
       
       case 'run_tests': {
-        const files = await listFiles(projectId);
+        const overlay = context?.overlay;
+        const files = overlay ? await overlay.materialize() : await listFiles(projectId);
         return await runProjectTests(files);
       }
 

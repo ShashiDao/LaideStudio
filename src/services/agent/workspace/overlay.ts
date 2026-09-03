@@ -4,11 +4,17 @@ import type { PatchDefinition } from '../patchSchema';
 export interface WorkspaceOverlay {
   read(path: string): Promise<string | null>;
   list(path: string): Promise<string[]>;
-  write(path: string, content: string): Promise<void>;
-  delete(path: string): Promise<void>;
+  write(
+    path: string, 
+    content: string, 
+    rationale?: string,
+    metadata?: { model?: string; provider?: string; messageId?: string }
+  ): Promise<void>;
+  delete(path: string, rationale?: string): Promise<void>;
 
   diff(): PatchDefinition[];
   materialize(): Promise<FileItem[]>;
+  getBaseRevision?(): string;
 
   // Stubbing for later phases
   // build(): Promise<BuildResult>;
@@ -20,13 +26,23 @@ export class AgentWorkspaceOverlay implements WorkspaceOverlay {
   private baseFiles: Map<string, FileItem>;
   private modifiedFiles: Map<string, string>;
   private deletedFiles: Set<string>;
+  private fileRationales: Map<string, string>;
+  private fileMetadata: Map<string, { model?: string; provider?: string; messageId?: string }>;
   private projectId: string;
+  private baseRevision: string;
 
-  constructor(projectId: string, baseFiles: FileItem[]) {
+  constructor(projectId: string, baseFiles: FileItem[], baseRevision: string = 'base') {
     this.projectId = projectId;
-    this.baseFiles = new Map(baseFiles.map(f => [f.path, f]));
+    this.baseFiles = new Map(baseFiles.map(f => [this.resolvePath(f.path), f]));
     this.modifiedFiles = new Map();
     this.deletedFiles = new Set();
+    this.fileRationales = new Map();
+    this.fileMetadata = new Map();
+    this.baseRevision = baseRevision;
+  }
+
+  public getBaseRevision(): string {
+    return this.baseRevision;
   }
 
   private resolvePath(path: string): string {
@@ -72,16 +88,30 @@ export class AgentWorkspaceOverlay implements WorkspaceOverlay {
     return Array.from(results);
   }
 
-  async write(path: string, content: string): Promise<void> {
+  async write(
+    path: string, 
+    content: string, 
+    rationale?: string,
+    metadata?: { model?: string; provider?: string; messageId?: string }
+  ): Promise<void> {
     const normalized = this.resolvePath(path);
     this.modifiedFiles.set(normalized, content);
     this.deletedFiles.delete(normalized);
+    if (rationale) {
+      this.fileRationales.set(normalized, rationale);
+    }
+    if (metadata) {
+      this.fileMetadata.set(normalized, metadata);
+    }
   }
 
-  async delete(path: string): Promise<void> {
+  async delete(path: string, rationale?: string): Promise<void> {
     const normalized = this.resolvePath(path);
     this.modifiedFiles.delete(normalized);
     this.deletedFiles.add(normalized);
+    if (rationale) {
+      this.fileRationales.set(normalized, rationale);
+    }
   }
 
   diff(): PatchDefinition[] {
@@ -91,12 +121,16 @@ export class AgentWorkspaceOverlay implements WorkspaceOverlay {
     for (const path of this.deletedFiles) {
       const base = this.baseFiles.get(path);
       if (base) {
+        const meta = this.fileMetadata.get(path);
         patches.push({
           path,
           type: 'delete',
           oldContent: base.content,
           newContent: '',
-          rationale: `Deleted ${path}`
+          rationale: this.fileRationales.get(path) || `Deleted ${path}`,
+          model: meta?.model,
+          provider: meta?.provider,
+          messageId: meta?.messageId
         });
       }
     }
@@ -104,13 +138,17 @@ export class AgentWorkspaceOverlay implements WorkspaceOverlay {
     // Check for modified and new files
     for (const [path, newContent] of this.modifiedFiles) {
       const base = this.baseFiles.get(path);
+      const meta = this.fileMetadata.get(path);
       
       if (!base) {
         patches.push({
           path,
           type: 'create',
           newContent,
-          rationale: `Created ${path}`
+          rationale: this.fileRationales.get(path) || `Created ${path}`,
+          model: meta?.model,
+          provider: meta?.provider,
+          messageId: meta?.messageId
         });
       } else if (base.content !== newContent) {
         patches.push({
@@ -118,7 +156,10 @@ export class AgentWorkspaceOverlay implements WorkspaceOverlay {
           type: 'replace',
           oldContent: base.content,
           newContent,
-          rationale: `Updated ${path}`
+          rationale: this.fileRationales.get(path) || `Updated ${path}`,
+          model: meta?.model,
+          provider: meta?.provider,
+          messageId: meta?.messageId
         });
       }
     }
