@@ -52,6 +52,18 @@ describe('ZIP recovery', () => {
     expect(result.files.map(file => file.path)).toEqual(['/README.md', '/src/main.ts']);
   });
 
+  it('ignores directory entries so nested folders do not collide with their children', async () => {
+    const zipWithoutCentralDirectory = localZip([
+      { name: 'src/', content: '' },
+      { name: 'src/components/', content: '' },
+      { name: 'src/components/App.tsx', content: 'export default function App() {}' },
+    ]);
+
+    const result = await recoverZip(zipWithoutCentralDirectory);
+
+    expect(result.files.map(file => file.path)).toEqual(['/src/components/App.tsx']);
+  });
+
   it('imports recovered files through the normal VFS path', async () => {
     const projectId = 'zip-recovery-import-test';
     const damagedArchive = localZip([
