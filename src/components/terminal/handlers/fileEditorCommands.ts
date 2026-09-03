@@ -2,7 +2,8 @@ import { resolvePath } from '../terminalTypes';
 import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
-export const FILEEDITOR_COMMANDS = new Set(['open', 'code', 'edit']);
+export const FILE_EDITOR_COMMANDS = new Set(['open', 'code', 'edit']);
+export const FILEEDITOR_COMMANDS = FILE_EDITOR_COMMANDS;
 
 export const executeFileEditorCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILEEDITOR_COMMANDS.has(command)) return {};
@@ -10,9 +11,7 @@ export const executeFileEditorCommand: TerminalCommandHandler = async (command, 
   switch (command) {
     
     case 'open':
-
     case 'code':
-
     case 'edit': {
       if (!args.length) {
         return { outputType: 'stderr', outputText: `${command}: missing file operand` };
@@ -29,11 +28,6 @@ export const executeFileEditorCommand: TerminalCommandHandler = async (command, 
         outputText: `Opened ${found.path} in Code Editor.`,
       };
     }
-    
-    default:
-      return {};
-      }
-    };
     default:
       return {};
   }

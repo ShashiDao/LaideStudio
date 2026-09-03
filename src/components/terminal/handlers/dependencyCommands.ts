@@ -4,14 +4,15 @@ import { computeSha256, findLockfile, serializeLockfile, getCanonicalVendorPath,
 import type { TerminalOutputItem } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
-export const DEPENDENCIES_COMMANDS = new Set([
+export const DEPENDENCY_COMMANDS = new Set([
   'vendor', 'lockfile', 'lock',
 ]);
+export const DEPENDENCIES_COMMANDS = DEPENDENCY_COMMANDS;
 
-export const executeDependenciesCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
+export const executeDependencyCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
   const { files, projectId, addOutput, onFilesChanged } = context;
-  let outputText = '';
-  let outputType: TerminalOutputItem['type'] = 'stdout';
+  let outputText: string;
+  let outputType: TerminalOutputItem['type'];
   switch (command) {
     
     case 'vendor': {
@@ -157,3 +158,5 @@ export const executeDependenciesCommand: TerminalCommandHandler = async (command
   }
   return { outputText, outputType };
 };
+
+export const executeDependenciesCommand = executeDependencyCommand;

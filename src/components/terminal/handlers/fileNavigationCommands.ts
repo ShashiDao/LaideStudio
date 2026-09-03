@@ -1,7 +1,8 @@
 import { resolvePath } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
-export const FILENAVIGATION_COMMANDS = new Set(['pwd', 'cd']);
+export const FILE_NAVIGATION_COMMANDS = new Set(['pwd', 'cd']);
+export const FILENAVIGATION_COMMANDS = FILE_NAVIGATION_COMMANDS;
 
 export const executeFileNavigationCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILENAVIGATION_COMMANDS.has(command)) return {};

@@ -3,7 +3,8 @@ import { resolvePath } from '../terminalTypes';
 import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
-export const FILESEARCH_COMMANDS = new Set(['grep', 'find', 'wc', 'stat', 'tree']);
+export const FILE_SEARCH_COMMANDS = new Set(['grep', 'find', 'wc', 'stat', 'tree']);
+export const FILESEARCH_COMMANDS = FILE_SEARCH_COMMANDS;
 
 export const executeFileSearchCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILESEARCH_COMMANDS.has(command)) return {};

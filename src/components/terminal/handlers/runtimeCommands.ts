@@ -1,5 +1,4 @@
-import { runNodeCodeSandbox } from '../../../services/bundler/sandboxRunner';
-import type { TerminalOutputItem } from '../terminalTypes';
+import { resolvePath, type TerminalOutputItem } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const RUNTIME_COMMANDS = new Set([
@@ -7,15 +6,15 @@ export const RUNTIME_COMMANDS = new Set([
 ]);
 
 export const executeRuntimeCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
-  const { files, env } = context;
-  let outputText = '';
+  const { files, env, cwd } = context;
+  let outputText: string;
   let outputType: TerminalOutputItem['type'] = 'stdout';
   switch (command) {
     
     case 'node':
     case 'eval':
     case 'run': {
-      let codeToRun = '';
+      let codeToRun: string;
       if (command === 'node') {
         if (args[0] === '-e') codeToRun = commandStr.replace(/^\s*node\s+-e\s+/i, '');
         else if (args[0]) {
@@ -46,7 +45,7 @@ export const executeRuntimeCommand: TerminalCommandHandler = async (command, arg
         content: file.content,
         updatedAt: file.updatedAt,
       }));
-      const { runNodeCodeSandbox } = await import('../../services/bundler/sandboxRunner');
+      const { runNodeCodeSandbox } = await import('../../../services/bundler/sandboxRunner');
       const result = await runNodeCodeSandbox(codeToRun, env, serializableFiles);
       outputType = result.outputType === 'stderr' ? 'stderr' : 'success';
       outputText = result.outputText;

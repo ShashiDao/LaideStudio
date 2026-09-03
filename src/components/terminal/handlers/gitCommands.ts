@@ -1,5 +1,5 @@
 
-import type { TerminalOutputItem } from '../terminalTypes';
+import { resolvePath, type TerminalOutputItem } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const GIT_COMMANDS = new Set([
@@ -8,7 +8,7 @@ export const GIT_COMMANDS = new Set([
 
 export const executeGitCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
   const { files, cwd } = context;
-  let outputText = '';
+  let outputText: string;
   let outputType: TerminalOutputItem['type'] = 'stdout';
   switch (command) {
     

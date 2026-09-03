@@ -1,5 +1,5 @@
 
-import type { TerminalOutputItem } from '../terminalTypes';
+import { getCommandManual, type TerminalOutputItem } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const SHELL_COMMANDS = new Set([
@@ -7,7 +7,7 @@ export const SHELL_COMMANDS = new Set([
 ]);
 
 export const executeShellCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
-  const { env, setEnv, cmdHistory, setCmdHistory, setHistory, setIsRunning, onOpenBisect, theme, toggleTheme } = context;
+  const { env, setEnv, cmdHistory, setCmdHistory, setHistory, setIsRunning, onOpenBisect, theme, toggleTheme, setCwd } = context;
   let outputText = '';
   let outputType: TerminalOutputItem['type'] = 'stdout';
   switch (command) {

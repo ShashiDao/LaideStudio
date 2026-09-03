@@ -76,9 +76,15 @@ export function useFileOperations({
   };
 
   const activeProjectId = activeProject?.id;
+  const [prevProjectId, setPrevProjectId] = useState<string | undefined>(activeProjectId);
+
+  if (prevProjectId !== activeProjectId) {
+    setPrevProjectId(activeProjectId);
+    setFiles([]);
+  }
+
   useEffect(() => {
     let ignore = false;
-    setFiles([]);
 
     if (activeProjectId) {
       listFiles(activeProjectId).then(fileList => {

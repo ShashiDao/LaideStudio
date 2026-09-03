@@ -3,11 +3,12 @@ import { resolvePath } from '../terminalTypes';
 import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
-export const FILECONTENT_COMMANDS = new Set(['ls', 'cat', 'head', 'tail']);
+export const FILE_CONTENT_COMMANDS = new Set(['ls', 'cat', 'head', 'tail']);
+export const FILECONTENT_COMMANDS = FILE_CONTENT_COMMANDS;
 
 export const executeFileContentCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILECONTENT_COMMANDS.has(command)) return {};
-  const { files, cwd, env, getDirEntries, dirExists } = context;
+  const { cwd, env, getDirEntries, dirExists } = context;
   switch (command) {
     
     case 'ls': {
@@ -82,9 +83,7 @@ export const executeFileContentCommand: TerminalCommandHandler = async (command,
       return { outputText: contents.join('\n') };
     }
 
-    
     case 'head':
-
     case 'tail': {
       let lineCount = 10;
       let fileArg = '';

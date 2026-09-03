@@ -66,7 +66,8 @@ export async function importZip(
     const recovery = await recoverZip(rawData);
     if (recovery.files.length === 0) {
       throw new Error(
-        `Corrupted ZIP: ${parseError instanceof Error ? parseError.message : 'archive directory could not be read'}; no readable files could be recovered`
+        `Corrupted ZIP: ${parseError instanceof Error ? parseError.message : 'archive directory could not be read'}; no readable files could be recovered`,
+        { cause: parseError }
       );
     }
 

@@ -12,7 +12,7 @@ export const PROJECT_COMMANDS = new Set([
 
 export const executeProjectCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
   const { files, projectId, addOutput, onFilesChanged, onOpenBisect } = context;
-  let outputText = '';
+  let outputText: string;
   let outputType: TerminalOutputItem['type'] = 'stdout';
   switch (command) {
     
@@ -48,7 +48,7 @@ export const executeProjectCommand: TerminalCommandHandler = async (command, arg
         const start = performance.now();
     
         try {
-          const { bundle } = await import('../../services/bundler/bundler');
+          const { bundle } = await import('../../../services/bundler/bundler');
           const bundleCode = await bundle(files, entryPoint, status => {
             addOutput('info', `  › ${status}`);
           });

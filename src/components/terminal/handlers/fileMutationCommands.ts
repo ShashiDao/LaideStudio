@@ -3,11 +3,12 @@ import { resolvePath } from '../terminalTypes';
 import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
-export const FILEMUTATION_COMMANDS = new Set(['touch', 'mkdir', 'rm', 'cp', 'mv']);
+export const FILE_MUTATION_COMMANDS = new Set(['touch', 'mkdir', 'rm', 'cp', 'mv']);
+export const FILEMUTATION_COMMANDS = FILE_MUTATION_COMMANDS;
 
 export const executeFileMutationCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILEMUTATION_COMMANDS.has(command)) return {};
-  const { files, cwd, projectId, onFilesChanged } = context;
+  const { files, cwd, projectId, onFilesChanged, dirExists } = context;
   switch (command) {
     
     case 'touch': {
