@@ -219,20 +219,26 @@ export class TaskStore {
 
       const task = await db.tasks.get(run.taskId);
 
-      // Caller passed explicit executionToken -> check against run and task
-      if (options?.executionToken) {
-        if (run.executionToken && run.executionToken !== options.executionToken) {
+      // If the task currently has an execution owner, finishing is fail-closed.
+      // A caller cannot finish a run without proving ownership of the current token.
+      if (task?.executionToken) {
+        const suppliedToken = options?.executionToken ?? run.executionToken;
+        if (!suppliedToken || suppliedToken !== task.executionToken) {
           throw new Error(
-            `Stale run finish: execution token mismatch for run ${runId} (expected ${run.executionToken}, got ${options.executionToken})`
+            `Stale run finish: execution token mismatch for task ${task.id} (expected ${task.executionToken}, got ${suppliedToken || 'undefined'})`
           );
         }
-        if (task && task.executionToken && task.executionToken !== options.executionToken) {
-          throw new Error(
-            `Stale run finish: task ${task.id} is owned by execution token ${task.executionToken}, got ${options.executionToken}`
-          );
-        }
-      } else if (run.executionToken && task && task.executionToken && run.executionToken !== task.executionToken) {
-        // Run has an older token than the task's current token
+      }
+
+      // Caller passed explicit executionToken -> check against run as well
+      if (options?.executionToken && run.executionToken && run.executionToken !== options.executionToken) {
+        throw new Error(
+          `Stale run finish: execution token mismatch for run ${runId} (expected ${run.executionToken}, got ${options.executionToken})`
+        );
+      }
+
+      // Run has an older token than the task's current token
+      if (!options?.executionToken && run.executionToken && task && task.executionToken && run.executionToken !== task.executionToken) {
         throw new Error(
           `Stale run finish: run was created under execution token ${run.executionToken} but task ${task.id} is owned by newer execution token ${task.executionToken}`
         );
