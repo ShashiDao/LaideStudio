@@ -3,10 +3,31 @@ import { formatByteSize } from '../../../utils/formatters';
 import { resolvePath, type CommandExecutionContext } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
+export const FILE_COMMANDS = new Set([
+  'pwd',
+  'cd',
+  'ls',
+  'cat',
+  'head',
+  'tail',
+  'touch',
+  'mkdir',
+  'grep',
+  'find',
+  'wc',
+  'stat',
+  'tree',
+  'open',
+  'code',
+  'edit',
+]);
+
 const findFile = (context: CommandExecutionContext, path: string) =>
   context.files.find(file => file.path === path);
 
 export const executeFileCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
+  if (!FILE_COMMANDS.has(command)) return {};
+
   const { files, cwd, projectId, env, setCwd, dirExists, getDirEntries, onFilesChanged, setActiveFileId } = context;
 
   switch (command) {
