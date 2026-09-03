@@ -28,7 +28,7 @@ export interface VerificationEvidence {
   outputSnippet?: string;
 }
 
-export const MAX_FAILURE_EVIDENCE_CHARS = 2000;
+export const MAX_FAILURE_EVIDENCE_CHARS = 1200;
 
 /**
  * Normalizes free-form verification errors and diagnostic outputs into a concise,

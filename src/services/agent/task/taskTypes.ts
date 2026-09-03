@@ -1,6 +1,13 @@
 import type { PatchDefinition } from '../patchSchema';
 
-export type TaskState =
+/**
+ * Current Prompt 5 durable execution lifecycle states:
+ * created -> running -> verifying -> repairing -> verifying -> verified
+ *
+ * Terminal/failure paths:
+ * failed, aborted, interrupted
+ */
+export type DurableTaskState =
   | 'created'
   | 'running'
   | 'verifying'
@@ -8,8 +15,13 @@ export type TaskState =
   | 'verified'
   | 'failed'
   | 'aborted'
-  | 'interrupted'
-  // Backward compatibility with legacy schema states
+  | 'interrupted';
+
+/**
+ * Legacy/compatibility states preserved for older tasks or backward-compatible schema definitions.
+ * Note: These are NOT part of the current Prompt 5 durable execution lifecycle.
+ */
+export type LegacyTaskState =
   | 'queued'
   | 'analyzing'
   | 'planning'
@@ -20,6 +32,8 @@ export type TaskState =
   | 'learning'
   | 'completed'
   | 'cancelled';
+
+export type TaskState = DurableTaskState | LegacyTaskState;
 
 export type TaskRisk = 'low' | 'medium' | 'high';
 
@@ -50,6 +64,14 @@ export interface AgentTask {
   completedAt?: number;
 }
 
+/**
+ * AgentRun is an informational / observational audit record representing an individual model invocation
+ * or execution attempt under an AgentTask.
+ *
+ * NOTE: The AgentTask (and its TaskStateMachine) remains the sole authoritative state machine for task
+ * execution lifecycle. AgentRun records start/finish timestamps, model/provider metadata, status,
+ * and execution token ownership. It is not a secondary state machine.
+ */
 export interface AgentRun {
   id: string;
   taskId: string;

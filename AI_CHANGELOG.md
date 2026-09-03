@@ -1,9 +1,10 @@
 ## Current State
-- Phase: HOTFIX-129
-- Last verified working: Implemented minimal, durable task lifecycle and safe interruption recovery semantics (Prompt 5). Enforced strict state machine transitions across CREATED -> RUNNING -> VERIFYING -> REPAIRING -> VERIFIED / FAILED / ABORTED / INTERRUPTED. Task updates persist atomically to Dexie IndexedDB with executionToken stale-update guarding to prevent race conditions across browser tabs. Integrated recovery mechanism on startup (`taskStore.recoverInterruptedTasks()`) in `main.tsx` that marks any active non-terminal tasks (RUNNING, VERIFYING, REPAIRING) as INTERRUPTED, distinguishing durable task state from durable execution and guaranteeing the agent never claims unearned success or fabricates repair after process/tab crash. Maintained canonical VFS isolation, repairAttempts <= 1, and fail-closed unavailable verification semantics. All 26 Prompt 5 regression tests in `taskLifecycle.test.ts` pass, all 35 tests in `src/services/agent/task/` pass, 15 agent test suites (119 tests) pass, `npm run typecheck` (`tsc --noEmit`) passes with 0 errors, `npm run lint` passes with 0 errors, and `compile_applet` build succeeded.
+- Phase: [REVIEW-FIX-02]
+- Last verified working: Hardened durable task lifecycle and recovery semantics (Prompt 5.1). Cleanly partitioned durable execution states (`DurableTaskState`) from compatibility states (`LegacyTaskState`) with type guards `isDurableTaskState()` and `isLegacyTaskState()`. Implemented explicit recovery method `recoverToInterrupted()` and `canRecover()` on `TaskStateMachine` ensuring startup recovery is idempotent, strictly non-terminal, does not trigger repair, and never falsely converts active tasks to `verified`. Enforced `executionToken` ownership across `updateTaskState()`, `createRun()`, and `finishRun()` in `TaskStore` to prevent stale execution tokens from creating or finishing runs, overwriting newer runs, or corrupting `task.activeRunId`. Documented that `AgentRun` is an informational audit record rather than a secondary state machine. Synchronized the failure evidence normalization bound to `MAX_FAILURE_EVIDENCE_CHARS = 1200` in `candidateVerifier.ts`. Implemented 20 regression and hardening test cases (Requirements A-T) in `src/services/agent/task/taskLifecycleHardening.test.ts`. All 20 hardening tests pass, all 26 lifecycle tests in `taskLifecycle.test.ts` pass, all 55 tests in `src/services/agent/task/` pass, all 16 test files (139 tests) in `src/services/agent/` pass, `npm run typecheck` (`tsc --noEmit`) passes with 0 errors, `npm run lint` passes with 0 errors, and `compile_applet` build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
+  - `src/services/agent/task/taskLifecycle.test.ts` (654 lines) — Split Prompt 5 lifecycle tests into smaller modular test files.
   - `src/components/terminal/terminalExecutor.ts` (1365 lines) — Extract domain command executors (fs, git, npm, bisect) into separate handler files under `src/components/terminal/handlers/`.
   - `src/components/shared/FileTree.tsx` (1279 lines) — Extract tree node item rendering and search bar into `FileTreeNode.tsx` and `FileTreeSearch.tsx`.
   - `src/components/chat/ChatPanel.tsx` (1070 lines) — Extract message history list, model configuration header chip, and composer action bar into `ChatMessageList.tsx` and `ChatComposer.tsx`.
@@ -816,7 +817,41 @@ Open questions: none
   - Preserve all existing invariants: agent writes remain isolated to `WorkspaceOverlay`, canonical VFS is untouched during task execution, verification precedes commit, and automatic repair attempts remain strictly capped at 1.
 - Deviations: none
 - Verified: PASS — `npx vitest run src/services/agent/task/taskLifecycle.test.ts` (26 tests passed), `npx vitest run src/services/agent/task/` (3 test files, 35 tests passed), `npx vitest run src/services/agent/` (15 test files, 119 tests passed), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` (0 errors), and `compile_applet` build succeeded.
-- Commit: pending
+- Commit: none (non-git workspace environment)
+- Open questions: none
+
+### [REVIEW-FIX-02] Durable Task Lifecycle & Recovery Hardening — 2026-09-03
+- Prompt: Harden durable task lifecycle and recovery semantics (Prompt 5.1). Clarify legacy vs durable task states, ensure startup recovery is idempotent, safe, non-terminal, and does not trigger repair or false verified states, harden executionToken ownership across AgentTask and AgentRun, and verify all Prompt 4 & 5 invariants.
+- Files touched:
+  - `src/services/agent/task/taskTypes.ts`
+  - `src/services/agent/task/taskStateMachine.ts`
+  - `src/services/agent/task/taskStore.ts`
+  - `src/services/agent/workspace/candidateVerifier.ts`
+  - `src/services/agent/task/taskLifecycleHardening.test.ts`
+  - `AI_CHANGELOG.md`
+- Changed:
+  - In `src/services/agent/task/taskTypes.ts`:
+    - Defined `DurableTaskState` ('created' | 'running' | 'verifying' | 'repairing' | 'verified' | 'failed' | 'aborted' | 'interrupted') separately from `LegacyTaskState`.
+    - Documented `AgentRun` as an informational/observational audit record rather than an authoritative secondary state machine.
+  - In `src/services/agent/task/taskStateMachine.ts`:
+    - Added type guards `isDurableTaskState()` and `isLegacyTaskState()`.
+    - Implemented explicit recovery methods `recoverToInterrupted()` and `canRecover()` to distinguish recovery from normal runtime transitions and prevent resurrection of terminal or already-interrupted tasks.
+  - In `src/services/agent/task/taskStore.ts`:
+    - Enforced `executionToken` validation across `updateTaskState()`, `createRun()`, and `finishRun()`.
+    - In `createRun()`: rejected creation on terminal or interrupted tasks, and guarded against stale or missing execution tokens when a task is owned by an active token. Linked `run.id` as `task.activeRunId`.
+    - In `finishRun()`: validated caller execution token against both run and task, rejected stale tokens, and safely cleared `task.activeRunId` only if it matches the finished run ID, preventing race conditions from corrupting newer active runs.
+    - Supported `acceptanceCriteria` in `CreateTaskOptions` and `createTask()`.
+  - In `src/services/agent/workspace/candidateVerifier.ts`:
+    - Synchronized `MAX_FAILURE_EVIDENCE_CHARS = 1200` to match the documented implementation constant in `AI_CHANGELOG.md`.
+  - In tests:
+    - Added comprehensive hardening test suite in `src/services/agent/task/taskLifecycleHardening.test.ts` covering Requirements A-T.
+- Decisions:
+  - Preserved legacy task states strictly for schema backward compatibility while isolating durable task transitions to the Prompt 5 minimal graph.
+  - Treated `AgentRun` as an informational audit record for model calls and durations; `AgentTask` and `TaskStateMachine` remain the sole authoritative execution state machine.
+  - Prevented stale execution runs from finishing or overwriting newer runs, and guaranteed terminal tasks cannot be resurrected.
+- Deviations: none
+- Verified: PASS — `npx vitest run src/services/agent/task/taskLifecycleHardening.test.ts` (20 tests passed), `npx vitest run src/services/agent/task/taskLifecycle.test.ts` (26 tests passed), `npx vitest run src/services/agent/task/` (4 test files, 55 tests passed), `npx vitest run src/services/agent/` (16 test files, 139 tests passed), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` (0 errors), and `compile_applet` build succeeded.
+- Commit: none (non-git workspace environment)
 - Open questions: none
 
 

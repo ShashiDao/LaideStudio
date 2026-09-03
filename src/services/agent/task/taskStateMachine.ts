@@ -1,4 +1,36 @@
-import type { TaskState } from './taskTypes';
+import type { DurableTaskState, LegacyTaskState, TaskState } from './taskTypes';
+
+export const DURABLE_TASK_STATES: readonly DurableTaskState[] = [
+  'created',
+  'running',
+  'verifying',
+  'repairing',
+  'verified',
+  'failed',
+  'aborted',
+  'interrupted'
+] as const;
+
+export const LEGACY_TASK_STATES: readonly LegacyTaskState[] = [
+  'queued',
+  'analyzing',
+  'planning',
+  'implementing',
+  'reviewing',
+  'awaiting_approval',
+  'applying',
+  'learning',
+  'completed',
+  'cancelled'
+] as const;
+
+export function isDurableTaskState(state: TaskState): state is DurableTaskState {
+  return (DURABLE_TASK_STATES as readonly string[]).includes(state);
+}
+
+export function isLegacyTaskState(state: TaskState): state is LegacyTaskState {
+  return (LEGACY_TASK_STATES as readonly string[]).includes(state);
+}
 
 export class TaskStateMachine {
   private currentState: TaskState;
@@ -50,12 +82,45 @@ export class TaskStateMachine {
     return validNextStates ? validNextStates.includes(newState) : false;
   }
 
+  /**
+   * Returns true if the given state is terminal (no further transitions possible).
+   * Verified, failed, aborted, completed, and cancelled are terminal.
+   */
   public static isTerminal(state: TaskState): boolean {
     const next = TaskStateMachine.transitions[state];
     return !next || next.length === 0;
   }
 
+  /**
+   * Returns true if the task is actively executing in-flight work (running, verifying, repairing).
+   */
   public static isActive(state: TaskState): boolean {
     return state === 'running' || state === 'verifying' || state === 'repairing';
   }
+
+  /**
+   * Returns true if the task is an active, non-terminal execution that can be recovered on startup.
+   */
+  public static canRecover(state: TaskState): boolean {
+    return TaskStateMachine.isActive(state);
+  }
+
+  /**
+   * Explicit recovery transition for active tasks interrupted by process shutdown / reload.
+   * Conceptually: recover(activeState) -> interrupted
+   *
+   * Rules:
+   * - Only active states (running, verifying, repairing) can transition to interrupted.
+   * - Already terminal states (verified, failed, aborted) reject recovery.
+   * - Already interrupted tasks reject recovery (idempotent guard).
+   * - Never transitions directly to verified or repairing.
+   */
+  public recoverToInterrupted(): boolean {
+    if (TaskStateMachine.isActive(this.currentState)) {
+      this.currentState = 'interrupted';
+      return true;
+    }
+    return false;
+  }
 }
+
