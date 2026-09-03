@@ -1,24 +1,27 @@
 import { db, type ProvenanceEntry } from '../../db';
 import { getPersistentSession } from '../security/session';
 import { encryptData, decryptData, arrayBufferToBase64, base64ToArrayBuffer } from '../security/crypto';
-import { 
-  getProvenanceEntries, 
-  verifyProvenanceChain, 
-  GENESIS_HASH 
+import {
+  getProvenanceEntries,
+  verifyProvenanceChain,
+  GENESIS_HASH
 } from './provenance';
-import { 
-  calculateProjectTrustScore, 
+import {
+  calculateProjectTrustScore,
   calculateFileTrustScore,
-  generateTrustMarkdownReport, 
+  generateTrustMarkdownReport,
   type TrustGrade,
-  type ModelAttribution 
+  type ModelAttribution
 } from './trustScore';
 import { listFiles } from '../fs/vfs';
 
 export const PROVENANCE_SIGNING_ALGORITHM = 'ECDSA-P256-SHA256';
 const SECURE_TOKEN_PRIVATE_KEY = 'provenance_signing_private_key';
 const SECURE_TOKEN_PUBLIC_KEY = 'provenance_signing_public_key';
-const LOCAL_UNWRAPPED_KEY_KEY = 'laide_prov_priv_unwrapped';
+const LEGACY_UNWRAPPED_KEY_KEY = 'laide_prov_priv_unwrapped';
+
+let ephemeralSigningKeyPair: CryptoKeyPair | null = null;
+let ephemeralPublicJwk: JsonWebKey | null = null;
 
 export interface SignedProvenanceArtifact {
   $schema: string;
@@ -105,10 +108,6 @@ export interface FileTrustProgression {
   history: FileTrustHistoryPoint[];
 }
 
-/**
- * Builds the canonical string representation for cryptographic signing.
- * Deterministic JSON with strictly sorted keys.
- */
 export function buildCanonicalProvenancePayload(params: {
   projectId: string;
   exportedAt: number;
@@ -129,9 +128,6 @@ export function buildCanonicalProvenancePayload(params: {
   });
 }
 
-/**
- * Helper to obtain the active vault AES key if an active vault session exists.
- */
 export async function getActiveVaultAesKey(): Promise<CryptoKey | null> {
   try {
     const session = await getPersistentSession();
@@ -142,9 +138,31 @@ export async function getActiveVaultAesKey(): Promise<CryptoKey | null> {
   }
 }
 
+async function getOrCreateEphemeralSigningKeys(): Promise<{
+  privateKey: CryptoKey;
+  publicKey: CryptoKey;
+  publicJwk: JsonWebKey;
+}> {
+  if (!ephemeralSigningKeyPair || !ephemeralPublicJwk) {
+    ephemeralSigningKeyPair = await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      true,
+      ['sign', 'verify']
+    );
+    ephemeralPublicJwk = await crypto.subtle.exportKey('jwk', ephemeralSigningKeyPair.publicKey);
+  }
+
+  return {
+    privateKey: ephemeralSigningKeyPair.privateKey,
+    publicKey: ephemeralSigningKeyPair.publicKey,
+    publicJwk: ephemeralPublicJwk
+  };
+}
+
 /**
  * Retrieves or generates an ECDSA P-256 signing keypair.
- * If vault is unlocked, the private key is wrapped with AES-GCM via the existing vault.
+ * Durable private-key persistence requires an unlocked vault. When the vault is
+ * unavailable, signing uses an in-memory keypair that is never written to storage.
  */
 export async function getOrCreateProvenanceSigningKeys(customAesKey?: CryptoKey | null): Promise<{
   privateKey: CryptoKey;
@@ -153,56 +171,42 @@ export async function getOrCreateProvenanceSigningKeys(customAesKey?: CryptoKey 
 }> {
   const aesKey = customAesKey !== undefined ? customAesKey : await getActiveVaultAesKey();
 
-  // 1. Check if keys already exist in db.secureTokens or localStorage
+  // Remove the legacy plaintext private key from prior versions. Never read it.
+  localStorage.removeItem(LEGACY_UNWRAPPED_KEY_KEY);
+
+  if (!aesKey) {
+    return getOrCreateEphemeralSigningKeys();
+  }
+
   const existingPubToken = await db.secureTokens.get(SECURE_TOKEN_PUBLIC_KEY);
   const existingPrivToken = await db.secureTokens.get(SECURE_TOKEN_PRIVATE_KEY);
-  const unwrappedPrivRaw = localStorage.getItem(LOCAL_UNWRAPPED_KEY_KEY);
 
-  if (existingPubToken && (existingPrivToken || unwrappedPrivRaw)) {
+  if (existingPubToken && existingPrivToken) {
     try {
       const publicJwk: JsonWebKey = JSON.parse(existingPubToken.encryptedValue);
-      let privateJwk: JsonWebKey | null = null;
+      const decrypted = await decryptData(aesKey, existingPrivToken.encryptedValue);
+      const privateJwk: JsonWebKey = JSON.parse(decrypted);
 
-      if (existingPrivToken && aesKey) {
-        try {
-          const decrypted = await decryptData(aesKey, existingPrivToken.encryptedValue);
-          privateJwk = JSON.parse(decrypted);
-        } catch {
-          // Vault key changed or locked; try unwrapped storage if available
-        }
-      }
-
-      if (!privateJwk && unwrappedPrivRaw) {
-        try {
-          privateJwk = JSON.parse(unwrappedPrivRaw);
-        } catch {
-          // ignore
-        }
-      }
-
-      if (privateJwk && publicJwk) {
-        const privateKey = await crypto.subtle.importKey(
-          'jwk',
-          privateJwk,
-          { name: 'ECDSA', namedCurve: 'P-256' },
-          true,
-          ['sign']
-        );
-        const publicKey = await crypto.subtle.importKey(
-          'jwk',
-          publicJwk,
-          { name: 'ECDSA', namedCurve: 'P-256' },
-          true,
-          ['verify']
-        );
-        return { privateKey, publicKey, publicJwk };
-      }
+      const privateKey = await crypto.subtle.importKey(
+        'jwk',
+        privateJwk,
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['sign']
+      );
+      const publicKey = await crypto.subtle.importKey(
+        'jwk',
+        publicJwk,
+        { name: 'ECDSA', namedCurve: 'P-256' },
+        true,
+        ['verify']
+      );
+      return { privateKey, publicKey, publicJwk };
     } catch (err) {
       console.warn('Failed to load existing signing keys, regenerating:', err);
     }
   }
 
-  // 2. Generate a new ECDSA P-256 keypair
   const keyPair = await crypto.subtle.generateKey(
     { name: 'ECDSA', namedCurve: 'P-256' },
     true,
@@ -211,24 +215,19 @@ export async function getOrCreateProvenanceSigningKeys(customAesKey?: CryptoKey 
 
   const publicJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
   const privateJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
+  const encryptedPriv = await encryptData(aesKey, JSON.stringify(privateJwk));
 
-  // Store public key in secureTokens
   await db.secureTokens.put({
     key: SECURE_TOKEN_PUBLIC_KEY,
     encryptedValue: JSON.stringify(publicJwk)
   });
+  await db.secureTokens.put({
+    key: SECURE_TOKEN_PRIVATE_KEY,
+    encryptedValue: encryptedPriv
+  });
 
-  // Store private key: wrapped with vault AES key if available, otherwise saved in device storage
-  if (aesKey) {
-    const encryptedPriv = await encryptData(aesKey, JSON.stringify(privateJwk));
-    await db.secureTokens.put({
-      key: SECURE_TOKEN_PRIVATE_KEY,
-      encryptedValue: encryptedPriv
-    });
-    localStorage.removeItem(LOCAL_UNWRAPPED_KEY_KEY);
-  } else {
-    localStorage.setItem(LOCAL_UNWRAPPED_KEY_KEY, JSON.stringify(privateJwk));
-  }
+  ephemeralSigningKeyPair = null;
+  ephemeralPublicJwk = null;
 
   return {
     privateKey: keyPair.privateKey,
@@ -237,9 +236,6 @@ export async function getOrCreateProvenanceSigningKeys(customAesKey?: CryptoKey 
   };
 }
 
-/**
- * Signs a canonical payload string using ECDSA P-256 + SHA-256.
- */
 export async function signCanonicalPayload(
   canonicalString: string,
   privateKey: CryptoKey
@@ -253,10 +249,6 @@ export async function signCanonicalPayload(
   return arrayBufferToBase64(signatureBuffer);
 }
 
-/**
- * Verifies a signed provenance artifact.
- * Verifies cryptographic signature and internal hash chain integrity.
- */
 export async function verifySignedProvenanceArtifact(
   artifact: SignedProvenanceArtifact
 ): Promise<SignedProvenanceVerificationResult> {
@@ -293,7 +285,6 @@ export async function verifySignedProvenanceArtifact(
   const headHash = entries.length > 0 ? entries[entries.length - 1].entryHash : (summary?.headHash || GENESIS_HASH);
   const genesisHash = entries.length > 0 ? entries[0].prevEntryHash : GENESIS_HASH;
 
-  // 1. Verify Cryptographic Signature
   let signatureValid: boolean;
   try {
     const cryptoPublicKey = await crypto.subtle.importKey(
@@ -314,11 +305,10 @@ export async function verifySignedProvenanceArtifact(
       entryHashes: entries.map(e => e.entryHash)
     });
 
-    const signatureBuffer = base64ToArrayBuffer(signature);
     signatureValid = await crypto.subtle.verify(
       { name: 'ECDSA', hash: 'SHA-256' },
       cryptoPublicKey,
-      signatureBuffer,
+      base64ToArrayBuffer(signature),
       new TextEncoder().encode(canonicalString)
     );
   } catch (err) {
@@ -345,7 +335,6 @@ export async function verifySignedProvenanceArtifact(
     };
   }
 
-  // 2. Verify Full Hash-Chain Integrity (Genesis, Pointers, and Entry SHA-256s)
   const chainResult = await verifyProvenanceChain(entries);
   if (!chainResult.valid) {
     return {
@@ -378,9 +367,6 @@ export async function verifySignedProvenanceArtifact(
   };
 }
 
-/**
- * Exports a project's full provenance chain as a signed artifact.
- */
 export async function exportSignedProvenanceProof(
   projectId: string,
   customAesKey?: CryptoKey | null
@@ -397,13 +383,10 @@ export async function exportSignedProvenanceProof(
 
   const projectName = project?.name || 'Untitled Project';
   const exportedAt = Date.now();
-
   const trustScore = await calculateProjectTrustScore(projectId, files, entries);
   const markdownSummary = generateTrustMarkdownReport(trustScore);
-
   const headHash = entries.length > 0 ? entries[entries.length - 1].entryHash : GENESIS_HASH;
   const genesisHash = entries.length > 0 ? entries[0].prevEntryHash : GENESIS_HASH;
-
   const { privateKey, publicJwk } = await getOrCreateProvenanceSigningKeys(customAesKey);
 
   const canonicalString = buildCanonicalProvenancePayload({
@@ -444,17 +427,9 @@ export async function exportSignedProvenanceProof(
   };
 
   const jsonString = JSON.stringify(artifact, null, 2);
-
-  return {
-    artifact,
-    jsonString,
-    markdownSummary
-  };
+  return { artifact, jsonString, markdownSummary };
 }
 
-/**
- * Computes a PR-ready summary for a specific changeset or diff.
- */
 export async function generateDiffProvenanceSummary(
   projectId: string,
   options: {
@@ -469,30 +444,26 @@ export async function generateDiffProvenanceSummary(
   ]);
 
   const projectName = project?.name || 'Untitled Project';
-
   let diffEntries = allEntries;
   if (options.specificEntryIds && options.specificEntryIds.length > 0) {
     const idSet = new Set(options.specificEntryIds);
     diffEntries = allEntries.filter(e => idSet.has(e.id));
   } else if (options.sinceTimestamp) {
-    diffEntries = allEntries.filter(e => e.timestamp >= (options.sinceTimestamp || 0));
+    diffEntries = allEntries.filter(e => e.timestamp >= options.sinceTimestamp);
   }
 
   const chainIntegrity = await verifyProvenanceChain(allEntries);
-
   const affectedFiles = new Set(diffEntries.map(e => e.filePath));
   let aiLinesChanged = 0;
   let verifiedAiLines = 0;
   let failingAiLines = 0;
   let untestedAiLines = 0;
-
   const modelStats = new Map<string, { model: string; provider: string; lines: number }>();
 
   for (const entry of diffEntries) {
     const beforeLen = entry.beforeContent ? entry.beforeContent.split('\n').length : 0;
     const afterLen = entry.afterContent ? entry.afterContent.split('\n').length : 0;
     const approxLines = Math.max(1, Math.abs(afterLen - beforeLen) || afterLen || 1);
-
     aiLinesChanged += approxLines;
 
     const mKey = `${entry.model || 'Unknown'}::${entry.provider || 'unknown'}`;
@@ -513,7 +484,6 @@ export async function generateDiffProvenanceSummary(
     }
   }
 
-  // Calculate total file lines across affected files
   let totalAffectedFileLines = 0;
   for (const file of files) {
     if (affectedFiles.has(file.path)) {
@@ -523,10 +493,9 @@ export async function generateDiffProvenanceSummary(
 
   const humanLinesChanged = Math.max(0, totalAffectedFileLines - aiLinesChanged);
   const totalLinesChanged = Math.max(aiLinesChanged, totalAffectedFileLines);
-  const aiRatio = totalLinesChanged > 0 ? aiLinesChanged / totalLinesChanged : (aiLinesChanged > 0 ? 1 : 0);
+  const aiRatio = totalLinesChanged > 0 ? aiLinesChanged / totalLinesChanged : 0;
   const testedTotal = verifiedAiLines + failingAiLines;
-  const testPassRate = testedTotal > 0 ? Math.round((verifiedAiLines / testedTotal) * 100) : (untestedAiLines === 0 ? 100 : 100);
-
+  const testPassRate = testedTotal > 0 ? Math.round((verifiedAiLines / testedTotal) * 100) : 100;
   const modelsUsed = Array.from(modelStats.values()).map(m => ({
     model: m.model,
     provider: m.provider,
@@ -534,18 +503,15 @@ export async function generateDiffProvenanceSummary(
     percentage: aiLinesChanged > 0 ? Math.round((m.lines / aiLinesChanged) * 100) : 0
   })).sort((a, b) => b.lines - a.lines);
 
-  // Build PR Markdown block
   const lines: string[] = [];
   const pctAi = Math.round(aiRatio * 100);
   const pctHuman = 100 - pctAi;
-
   lines.push(`### 🤖 AI Provenance & Changeset Summary`);
   lines.push(``);
   lines.push(`> **Attribution:** ${pctAi}% AI-authored (${aiLinesChanged} lines) / ${pctHuman}% Human (${humanLinesChanged} lines) across ${affectedFiles.size} modified file${affectedFiles.size === 1 ? '' : 's'}.`);
   lines.push(`> **Test Backing:** ${testPassRate}% of AI changes verified by passing test runs at patch creation.`);
   lines.push(`> **Ledger Hash Chain:** ${chainIntegrity.valid ? '✅ Cryptographically Verified (SHA-256)' : '⚠️ Integrity Warning'}`);
   lines.push(``);
-
   if (modelsUsed.length > 0) {
     lines.push(`| Model | Provider | Changed Lines | % of AI Changes |`);
     lines.push(`| :--- | :--- | :--- | :--- |`);
@@ -554,7 +520,6 @@ export async function generateDiffProvenanceSummary(
     }
     lines.push(``);
   }
-
   lines.push(`**Independent Reviewer Verification:**`);
   lines.push(`To verify cryptographic signature & tamper-proof hash chain locally:`);
   lines.push('```bash');
@@ -579,9 +544,6 @@ export async function generateDiffProvenanceSummary(
   };
 }
 
-/**
- * Analyzes the trust score evolution of a specific file over time across provenance history and snapshots.
- */
 export async function computeFileTrustHistory(
   projectId: string,
   filePath: string
@@ -617,18 +579,14 @@ export async function computeFileTrustHistory(
   const history: FileTrustHistoryPoint[] = [];
   const cumulativeEntries: ProvenanceEntry[] = [];
 
-  for (let i = 0; i < fileEntries.length; i++) {
-    const entry = fileEntries[i];
+  for (const entry of fileEntries) {
     cumulativeEntries.push(entry);
-
     const content = entry.afterContent || '';
     const scoreResult = calculateFileTrustScore(filePath, content, cumulativeEntries);
-
     const beforeLines = entry.beforeContent ? entry.beforeContent.split('\n').length : 0;
     const afterLines = entry.afterContent ? entry.afterContent.split('\n').length : 0;
     const linesChanged = Math.max(1, Math.abs(afterLines - beforeLines) || afterLines || 1);
-
-    const testStatus: 'passed' | 'failed' | 'untested' = 
+    const testStatus: 'passed' | 'failed' | 'untested' =
       entry.testResult?.status === 'passed' ? 'passed' :
       (entry.testResult?.status === 'failed' || entry.testResult?.status === 'error' ? 'failed' : 'untested');
 
@@ -647,7 +605,6 @@ export async function computeFileTrustHistory(
 
   const initialPoint = history[0];
   const currentPoint = history[history.length - 1];
-
   const scoreDelta = currentPoint.score - initialPoint.score;
   let trend: 'improving' | 'steady' | 'degrading' = 'steady';
   if (scoreDelta > 3) trend = 'improving';
