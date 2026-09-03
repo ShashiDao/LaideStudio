@@ -3,7 +3,7 @@ import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILENAVIGATION_COMMANDS = new Set(['pwd', 'cd']);
 
-export const executeFileNavigationCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
+export const executeFileNavigationCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILENAVIGATION_COMMANDS.has(command)) return {};
   const { cwd, setCwd, dirExists } = context;
   switch (command) {
