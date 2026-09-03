@@ -176,7 +176,6 @@ export async function bulkCreateOrUpdateFiles(
 
   const existingFiles = await db.files.where('projectId').equals(projectId).toArray();
   const existingMap = new Map(existingFiles.map((file) => [file.path, file]));
-  const existingPaths = new Set(existingFiles.map((file) => file.path));
   const existingPrefixOwners = new Map<string, string>();
 
   // Index all directory prefixes once. This lets an incoming path detect an
@@ -194,11 +193,6 @@ export async function bulkCreateOrUpdateFiles(
     if (!path.startsWith('/')) throw new Error(`Path must start with '/': ${path}`);
     if (!isValidFilePath(path)) throw new Error(`Invalid file path: ${path}`);
 
-    const existing = existingMap.get(path);
-    if (existing && existing.id !== existingMap.get(path)?.id) {
-      throw new Error(`Duplicate path: ${path} already exists`);
-    }
-
     const segments = path.split('/').filter(Boolean);
     for (let i = 1; i < segments.length; i++) {
       const prefix = '/' + segments.slice(0, i).join('/');
@@ -209,7 +203,7 @@ export async function bulkCreateOrUpdateFiles(
     }
 
     const descendant = existingPrefixOwners.get(path);
-    if (descendant && !existing) {
+    if (descendant && !existingMap.has(path)) {
       throw new Error(`Path collision: ${path} is a folder prefix for existing file ${descendant}`);
     }
   }
@@ -219,20 +213,12 @@ export async function bulkCreateOrUpdateFiles(
   const incomingPaths = new Set<string>();
   const incomingPrefixOwners = new Map<string, string>();
   for (const [path] of uniqueMap) {
-    if (incomingPaths.has(path)) {
-      throw new Error(`Path collision within bulk operation: ${path} and ${path}`);
-    }
-
     const segments = path.split('/').filter(Boolean);
+
     for (let i = 1; i < segments.length; i++) {
       const prefix = '/' + segments.slice(0, i).join('/');
-      const ancestor = incomingPaths.has(prefix) ? prefix : undefined;
-      if (ancestor) {
-        throw new Error(`Path collision within bulk operation: ${ancestor} and ${path}`);
-      }
-      const descendant = incomingPrefixOwners.get(path);
-      if (descendant) {
-        throw new Error(`Path collision within bulk operation: ${path} and ${descendant}`);
+      if (incomingPaths.has(prefix)) {
+        throw new Error(`Path collision within bulk operation: ${prefix} and ${path}`);
       }
     }
 
