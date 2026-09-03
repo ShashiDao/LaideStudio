@@ -20,6 +20,8 @@ describe('Agent Tools & Path Validation', () => {
     expect(toolNames).toContain('read_file');
     expect(toolNames).toContain('write_file');
     expect(toolNames).toContain('search_code');
+    expect(toolNames).toContain('run_tests');
+    expect(toolNames).toContain('build_project');
   });
 
   describe('validateProjectPath', () => {

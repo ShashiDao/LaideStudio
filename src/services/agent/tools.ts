@@ -1,6 +1,7 @@
 import { listFiles } from '../fs/vfs';
 import type { LLMTool } from '../llm/llmAdapter';
 import { runProjectTests } from '../bundler/testRunner';
+import { verifyBuildFromOverlay } from '../bundler/buildRunner';
 import { type WorkspaceOverlay, AgentWorkspaceOverlay } from './workspace/overlay';
 
 export const AGENT_TOOLS: LLMTool[] = [
@@ -55,6 +56,15 @@ export const AGENT_TOOLS: LLMTool[] = [
   {
     name: 'run_tests',
     description: 'Executes the project\'s Vitest suite in an isolated Web Worker and returns test results.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'build_project',
+    description: 'Compiles and bundles the candidate project using esbuild to verify that there are no syntax, module resolution, or bundling errors.',
     parameters: {
       type: 'object',
       properties: {},
@@ -250,6 +260,16 @@ export async function executeAgentTool(
         const overlay = context?.overlay;
         const files = overlay ? await overlay.materialize() : await listFiles(projectId);
         return await runProjectTests(files);
+      }
+
+      case 'build_project':
+      case 'verify_build': {
+        const overlay = context?.overlay;
+        if (!overlay) {
+          return `Error: Build verification failed. Missing active WorkspaceOverlay in execution context. Agent verification must run against a candidate overlay.`;
+        }
+        const buildResult = await verifyBuildFromOverlay(overlay);
+        return buildResult.output;
       }
 
       default:

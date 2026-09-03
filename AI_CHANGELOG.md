@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-125
-- Last verified working: Run-level persistent WorkspaceOverlay enforced for entire agent execution; single overlay created at task boundary and passed to all tool calls (read, write, list, search, test); write accumulation verified, canonical VFS remains strictly untouched during runs; all 89 test suites / 697 tests pass in Vitest, tsc --noEmit passes, and compile_applet succeeded.
+- Phase: HOTFIX-126
+- Last verified working: Build/bundle verification executed against the run-level WorkspaceOverlay candidate; verifyBuildFromOverlay and verifyProjectBuild helpers created in buildRunner.ts; build_project/verify_build agent tools wired into executeAgentTool with fail-closed overlay enforcement; entry point detection reused from detectBundledProject without guessing or mutating canonical VFS; all requirements A-H verified in overlayBuildVerification.test.ts; all 90 test suites / 708 tests pass in Vitest, tsc --noEmit passes (0 errors), npm run lint passes (0 errors), and compile_applet succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -635,6 +635,38 @@ Deviations: none
 Verified: `npm run typecheck` passed (0 errors), `npm run lint` passed (0 errors), all 89 test files and 697 tests passed in Vitest (`npm test`), and `compile_applet` passed cleanly.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-126] WorkspaceOverlay Candidate Build Verification Pipeline — 2026-09-03
+- Prompt: Make build/bundle verification use the SAME WorkspaceOverlay candidate as agent tests. Materialize run-level overlay, preserve generic bundle() API, detect entry point without guessing or mutating canonical VFS, fail closed if overlay missing, cover regression requirements A-H.
+- Files touched:
+  - `src/services/bundler/buildRunner.ts` (new)
+  - `src/services/agent/tools.ts` (modified)
+  - `src/services/agent/tools.test.ts` (modified)
+  - `src/services/agent/workspace/overlayBuildVerification.test.ts` (new)
+  - `AI_CHANGELOG.md` (modified)
+- Changed:
+  - Implemented `verifyProjectBuild(files, onProgress)` and `verifyBuildFromOverlay(overlay, onProgress)` in `src/services/bundler/buildRunner.ts`, compiling materialized candidate files from `WorkspaceOverlay` using the existing `bundle(files, entryPoint, onProgress)` API.
+  - Reused `detectBundledProject(files)` from `entryDetection.ts` to deterministically resolve the candidate entry point without hard-coding or mutating canonical VFS.
+  - Registered `build_project` (and `verify_build` alias) in `AGENT_TOOLS` and `executeAgentTool` in `src/services/agent/tools.ts`, enforcing fail-closed execution when `context.overlay` is missing.
+  - Added full regression test suite in `src/services/agent/workspace/overlayBuildVerification.test.ts` proving:
+    - A: Build sees overlay candidate changes (not canonical).
+    - B: Build does not mutate canonical VFS (original files remain untouched).
+    - C: Syntactically invalid candidate code in overlay fails build while canonical VFS remains untouched.
+    - D: Unmodified canonical project compiles successfully through the candidate path.
+    - E: Deletions in overlay are respected in candidate compilation and not resurrected from canonical VFS.
+    - F: Build verification operates on the exact same `overlay` instance passed in `context` alongside tool operations.
+    - G: Multiple sequential edits accumulate and are all verified together in the build.
+    - H: Canonical VFS content is byte-for-byte identical before and after candidate build verification.
+    - Fail-Closed: Missing `context.overlay` fails explicitly without invoking the compiler.
+    - Deterministic entry point error: When no valid entry point is present, returns clear failure without guessing.
+    - Tool alias: `verify_build` executes identically to `build_project`.
+- Decisions:
+  - Preserved the pure `bundle(files, entryPoint, onProgress)` contract in `bundler.ts` without introducing VFS reads or hidden global overlay state.
+  - Kept build verification isolated to the candidate overlay materialized at verification time, ensuring canonical VFS remains strictly read-only until explicit commit.
+- Deviations: none
+- Verified: PASS — `npx vitest run src/services/agent/workspace/overlayBuildVerification.test.ts` (11 tests passed), `npx vitest run src/services/agent/tools.test.ts` (11 tests passed), `npx vitest run src/services/agent/workspace/overlayRunLifecycle.test.ts` (7 tests passed), `npx vitest run src/services/bundler/` (7 test suites, 78 tests passed), `npx vitest run src/services/agent/` (11 test suites, 75 tests passed), full test suite `npm test` (90 test suites, 708 tests passed), `npx tsc --noEmit` (0 errors), `npm run lint` (0 errors), and `compile_applet` passed cleanly.
+- Commit: pending
+- Open questions: none
 
 
 
