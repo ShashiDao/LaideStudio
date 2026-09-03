@@ -5,7 +5,7 @@ import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILEMUTATION_COMMANDS = new Set(['touch', 'mkdir', 'rm', 'cp', 'mv']);
 
-export const executeFileMutationCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
+export const executeFileMutationCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILEMUTATION_COMMANDS.has(command)) return {};
   const { files, cwd, projectId, onFilesChanged } = context;
   switch (command) {
