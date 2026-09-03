@@ -1,5 +1,5 @@
 import { runNodeCodeSandbox } from '../../../services/bundler/sandboxRunner';
-import type { CommandExecutionContext, TerminalOutputItem } from '../terminalTypes';
+import type { TerminalOutputItem } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const RUNTIME_COMMANDS = new Set([
