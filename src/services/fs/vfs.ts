@@ -4,22 +4,23 @@ export function generateId(): string {
   return crypto.randomUUID();
 }
 
-export const isOpfsSupported = (): boolean => typeof navigator !== 'undefined' && !!navigator.storage && typeof navigator.storage.getDirectory === 'function';
+export const isOpfsSupported = (): boolean =>
+  typeof navigator !== 'undefined' &&
+  !!navigator.storage &&
+  typeof navigator.storage.getDirectory === 'function';
 
-export async function getOpfsFileHandle(projectId: string, path: string, create: boolean = false) {
+export async function getOpfsFileHandle(projectId: string, path: string, create = false) {
   const root = await navigator.storage.getDirectory();
   const projDir = await root.getDirectoryHandle(projectId, { create: true });
-  
   const parts = path.split('/').filter(Boolean);
   const fileName = parts.pop();
-  if (!fileName) throw new Error("Invalid path");
-  
+  if (!fileName) throw new Error('Invalid path');
+
   let currentDir = projDir;
   for (const part of parts) {
     currentDir = await currentDir.getDirectoryHandle(part, { create });
   }
-  
-  return await currentDir.getFileHandle(fileName, { create });
+  return currentDir.getFileHandle(fileName, { create });
 }
 
 export async function writeOpfsFile(projectId: string, path: string, content: string): Promise<boolean> {
@@ -43,44 +44,31 @@ export async function deleteOpfsFile(projectId: string, path: string): Promise<v
     const projDir = await root.getDirectoryHandle(projectId, { create: false });
     const parts = path.split('/').filter(Boolean);
     const fileName = parts.pop();
-    if (fileName) {
-      let currentDir = projDir;
-      for (const part of parts) {
-        currentDir = await currentDir.getDirectoryHandle(part, { create: false });
-      }
-      await currentDir.removeEntry(fileName);
+    if (!fileName) return;
+    let currentDir = projDir;
+    for (const part of parts) {
+      currentDir = await currentDir.getDirectoryHandle(part, { create: false });
     }
+    await currentDir.removeEntry(fileName);
   } catch {
-    // Ignore if not present in OPFS
+    // Missing OPFS entries are already in the desired state.
   }
 }
 
-/**
- * Sanitizes a file path coming from an external import (e.g. ZIP archive).
- * Rejects path traversal (`..` or `.`), control characters, and invalid path segments.
- * Returns normalized absolute path starting with `/` or null if rejected.
- */
 export function sanitizeImportedPath(rawPath: string): string | null {
   if (!rawPath || /[\r\n\t\0]/.test(rawPath)) return null;
   const segments = rawPath.split('/').filter(Boolean);
-  const safe = segments.filter(s => s !== '.' && s !== '..');
-  if (safe.length === 0 || safe.length !== segments.length) return null; // reject rather than silently rewrite
+  const safe = segments.filter((s) => s !== '.' && s !== '..');
+  if (safe.length === 0 || safe.length !== segments.length) return null;
   return '/' + safe.join('/');
 }
 
-/**
- * Determines whether a file path is a valid workspace path or an accidental artifact
- * (e.g. created by pasting code snippets or invalid shell parameters).
- */
 export function isValidFilePath(path: string): boolean {
   if (!path || typeof path !== 'string') return false;
   if (path.length > 255) return false;
-  // Disallow control characters, newlines, and tabs
   if (/[\r\n\t\0]/.test(path)) return false;
-  // Disallow common code tokens / symbols that indicate pasted script artifacts
   if (/[{}();<>=]/.test(path)) return false;
   if (/\b(function|const|let|var|return|console|import|export|typeof|instanceof)\b/.test(path)) return false;
-  // Disallow paths starting with number/semicolon/brace artifacts like /0; or / 0
   if (/^\/?\s*[0-9]+(\s|;|})/.test(path)) return false;
   return true;
 }
@@ -89,100 +77,54 @@ export function isArtifactPath(path: string): boolean {
   return !isValidFilePath(path);
 }
 
-/**
- * Deletes any accidental artifact files from Dexie and OPFS.
- */
 export async function purgeArtifactFiles(projectId?: string): Promise<number> {
   const allFiles = projectId
     ? await db.files.where('projectId').equals(projectId).toArray()
     : await db.files.toArray();
-
-  const artifactFiles = allFiles.filter(f => isArtifactPath(f.path));
-  if (artifactFiles.length > 0) {
-    for (const f of artifactFiles) {
-      try {
-        await deleteOpfsFile(f.projectId, f.path);
-      } catch {
-        // Ignore if file doesn't exist in OPFS
-      }
-    }
-    await db.files.bulkDelete(artifactFiles.map(f => f.id));
-  }
+  const artifactFiles = allFiles.filter((f) => isArtifactPath(f.path));
+  for (const file of artifactFiles) await deleteOpfsFile(file.projectId, file.path);
+  if (artifactFiles.length) await db.files.bulkDelete(artifactFiles.map((f) => f.id));
   return artifactFiles.length;
 }
 
 export async function checkPathCollision(projectId: string, path: string, excludeFileId?: string): Promise<void> {
-  if (!path.startsWith('/')) {
-    throw new Error(`Path must start with '/': ${path}`);
-  }
-  if (!isValidFilePath(path)) {
-    throw new Error(`Invalid file path: ${path}`);
-  }
-  const allFiles = await db.files.where('projectId').equals(projectId).toArray();
-  
-  for (const f of allFiles) {
-    if (f.id === excludeFileId) continue;
-    if (f.path === path) {
-      throw new Error(`Duplicate path: ${path} already exists`);
+  if (!path.startsWith('/')) throw new Error(`Path must start with '/': ${path}`);
+  if (!isValidFilePath(path)) throw new Error(`Invalid file path: ${path}`);
+  const files = await db.files.where('projectId').equals(projectId).toArray();
+  for (const file of files) {
+    if (file.id === excludeFileId) continue;
+    if (file.path === path) throw new Error(`Duplicate path: ${path} already exists`);
+    if (file.path.startsWith(path + '/')) {
+      throw new Error(`Path collision: ${path} is a folder prefix for existing file ${file.path}`);
     }
-    if (f.path.startsWith(path + '/')) {
-      throw new Error(`Path collision: ${path} is a folder prefix for existing file ${f.path}`);
-    }
-    if (path.startsWith(f.path + '/')) {
-      throw new Error(`Path collision: existing file ${f.path} is a folder prefix for ${path}`);
+    if (path.startsWith(file.path + '/')) {
+      throw new Error(`Path collision: existing file ${file.path} is a folder prefix for ${path}`);
     }
   }
 }
 
-/**
- * Loads full file content from OPFS (or Dexie fallback) for a project, a given list of files, or all files.
- * If projectId is passed as string, queries and resolves all files for that project.
- * If an array of FileItem is passed, loads content for each file in the array.
- * If omitted or undefined, loads and returns all files across the entire database.
- */
 export async function getAllFileContent(projectIdOrFiles?: string | FileItem[]): Promise<FileItem[]> {
-  let files: FileItem[];
-  if (typeof projectIdOrFiles === 'string') {
-    files = await db.files.where('projectId').equals(projectIdOrFiles).toArray();
-  } else if (Array.isArray(projectIdOrFiles)) {
-    files = projectIdOrFiles;
-  } else {
-    files = await db.files.toArray();
-  }
+  let files = typeof projectIdOrFiles === 'string'
+    ? await db.files.where('projectId').equals(projectIdOrFiles).toArray()
+    : Array.isArray(projectIdOrFiles)
+      ? projectIdOrFiles
+      : await db.files.toArray();
 
-  // Filter out any invalid artifact files and clean them up
-  const validFiles: FileItem[] = [];
-  const corruptFileIds: string[] = [];
-  for (const f of files) {
-    if (isValidFilePath(f.path)) {
-      validFiles.push(f);
-    } else {
-      corruptFileIds.push(f.id);
-    }
-  }
-
-  if (corruptFileIds.length > 0) {
-    db.files.bulkDelete(corruptFileIds).catch(() => {});
-  }
-
+  const validFiles = files.filter((file) => isValidFilePath(file.path));
+  const corruptIds = files.filter((file) => !isValidFilePath(file.path)).map((file) => file.id);
+  if (corruptIds.length) db.files.bulkDelete(corruptIds).catch(() => {});
   files = validFiles;
 
   if (isOpfsSupported()) {
-    await Promise.all(
-      files.map(async (file) => {
-        try {
-          const handle = await getOpfsFileHandle(file.projectId, file.path, false);
-          const opfsFile = await handle.getFile();
-          const text = await opfsFile.text();
-          // Use OPFS content when available; fallback to Dexie content if empty or read fails
-          if (text || !file.content) {
-            file.content = text;
-          }
-        } catch {
-          // Fallback to what's in Dexie if OPFS read fails or file is only in Dexie
-        }
-      })
-    );
+    await Promise.all(files.map(async (file) => {
+      try {
+        const handle = await getOpfsFileHandle(file.projectId, file.path, false);
+        const text = await (await handle.getFile()).text();
+        if (text || !file.content) file.content = text;
+      } catch {
+        // Dexie remains the durable fallback.
+      }
+    }));
   }
   return files;
 }
@@ -194,7 +136,6 @@ export async function listFiles(projectId: string): Promise<FileItem[]> {
 export async function readFile(id: string): Promise<FileItem> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
-  
   const [hydrated] = await getAllFileContent([file]);
   return hydrated || file;
 }
@@ -202,33 +143,19 @@ export async function readFile(id: string): Promise<FileItem> {
 export async function writeFile(id: string, content: string): Promise<FileItem> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
-  
-  // Store full content in Dexie as durable source of truth
   const updated = { ...file, content, updatedAt: Date.now() };
   await db.files.put(updated);
-  
-  // Also mirror to OPFS if supported
   await writeOpfsFile(file.projectId, file.path, content);
-  
   return updated;
 }
 
 export async function createFile(projectId: string, path: string, content: string): Promise<FileItem> {
-  const newFile: FileItem = {
-    id: generateId(),
-    projectId,
-    path,
-    content,
-    updatedAt: Date.now()
-  };
-  
+  const newFile: FileItem = { id: generateId(), projectId, path, content, updatedAt: Date.now() };
   await db.transaction('rw', db.files, async () => {
     await checkPathCollision(projectId, path);
     await db.files.add(newFile);
   });
-  
   await writeOpfsFile(projectId, path, content);
-  
   return newFile;
 }
 
@@ -238,75 +165,65 @@ export async function bulkCreateOrUpdateFiles(
 ): Promise<FileItem[]> {
   if (entries.length === 0) return [];
 
-  // Normalize paths: ensure leading '/' and no double slashes
-  const normalizedEntries = entries.map(e => ({
-    path: (e.path.startsWith('/') ? e.path : `/${e.path}`).replace(/\/+/g, '/'),
-    content: e.content
+  const normalizedEntries = entries.map((entry) => ({
+    path: (entry.path.startsWith('/') ? entry.path : `/${entry.path}`).replace(/\/+/g, '/'),
+    content: entry.content,
   }));
-
-  // Unique map within incoming batch (latest entry wins)
   const uniqueMap = new Map<string, string>();
-  for (const item of normalizedEntries) {
-    if (item.path && item.path !== '/') {
-      uniqueMap.set(item.path, item.content);
-    }
+  for (const entry of normalizedEntries) {
+    if (entry.path && entry.path !== '/') uniqueMap.set(entry.path, entry.content);
   }
 
   const existingFiles = await db.files.where('projectId').equals(projectId).toArray();
-  const existingMap = new Map(existingFiles.map(f => [f.path, f]));
+  const existingMap = new Map(existingFiles.map((file) => [file.path, file]));
 
-  const filesToPut: FileItem[] = [];
-  const results: FileItem[] = [];
+  // Validate every incoming path before mutating either storage layer.
+  for (const [path] of uniqueMap) {
+    await checkPathCollision(projectId, path, existingMap.get(path)?.id);
+  }
 
-  for (const [path, content] of uniqueMap.entries()) {
-    const existing = existingMap.get(path);
-    if (existing) {
-      const updated: FileItem = {
-        ...existing,
-        content,
-        updatedAt: Date.now()
-      };
-      filesToPut.push(updated);
-      results.push(updated);
-    } else {
-      const created: FileItem = {
-        id: generateId(),
-        projectId,
-        path,
-        content,
-        updatedAt: Date.now()
-      };
-      filesToPut.push(created);
-      results.push(created);
+  // Validate collisions between entries in the same batch as well.
+  const incomingPaths = [...uniqueMap.keys()];
+  for (let i = 0; i < incomingPaths.length; i++) {
+    for (let j = i + 1; j < incomingPaths.length; j++) {
+      const a = incomingPaths[i];
+      const b = incomingPaths[j];
+      if (a === b || a.startsWith(b + '/') || b.startsWith(a + '/')) {
+        throw new Error(`Path collision within bulk operation: ${a} and ${b}`);
+      }
     }
   }
 
-  // Single batch database write
-  await db.files.bulkPut(filesToPut);
-
-  // Parallel OPFS file writes
-  if (isOpfsSupported()) {
-    await Promise.all(
-      Array.from(uniqueMap.entries()).map(async ([path, content]) => {
-        try {
-          const handle = await getOpfsFileHandle(projectId, path, true);
-          const writable = await handle.createWritable();
-          await writable.write(content);
-          await writable.close();
-        } catch (e) {
-          console.warn("OPFS bulk write failed", e);
-        }
-      })
-    );
+  const filesToPut: FileItem[] = [];
+  const results: FileItem[] = [];
+  for (const [path, content] of uniqueMap) {
+    const existing = existingMap.get(path);
+    const file: FileItem = existing
+      ? { ...existing, content, updatedAt: Date.now() }
+      : { id: generateId(), projectId, path, content, updatedAt: Date.now() };
+    filesToPut.push(file);
+    results.push(file);
   }
 
+  await db.files.bulkPut(filesToPut);
+  if (isOpfsSupported()) {
+    await Promise.all([...uniqueMap].map(async ([path, content]) => {
+      try {
+        const handle = await getOpfsFileHandle(projectId, path, true);
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+      } catch (e) {
+        console.warn('OPFS bulk write failed', e);
+      }
+    }));
+  }
   return results;
 }
 
 export async function deleteFile(id: string): Promise<void> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
-  
   await deleteOpfsFile(file.projectId, file.path);
   await db.files.delete(id);
 }
@@ -314,59 +231,48 @@ export async function deleteFile(id: string): Promise<void> {
 export async function renameFile(id: string, newPath: string): Promise<FileItem> {
   const file = await db.files.get(id);
   if (!file) throw new Error(`File not found: ${id}`);
-  
   const [hydrated] = await getAllFileContent([file]);
   const currentContent = hydrated ? hydrated.content : file.content;
 
+  // Validate the destination before touching OPFS. A failed collision check must
+  // leave both Dexie and OPFS representing the original file.
+  await checkPathCollision(file.projectId, newPath, id);
+
+  const updated = { ...file, path: newPath, updatedAt: Date.now() };
+  await db.files.put(updated);
+
   if (isOpfsSupported()) {
     await deleteOpfsFile(file.projectId, file.path);
-    await writeOpfsFile(file.projectId, newPath, currentContent);
+    const written = await writeOpfsFile(file.projectId, newPath, currentContent);
+    if (!written) {
+      console.warn(`OPFS rename mirror failed for ${file.path} -> ${newPath}; Dexie remains durable source of truth`);
+    }
   }
-  
-  const updated = { ...file, path: newPath, updatedAt: Date.now() };
-  await db.transaction('rw', db.files, async () => {
-    await checkPathCollision(file.projectId, newPath, id);
-    await db.files.put(updated);
-  });
-  
+
   return { ...updated, content: currentContent };
 }
 
 export async function deleteFolder(projectId: string, folderPath: string): Promise<void> {
-  if (!folderPath.startsWith('/') || folderPath === '/') {
-    throw new Error(`Invalid folder path: ${folderPath}`);
-  }
+  if (!folderPath.startsWith('/') || folderPath === '/') throw new Error(`Invalid folder path: ${folderPath}`);
   const prefix = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
-  
   const files = await db.files.where('projectId').equals(projectId).toArray();
-  const filesToDelete = files.filter(f => f.path.startsWith(prefix));
-  
-  if (filesToDelete.length === 0) {
-    throw new Error(`Folder not found or empty: ${folderPath}`);
-  }
-  
-  if (isOpfsSupported()) {
-    for (const f of filesToDelete) {
-      await deleteOpfsFile(projectId, f.path);
-    }
-  }
-  
-  await db.files.bulkDelete(filesToDelete.map(f => f.id));
+  const filesToDelete = files.filter((file) => file.path.startsWith(prefix));
+  if (!filesToDelete.length) throw new Error(`Folder not found or empty: ${folderPath}`);
+  for (const file of filesToDelete) await deleteOpfsFile(projectId, file.path);
+  await db.files.bulkDelete(filesToDelete.map((file) => file.id));
 }
 
 export async function deleteProject(projectId: string): Promise<void> {
   const project = await db.projects.get(projectId);
   if (!project) throw new Error(`Project not found: ${projectId}`);
-  
   if (isOpfsSupported()) {
     try {
       const root = await navigator.storage.getDirectory();
       await root.removeEntry(projectId, { recursive: true });
     } catch {
-      // Ignore
+      // Missing OPFS project is already in the desired state.
     }
   }
-  
   await db.transaction('rw', db.projects, db.files, db.snapshots, async () => {
     await db.files.where('projectId').equals(projectId).delete();
     await db.snapshots.where('projectId').equals(projectId).delete();
@@ -376,33 +282,18 @@ export async function deleteProject(projectId: string): Promise<void> {
 
 export async function renameProject(projectId: string, newName: string): Promise<Project> {
   const trimmed = newName.trim();
-  if (!trimmed) {
-    throw new Error('Project name cannot be empty');
-  }
+  if (!trimmed) throw new Error('Project name cannot be empty');
   const project = await db.projects.get(projectId);
-  if (!project) {
-    throw new Error(`Project not found: ${projectId}`);
-  }
-  const updated: Project = {
-    ...project,
-    name: trimmed,
-    updatedAt: Date.now()
-  };
+  if (!project) throw new Error(`Project not found: ${projectId}`);
+  const updated = { ...project, name: trimmed, updatedAt: Date.now() };
   await db.projects.put(updated);
   return updated;
 }
 
-/**
- * Archives an active project by moving its project record and all its associated files
- * from active storage into the separate `archivedProjects` and `archivedFiles` collections.
- */
 export async function archiveProject(projectId: string): Promise<ArchivedProject> {
   const project = await db.projects.get(projectId);
   if (!project) throw new Error(`Project not found: ${projectId}`);
-
-  // Fetch all files and hydrate content so full content is preserved in archivedFiles
   const files = await getAllFileContent(projectId);
-
   const archivedItem: ArchivedProject = {
     id: project.id,
     name: project.name,
@@ -411,103 +302,85 @@ export async function archiveProject(projectId: string): Promise<ArchivedProject
     archivedAt: Date.now(),
     fileCount: files.length,
   };
-
-  const archivedFilesToSave: FileItem[] = files.map(f => ({
-    id: f.id,
-    projectId: f.projectId,
-    path: f.path,
-    content: f.content,
-    updatedAt: f.updatedAt,
+  const archivedFiles = files.map((file) => ({
+    id: file.id,
+    projectId: file.projectId,
+    path: file.path,
+    content: file.content,
+    updatedAt: file.updatedAt,
   }));
 
+  // Move the durable Dexie records first. OPFS cleanup is performed only after
+  // the archive transaction succeeds, preventing an archive failure from deleting data.
   await db.transaction('rw', db.projects, db.files, db.archivedProjects, db.archivedFiles, async () => {
     await db.archivedProjects.put(archivedItem);
-    if (archivedFilesToSave.length > 0) {
-      await db.archivedFiles.bulkPut(archivedFilesToSave);
-    }
+    if (archivedFiles.length) await db.archivedFiles.bulkPut(archivedFiles);
     await db.files.where('projectId').equals(projectId).delete();
     await db.projects.delete(projectId);
   });
 
+  if (isOpfsSupported()) {
+    try {
+      const root = await navigator.storage.getDirectory();
+      await root.removeEntry(projectId, { recursive: true });
+    } catch (e) {
+      console.warn(`OPFS archive cleanup failed for project ${projectId}`, e);
+    }
+  }
+
   return archivedItem;
 }
 
-/**
- * Restores an archived project back to the active workspace collections.
- */
 export async function restoreProject(projectId: string): Promise<Project> {
   const archived = await db.archivedProjects.get(projectId);
   if (!archived) throw new Error(`Archived project not found: ${projectId}`);
-
   const archivedFiles = await db.archivedFiles.where('projectId').equals(projectId).toArray();
-
   const restoredProject: Project = {
     id: archived.id,
     name: archived.name,
     createdAt: archived.createdAt,
     updatedAt: Date.now(),
   };
-
-  const filesToRestore: FileItem[] = archivedFiles.map(f => ({
-    id: f.id,
-    projectId: f.projectId,
-    path: f.path,
-    content: f.content,
-    updatedAt: f.updatedAt,
-  }));
+  const filesToRestore = archivedFiles.map((file) => ({ ...file }));
 
   await db.transaction('rw', db.projects, db.files, db.archivedProjects, db.archivedFiles, async () => {
     await db.projects.put(restoredProject);
-    if (filesToRestore.length > 0) {
-      await db.files.bulkPut(filesToRestore);
-    }
+    if (filesToRestore.length) await db.files.bulkPut(filesToRestore);
     await db.archivedProjects.delete(projectId);
     await db.archivedFiles.where('projectId').equals(projectId).delete();
   });
 
-  // Re-write files to OPFS if supported
-  if (isOpfsSupported() && archivedFiles.length > 0) {
-    await Promise.all(
-      archivedFiles.map(async (file) => {
-        try {
-          await writeOpfsFile(file.projectId, file.path, file.content);
-        } catch {
-          // ignore
-        }
-      })
-    );
+  if (isOpfsSupported()) {
+    await Promise.all(archivedFiles.map(async (file) => {
+      try {
+        await writeOpfsFile(file.projectId, file.path, file.content);
+      } catch (e) {
+        console.warn(`OPFS restore failed for ${file.path}`, e);
+      }
+    }));
   }
-
   return restoredProject;
 }
 
-/**
- * Lists all archived projects in the separate storage collection.
- */
 export async function listArchivedProjects(): Promise<ArchivedProject[]> {
   try {
     return await db.archivedProjects.orderBy('archivedAt').reverse().toArray();
   } catch {
-    return await db.archivedProjects.toArray();
+    return db.archivedProjects.toArray();
   }
 }
 
-/**
- * Permanently deletes an archived project from the archive collection.
- */
 export async function deleteArchivedProject(projectId: string): Promise<void> {
   if (isOpfsSupported()) {
     try {
       const root = await navigator.storage.getDirectory();
       await root.removeEntry(projectId, { recursive: true });
     } catch {
-      // Ignore
+      // Missing OPFS project is already in the desired state.
     }
   }
-
   await db.transaction('rw', db.archivedProjects, db.archivedFiles, async () => {
     await db.archivedFiles.where('projectId').equals(projectId).delete();
     await db.archivedProjects.delete(projectId);
   });
 }
-
