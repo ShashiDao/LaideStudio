@@ -7,6 +7,7 @@ export type TerminalCommandResult = {
 };
 
 export type TerminalCommandHandler = (
+  command: string,
   args: string[],
   commandStr: string,
   context: CommandExecutionContext,
