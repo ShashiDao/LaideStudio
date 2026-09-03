@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import { migrateLocalStorage } from './utils/storageMigration';
+import type { AgentTask, AgentRun, PatchSet } from './services/agent/task/taskTypes';
 
 export interface Project {
   id: string;
@@ -95,6 +96,9 @@ export class LaideDatabase extends Dexie {
   archivedProjects!: Table<ArchivedProject, string>;
   archivedFiles!: Table<FileItem, string>;
   secureTokens!: Table<SecureToken, string>;
+  tasks!: Table<AgentTask, string>;
+  taskRuns!: Table<AgentRun, string>;
+  patchSets!: Table<PatchSet, string>;
 
   constructor() {
     super('LaideDatabase');
@@ -150,6 +154,20 @@ export class LaideDatabase extends Dexie {
       archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
       archivedFiles: 'id, projectId, path, updatedAt',
       secureTokens: 'key',
+    });
+    this.version(7).stores({
+      projects: 'id, name, createdAt, updatedAt',
+      files: 'id, projectId, path, updatedAt',
+      snapshots: 'id, projectId, createdAt',
+      connectionProfiles: 'id, provider, label',
+      provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+      vaultSessions: 'id, createdAt, expiresAt',
+      archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
+      archivedFiles: 'id, projectId, path, updatedAt',
+      secureTokens: 'key',
+      tasks: 'id, projectId, state, createdAt',
+      taskRuns: 'id, taskId, startedAt',
+      patchSets: 'id, runId, taskId, projectId',
     });
   }
 }

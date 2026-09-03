@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-122
-- Last verified working: `PreviewPane.tsx` and `PreviewPanel.tsx` integrated with CodeSandbox Sandpack (`@codesandbox/sandpack-react`) engine toggle alongside the offline ESBuild bundler; all 29 preview unit and integration tests pass (`npx vitest run src/components/preview/PreviewPane.test.tsx src/components/preview/PreviewPanel.test.tsx`), full repository typecheck passes (`tsc --noEmit` — 0 errors), and production build compiles cleanly.
+- Phase: HOTFIX-123
+- Last verified working: `WorkspaceOverlay` successfully isolates writes without modifying base files, `TaskStateMachine` correctly transitions states, and full typecheck/tests pass (`npx vitest run`, `tsc --noEmit`).
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -565,6 +565,32 @@ Decisions:
 - Performed routine log archive rotation of 27 pre-2026-09-02 entries to `AI_CHANGELOG_ARCHIVE.md` to keep the active log concise and under context limits.
 Deviations: none
 Verified: 29/29 preview tests passed (`npx vitest run src/components/preview/PreviewPane.test.tsx src/components/preview/PreviewPanel.test.tsx` in 5.48s), full typecheck passed with 0 errors (`tsc --noEmit`), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-123] Agent Engine Phase 0 Implementation — 2026-09-03
+Prompt: Implement Phase P0 of the LAIDE Agent Engine roadmap: WorkspaceOverlay, PatchSet, and TaskStateMachine.
+Files touched:
+- `src/db.ts` (modified)
+- `src/services/agent/task/taskTypes.ts` (new)
+- `src/services/agent/workspace/overlay.ts` (new)
+- `src/services/agent/workspace/overlay.test.ts` (new)
+- `src/services/agent/task/taskStateMachine.ts` (new)
+- `src/services/agent/task/taskStateMachine.test.ts` (new)
+- `src/services/agent/task/taskStore.ts` (new)
+- `src/services/agent/task/taskStore.test.ts` (new)
+- `src/services/agent/workspace/conflictResolver.ts` (new)
+- `src/services/agent/workspace/conflictResolver.test.ts` (new)
+Changed:
+- Implemented `WorkspaceOverlay` interface to wrap the VFS and isolate candidate edits, keeping the real VFS untouched until explicitly committed.
+- Built a durable `TaskStateMachine` backed by Dexie (`taskStore.ts`) to manage resumable state transitions (queued → analyzing → ... → completed).
+- Introduced `AgentTask`, `AgentRun`, and `PatchSet` models in Dexie (`src/db.ts`) for transaction and provenance tracking.
+- Added explicit conflict detection (`detectConflicts`) in `ConflictResolver` to prevent silent overwriting of modified base revisions.
+Decisions:
+- Verified overlay isolation, conflict handling, and task state flow with comprehensive unit tests without altering the existing UI or agent loop yet (per Step 1-3 roadmap constraints).
+- Placed task metadata (`tasks`, `taskRuns`, `patchSets`) into Dexie for durability across sessions, crashes, and unloads.
+Deviations: none
+Verified: `npm run typecheck` passed (0 errors), `npm run lint` passed (0 errors), all 18 newly added unit tests pass across 4 test suites, and production build succeeded (`npm run build`).
 Commit: pending
 Open questions: none
 
