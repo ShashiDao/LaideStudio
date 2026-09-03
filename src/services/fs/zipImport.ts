@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { bulkCreateOrUpdateFiles, sanitizeImportedPath } from './vfs';
 import { flattenWrapperFolder } from './restructure';
+import { recoverZip } from './zipRecovery';
 
 /**
  * Heuristic to detect if a file is text or binary.
@@ -29,18 +30,76 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+function detectCommonFolder(paths: string[]): string | null {
+  if (paths.length === 0) return null;
+  const firstParts = paths[0].replace(/^\//, '').split('/');
+  if (firstParts.length <= 1) return null;
+  const candidate = firstParts[0];
+  return paths.every(path => {
+    const parts = path.replace(/^\//, '').split('/');
+    return parts.length > 1 && parts[0] === candidate;
+  }) ? candidate : null;
+}
+
+function applyCommonFolder(path: string, commonFolder: string | null): string {
+  const rawPath = path.replace(/^\//, '');
+  return commonFolder && rawPath.startsWith(`${commonFolder}/`)
+    ? rawPath.substring(commonFolder.length + 1)
+    : rawPath;
+}
+
 export async function importZip(
   zipData: Blob | ArrayBuffer | Uint8Array,
   projectId: string,
   options?: { autoRestructure?: boolean }
-): Promise<{ count: number; skipped: string[] }> {
+): Promise<{ count: number; skipped: string[]; recovered?: boolean }> {
   const startedAt = performance.now();
   const rawData = (typeof Blob !== 'undefined' && zipData instanceof Blob)
     ? await zipData.arrayBuffer()
     : zipData;
   const zipReadFinishedAt = performance.now();
 
-  const zip = await JSZip.loadAsync(rawData);
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(rawData);
+  } catch (parseError) {
+    const recovery = await recoverZip(rawData);
+    if (recovery.files.length === 0) {
+      throw new Error(
+        `Corrupted ZIP: ${parseError instanceof Error ? parseError.message : 'archive directory could not be read'}; no readable files could be recovered`
+      );
+    }
+
+    const commonFolder = options?.autoRestructure
+      ? detectCommonFolder(recovery.files.map(file => file.path))
+      : null;
+    const skipped = [...recovery.skipped];
+    const decodedFiles = recovery.files.map(file => {
+      const path = applyCommonFolder(file.path, commonFolder);
+      const safePath = sanitizeImportedPath(path);
+      if (!safePath) {
+        skipped.push(file.path);
+        return null;
+      }
+      return { path: safePath, content: file.content };
+    }).filter((file): file is { path: string; content: string } => file !== null);
+
+    await bulkCreateOrUpdateFiles(projectId, decodedFiles);
+    if (options?.autoRestructure && !commonFolder) {
+      await flattenWrapperFolder(projectId);
+    }
+
+    if (import.meta.env?.DEV) {
+      console.debug('[LAIDE ZIP recovery]', {
+        files: decodedFiles.length,
+        skipped: skipped.length,
+        totalMs: Math.round((performance.now() - startedAt) * 100) / 100,
+      });
+    }
+
+    return { count: decodedFiles.length, skipped, recovered: true };
+  }
+
   const zipParsedFinishedAt = performance.now();
   const rawEntries = Object.values(zip.files).filter(entry => !entry.dir);
 
@@ -49,50 +108,74 @@ export async function importZip(
   }
 
   // Detect common top-level wrapper folder if autoRestructure is enabled
-  let commonFolder: string | null = null;
-  if (options?.autoRestructure && rawEntries.length > 0) {
-    const firstParts = rawEntries[0].name.replace(/^\//, '').split('/');
-    if (firstParts.length > 1) {
-      const candidate = firstParts[0];
-      const allShare = rawEntries.every(entry => {
-        const parts = entry.name.replace(/^\//, '').split('/');
-        return parts.length > 1 && parts[0] === candidate;
-      });
-      if (allShare) {
-        commonFolder = candidate;
-      }
-    }
-  }
+  const commonFolder = options?.autoRestructure
+    ? detectCommonFolder(rawEntries.map(entry => entry.name))
+    : null;
   const structureDetectedAt = performance.now();
 
   // Parallel single-pass decode of files from ZIP with path sanitization
   const skipped: string[] = [];
   const utf8Decoder = new TextDecoder('utf-8');
-  const decodedEntries = await Promise.all(
-    rawEntries.map(async (entry) => {
-      const rawPath = entry.name.replace(/^\//, '');
-      const relativePath = (commonFolder && rawPath.startsWith(`${commonFolder}/`))
-        ? rawPath.substring(commonFolder.length + 1)
-        : rawPath;
+  let decodedFiles: { path: string; content: string }[];
+  try {
+    const decodedEntries = await Promise.all(
+      rawEntries.map(async (entry) => {
+        const rawPath = applyCommonFolder(entry.name, commonFolder);
+        const safePath = sanitizeImportedPath(rawPath);
+        if (!safePath) {
+          skipped.push(entry.name);
+          return null;
+        }
 
-      const safePath = sanitizeImportedPath(relativePath);
+        // Single decompression pass to Uint8Array: no second JSZip decompress call
+        const uint8Array = await entry.async('uint8array');
+        const content = isText(uint8Array)
+          ? utf8Decoder.decode(uint8Array)
+          : uint8ArrayToBase64(uint8Array);
+
+        return { path: safePath, content };
+      })
+    );
+    decodedFiles = decodedEntries.filter((f): f is { path: string; content: string } => f !== null);
+  } catch (decodeError) {
+    // No VFS mutation has happened yet. If one entry is corrupt, retry the entire
+    // archive through the conservative local-header recovery path so good entries
+    // can still be salvaged without partially importing this failed attempt.
+    const recovery = await recoverZip(rawData);
+    if (recovery.files.length === 0) {
+      throw decodeError;
+    }
+
+    const recoveryCommonFolder = options?.autoRestructure
+      ? detectCommonFolder(recovery.files.map(file => file.path))
+      : null;
+    const recoverySkipped = [...recovery.skipped];
+    decodedFiles = recovery.files.map(file => {
+      const path = applyCommonFolder(file.path, recoveryCommonFolder);
+      const safePath = sanitizeImportedPath(path);
       if (!safePath) {
-        skipped.push(entry.name);
+        recoverySkipped.push(file.path);
         return null;
       }
+      return { path: safePath, content: file.content };
+    }).filter((file): file is { path: string; content: string } => file !== null);
+    skipped.push(...recoverySkipped);
 
-      // Single decompression pass to Uint8Array: no second JSZip decompress call
-      const uint8Array = await entry.async('uint8array');
-      const content = isText(uint8Array)
-        ? utf8Decoder.decode(uint8Array)
-        : uint8ArrayToBase64(uint8Array);
+    await bulkCreateOrUpdateFiles(projectId, decodedFiles);
+    if (options?.autoRestructure && !recoveryCommonFolder) {
+      await flattenWrapperFolder(projectId);
+    }
 
-      return { path: safePath, content };
-    })
-  );
+    if (import.meta.env?.DEV) {
+      console.debug('[LAIDE ZIP recovery]', {
+        files: decodedFiles.length,
+        skipped: skipped.length,
+        totalMs: Math.round((performance.now() - startedAt) * 100) / 100,
+      });
+    }
+    return { count: decodedFiles.length, skipped, recovered: true };
+  }
   const decodeFinishedAt = performance.now();
-
-  const decodedFiles = decodedEntries.filter((f): f is { path: string; content: string } => f !== null);
 
   await bulkCreateOrUpdateFiles(projectId, decodedFiles);
   const persistenceFinishedAt = performance.now();
