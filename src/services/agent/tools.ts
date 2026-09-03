@@ -256,9 +256,13 @@ export async function executeAgentTool(
           : out;
       }
       
-      case 'run_tests': {
+      case 'run_tests':
+      case 'verify_tests': {
         const overlay = context?.overlay;
-        const files = overlay ? await overlay.materialize() : await listFiles(projectId);
+        if (!overlay) {
+          return `Error: Test verification failed. Missing active WorkspaceOverlay in execution context. Agent verification must run against a candidate overlay.`;
+        }
+        const files = await overlay.materialize();
         return await runProjectTests(files);
       }
 

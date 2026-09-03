@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { runProjectTestsDetailed } from './testRunner';
+import { runProjectTestsDetailed, runTestsFromOverlay, runTestsDetailedFromOverlay } from './testRunner';
 import type { FileItem } from '../../db';
+import { AgentWorkspaceOverlay } from '../agent/workspace/overlay';
 
 vi.mock('./bundler', () => ({
   bundle: vi.fn().mockResolvedValue('console.log("mock bundled tests");')
@@ -97,6 +98,39 @@ describe('testRunner sandboxed execution', () => {
     expect(result.passed).toBe(2);
     expect(result.failed).toBe(0);
     expect(result.output).toContain('Passed: 2');
+  });
+
+  it('runTestsFromOverlay and runTestsDetailedFromOverlay execute tests against candidate overlay', async () => {
+    const overlay = new AgentWorkspaceOverlay('p1', [
+      {
+        id: 'f1',
+        projectId: 'p1',
+        path: '/src/math.test.ts',
+        content: `
+          import { describe, it, expect } from 'vitest';
+          describe('math', () => {
+            it('adds', () => {
+              expect(1 + 1).toBe(2);
+            });
+          });
+        `,
+        updatedAt: Date.now()
+      }
+    ]);
+
+    const strResult = await runTestsFromOverlay(overlay);
+    expect(strResult).toContain('Passed: 2');
+
+    const detailedResult = await runTestsDetailedFromOverlay(overlay);
+    expect(detailedResult.status).toBe('passed');
+    expect(detailedResult.passed).toBe(2);
+  });
+
+  it('runTestsFromOverlay fails closed when overlay is missing or invalid', async () => {
+    // @ts-expect-error test missing overlay
+    await expect(runTestsFromOverlay(null)).rejects.toThrow('Missing WorkspaceOverlay');
+    // @ts-expect-error test invalid overlay
+    await expect(runTestsDetailedFromOverlay({})).rejects.toThrow('Missing WorkspaceOverlay');
   });
 });
 

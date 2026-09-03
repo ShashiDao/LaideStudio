@@ -1,6 +1,7 @@
 import type { FileItem, ProvenanceTestResult } from '../../db';
 import { bundle } from './bundler';
 import { SANDBOX_GUARD_PREAMBLE } from './sandboxGuard';
+import type { WorkspaceOverlay } from '../agent/workspace/overlay';
 
 const VITEST_SHIM = `
 export const tests = [];
@@ -283,5 +284,31 @@ self.onmessage = function(e) {
 export async function runProjectTests(files: FileItem[]): Promise<string> {
   const result = await runProjectTestsDetailed(files);
   return result.output || result.error || 'No output from tests.';
+}
+
+/**
+ * Runs test verification against candidate files materialized
+ * from the active WorkspaceOverlay.
+ * Guarantees that verification tests the candidate workspace
+ * without mutating or falling back to canonical VFS.
+ */
+export async function runTestsFromOverlay(
+  overlay: WorkspaceOverlay
+): Promise<string> {
+  if (!overlay || typeof overlay.materialize !== 'function') {
+    throw new Error('Missing WorkspaceOverlay: runTestsFromOverlay requires a valid WorkspaceOverlay instance.');
+  }
+  const files = await overlay.materialize();
+  return runProjectTests(files);
+}
+
+export async function runTestsDetailedFromOverlay(
+  overlay: WorkspaceOverlay
+): Promise<ProvenanceTestResult> {
+  if (!overlay || typeof overlay.materialize !== 'function') {
+    throw new Error('Missing WorkspaceOverlay: runTestsDetailedFromOverlay requires a valid WorkspaceOverlay instance.');
+  }
+  const files = await overlay.materialize();
+  return runProjectTestsDetailed(files);
 }
 

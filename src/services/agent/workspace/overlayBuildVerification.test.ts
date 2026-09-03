@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { db, type FileItem } from '../../../db';
 import { AgentWorkspaceOverlay } from './overlay';
-import { verifyBuildFromOverlay, verifyProjectBuild } from '../../bundler/buildRunner';
+import { verifyBuildFromOverlay } from '../../bundler/buildRunner';
 import { _setBundlerWorkerForTesting } from '../../bundler/bundler';
 import { executeAgentTool } from '../tools';
 

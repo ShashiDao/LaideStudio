@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-126
-- Last verified working: Build/bundle verification executed against the run-level WorkspaceOverlay candidate; verifyBuildFromOverlay and verifyProjectBuild helpers created in buildRunner.ts; build_project/verify_build agent tools wired into executeAgentTool with fail-closed overlay enforcement; entry point detection reused from detectBundledProject without guessing or mutating canonical VFS; all requirements A-H verified in overlayBuildVerification.test.ts; all 90 test suites / 708 tests pass in Vitest, tsc --noEmit passes (0 errors), npm run lint passes (0 errors), and compile_applet succeeded.
+- Phase: HOTFIX-127
+- Last verified working: All agent verification paths audited and hardened around the run-level WorkspaceOverlay; runTestsFromOverlay and runTestsDetailedFromOverlay added in testRunner.ts; run_tests, verify_tests, build_project, and verify_build fail closed with explicit errors when context.overlay is missing without falling back to canonical VFS; test and build runners evaluate the exact same candidate view materialized from the run-level overlay; comprehensive audit test suite overlayVerificationConsistency.test.ts (8 tests) verifies candidate modification visibility, accumulation, deletion propagation, byte-for-byte canonical immutability, and rejection of canonical fallback; all 91 test files (718 tests) pass in Vitest, tsc --noEmit passes (0 errors), npm run lint passes (0 errors), and compile_applet build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -665,6 +665,37 @@ Open questions: none
   - Kept build verification isolated to the candidate overlay materialized at verification time, ensuring canonical VFS remains strictly read-only until explicit commit.
 - Deviations: none
 - Verified: PASS — `npx vitest run src/services/agent/workspace/overlayBuildVerification.test.ts` (11 tests passed), `npx vitest run src/services/agent/tools.test.ts` (11 tests passed), `npx vitest run src/services/agent/workspace/overlayRunLifecycle.test.ts` (7 tests passed), `npx vitest run src/services/bundler/` (7 test suites, 78 tests passed), `npx vitest run src/services/agent/` (11 test suites, 75 tests passed), full test suite `npm test` (90 test suites, 708 tests passed), `npx tsc --noEmit` (0 errors), `npm run lint` (0 errors), and `compile_applet` passed cleanly.
+- Commit: pending
+- Open questions: none
+
+### [HOTFIX-127] WorkspaceOverlay Verification Consistency & Fail-Closed Hardening Audit — 2026-09-03
+- Prompt: Audit and harden all agent verification paths around the run-level WorkspaceOverlay. Confirm test and build verification evaluate the exact same candidate state, enforce fail-closed rejection when overlay context is missing without falling back to canonical VFS, ensure byte-for-byte canonical VFS immutability, and add audit regression test suite.
+- Files touched:
+  - `src/services/bundler/testRunner.ts` (modified)
+  - `src/services/bundler/testRunner.test.ts` (modified)
+  - `src/services/agent/tools.ts` (modified)
+  - `src/services/agent/workspace/overlayBuildVerification.test.ts` (modified)
+  - `src/services/agent/workspace/overlayVerificationConsistency.test.ts` (new)
+  - `AI_CHANGELOG.md` (modified)
+- Changed:
+  - Added overlay-aware test execution functions `runTestsFromOverlay(overlay)` and `runTestsDetailedFromOverlay(overlay)` in `src/services/bundler/testRunner.ts` with validation ensuring only valid WorkspaceOverlay instances can be passed.
+  - Audited and hardened `run_tests` and `verify_tests` in `src/services/agent/tools.ts` to fail closed with an explicit error when `context.overlay` is missing, eliminating silent fallback to `listFiles(projectId)`.
+  - Added unit test coverage for `runTestsFromOverlay` and `runTestsDetailedFromOverlay` in `src/services/bundler/testRunner.test.ts`.
+  - Created a comprehensive consistency audit regression test suite in `src/services/agent/workspace/overlayVerificationConsistency.test.ts` covering 8 essential invariant requirements:
+    - Requirement 1: `run_tests` evaluates candidate overlay modifications rather than canonical VFS.
+    - Requirement 2: `build_project` compiles candidate overlay modifications rather than canonical VFS.
+    - Requirement 3: `run_tests` and `build_project` both evaluate the exact same accumulated candidate state across sequential edits.
+    - Requirement 4: Deletions in the candidate overlay are respected by both tests and build verification without resurrection from canonical VFS.
+    - Requirement 5: Canonical VFS content is byte-for-byte identical before and after both test and build candidate verification.
+    - Requirement 6: Both verification paths evaluate the exact same `WorkspaceOverlay` instance from `ToolExecutionContext`.
+    - Requirement 7: Fail closed — both `run_tests` and `build_project` return explicit errors if `context.overlay` is missing.
+    - Requirement 8: No silent fallback — missing overlay in agent context rejects rather than reading from `listFiles`.
+  - Cleaned up unused imports across test files to maintain 0 ESLint errors.
+- Decisions:
+  - Maintained canonical VFS strictly read-only until explicit commit; all verification tools materialize directly from the run-level overlay.
+  - Verification paths fail closed immediately if called without active overlay context, completely preventing accidental execution against stale canonical disk state.
+- Deviations: none
+- Verified: PASS — `npx vitest run src/services/agent/workspace/overlayVerificationConsistency.test.ts` (8 tests passed), `npx vitest run src/services/agent/workspace/overlayRunLifecycle.test.ts` (7 tests passed), `npx vitest run src/services/agent/` (12 test suites, 83 tests passed), `npx vitest run src/services/bundler/` (7 test suites, 80 tests passed), full test suite `npm test` (91 test files, 718 tests passed), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` (0 errors), and `compile_applet` passed cleanly.
 - Commit: pending
 - Open questions: none
 
