@@ -1,5 +1,6 @@
 import { formatByteSize } from '../../../utils/formatters';
 import { resolvePath } from '../terminalTypes';
+import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILECONTENT_COMMANDS = new Set(['ls', 'cat', 'head', 'tail']);
