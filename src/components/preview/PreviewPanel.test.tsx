@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from 'vitest';
-import { buildBundledHtml, PreviewPanel } from './PreviewPanel';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { buildBundledHtml, PreviewPanel, hasJsxSyntax, hasNonRelativeImport, scriptNeedsBundling } from './PreviewPanel';
 import * as esbuild from 'esbuild-wasm';
 import { createVfsPlugin } from '../../services/bundler/esbuild.worker';
 import React from 'react';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
 
 describe('PreviewPanel script injection sanitization', () => {
+  afterEach(() => {
+    cleanup();
+  });
   it('escapes closing script tags case-insensitively in script code', () => {
     const raw = 'const a = "</script>"; const b = "</SCRIPT>"; const c = "</Script>"; const d = "</script type=";';
     const escaped = raw.replace(/<\/script>/gi, '<\\/script>');
@@ -124,36 +127,59 @@ describe('PreviewPanel script injection sanitization', () => {
     unmountStatic();
 
     // 2. Bundled path
-    const bundledFiles = [
-      {
-        path: '/package.json',
-        content: '{"dependencies": {}}',
-        type: 'file',
-        updatedAt: Date.now()
-      },
-      {
-        path: '/index.html',
-        content: '<!DOCTYPE html><html><head></head><body><div id="root"></div><script type="module" src="/src/main.ts"></script></body></html>',
-        type: 'file',
-        updatedAt: Date.now()
-      },
-      {
-        path: '/src/main.ts',
-        content: 'const bundledVar = "</script>"; console.log(bundledVar);',
-        type: 'file',
-        updatedAt: Date.now()
+    const originalWorker = (window as any).Worker;
+    class MockWorker {
+      constructor() {
+        setTimeout(() => this.onmessage?.({ data: { type: "READY" } } as any), 0);
       }
-    ];
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      terminate = vi.fn();
+      postMessage(data: any) {
+        if (data.type === 'BUILD') {
+          setTimeout(() => {
+            this.onmessage?.({
+              data: { id: data.id, type: 'SUCCESS', code: 'const bundledVar = "</script>"; console.log(bundledVar);' }
+            } as MessageEvent);
+          }, 0);
+        }
+      }
+    }
+    (window as any).Worker = MockWorker;
 
-    const { unmount: unmountBundled } = render(<PreviewPanel files={bundledFiles as any} />);
-    
-    await waitFor(() => {
-      const iframe = screen.getByTitle('Preview') as HTMLIFrameElement;
-      expect(iframe.getAttribute("srcdoc")).toContain('bundledVar = "<\\/script>";');
-    }, { timeout: 10000 });
+    try {
+      const bundledFiles = [
+        {
+          path: '/package.json',
+          content: '{"dependencies": {}}',
+          type: 'file',
+          updatedAt: Date.now()
+        },
+        {
+          path: '/index.html',
+          content: '<!DOCTYPE html><html><head></head><body><div id="root"></div><script type="module" src="/src/main.ts"></script></body></html>',
+          type: 'file',
+          updatedAt: Date.now()
+        },
+        {
+          path: '/src/main.ts',
+          content: 'const bundledVar = "</script>"; console.log(bundledVar);',
+          type: 'file',
+          updatedAt: Date.now()
+        }
+      ];
 
-    unmountBundled();
-  });
+      const { unmount: unmountBundled } = render(<PreviewPanel files={bundledFiles as any} />);
+      
+      await waitFor(() => {
+        const iframe = screen.getByTitle('Preview') as HTMLIFrameElement;
+        expect(iframe.getAttribute("srcdoc")).toContain('bundledVar = "<\\/script>";');
+      }, { timeout: 10000 });
+
+      unmountBundled();
+    } finally {
+      (window as any).Worker = originalWorker;
+    }
+  }, 25000);
 
   it('renders Tailwind v4 in static mode with type="text/tailwindcss" and browser CDN', async () => {
     const staticV4Files = [
@@ -415,6 +441,141 @@ describe('PreviewPanel script injection sanitization', () => {
         expect(screen.getByText('Runtime Error:')).toBeDefined();
         expect(screen.getByText('Legitimate Sandbox Error')).toBeDefined();
       });
+
+      unmount();
+    });
+  });
+
+  describe('Static fallback bundling detection and error guard', () => {
+    it('hasJsxSyntax detects JSX elements, fragments, self-closing tags and ignores strings and comparisons', () => {
+      expect(hasJsxSyntax('const el = <div className="test">Hello</div>;')).toBe(true);
+      expect(hasJsxSyntax('const el = <App foo="bar" />;')).toBe(true);
+      expect(hasJsxSyntax('const el = <><span>test</span></>;')).toBe(true);
+      expect(hasJsxSyntax('function MyComp() { return <h1>Title</h1>; }')).toBe(true);
+
+      // Vanilla JS: comparisons, strings, comments should be false
+      expect(hasJsxSyntax('if (a < b && c > d) { console.log(a); }')).toBe(false);
+      expect(hasJsxSyntax('const html = "<div class=\\"test\\">Hello</div>";')).toBe(false);
+      expect(hasJsxSyntax('const html = `<div>${count}</div>`;')).toBe(false);
+      expect(hasJsxSyntax('// return <Component />')).toBe(false);
+      expect(hasJsxSyntax('/* <div className="box"> */')).toBe(false);
+    });
+
+    it('hasNonRelativeImport detects bare specifiers and allows relative/URL imports', () => {
+      expect(hasNonRelativeImport('import { z } from "zod";')).toBe(true);
+      expect(hasNonRelativeImport('import React from "react";')).toBe(true);
+      expect(hasNonRelativeImport('import "normalize.css";')).toBe(true);
+      expect(hasNonRelativeImport('const pkg = require("lodash");')).toBe(true);
+      expect(hasNonRelativeImport('const m = await import("my-package");')).toBe(true);
+      expect(hasNonRelativeImport('export { foo } from "external-lib";')).toBe(true);
+
+      // Relative and URLs should be false
+      expect(hasNonRelativeImport('import { add } from "./math.js";')).toBe(false);
+      expect(hasNonRelativeImport('import { helper } from "../utils/helper.js";')).toBe(false);
+      expect(hasNonRelativeImport('import "/styles/main.css";')).toBe(false);
+      expect(hasNonRelativeImport('import confetti from "https://esm.sh/canvas-confetti";')).toBe(false);
+      expect(hasNonRelativeImport('import "http://localhost:3000/app.js";')).toBe(false);
+      expect(hasNonRelativeImport('import "data:text/javascript,console.log(1)";')).toBe(false);
+      expect(hasNonRelativeImport('const local = require("./local.js");')).toBe(false);
+
+      // Comments should be ignored
+      expect(hasNonRelativeImport('// import { z } from "zod";')).toBe(false);
+      expect(hasNonRelativeImport('/* require("zod"); */')).toBe(false);
+    });
+
+    it('scriptNeedsBundling returns true for JSX or bare imports, false for plain JS', () => {
+      expect(scriptNeedsBundling('import { z } from "zod";')).toBe(true);
+      expect(scriptNeedsBundling('function Button() { return <button>Click</button>; }')).toBe(true);
+      expect(scriptNeedsBundling('console.log("hello world"); import "./other.js";')).toBe(false);
+    });
+
+    it('renders a plain project with only relative imports and no package.json via static path unchanged', async () => {
+      const staticRelativeFiles = [
+        {
+          path: '/index.html',
+          content: '<!DOCTYPE html><html><head></head><body><h1>Static Relative</h1><script src="./app.js"></script></body></html>',
+          type: 'file',
+          updatedAt: Date.now()
+        },
+        {
+          path: '/app.js',
+          content: 'import { msg } from "./utils.js"; console.log(msg);',
+          type: 'file',
+          updatedAt: Date.now()
+        },
+        {
+          path: '/utils.js',
+          content: 'export const msg = "hello world";',
+          type: 'file',
+          updatedAt: Date.now()
+        }
+      ];
+
+      const { unmount } = render(<PreviewPanel files={staticRelativeFiles as any} />);
+
+      await waitFor(() => {
+        const iframe = screen.getByTitle('Preview') as HTMLIFrameElement;
+        expect(iframe).toBeDefined();
+        const srcdoc = iframe.getAttribute('srcdoc') || '';
+        expect(srcdoc).toContain('import { msg } from "./utils.js";');
+      });
+
+      unmount();
+    });
+
+    it('shows bundling required error card when static-path project contains a bare import', async () => {
+      const staticBareImportFiles = [
+        {
+          path: '/index.html',
+          content: '<!DOCTYPE html><html><head></head><body><div id="app"></div><script src="./app.js"></script></body></html>',
+          type: 'file',
+          updatedAt: Date.now()
+        },
+        {
+          path: '/app.js',
+          content: 'import { z } from "zod"; console.log(z);',
+          type: 'file',
+          updatedAt: Date.now()
+        }
+      ];
+
+      const { unmount } = render(<PreviewPanel files={staticBareImportFiles as any} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/bundling required/i).length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: /configure bundling/i })).toBeDefined();
+      });
+
+      // Confirm no blank preview iframe is mounted
+      expect(screen.queryByTitle('Preview')).toBeNull();
+
+      unmount();
+    });
+
+    it('shows bundling required error card when static-path project script contains JSX syntax', async () => {
+      const staticJsxFiles = [
+        {
+          path: '/index.html',
+          content: '<!DOCTYPE html><html><head></head><body><script src="./app.js"></script></body></html>',
+          type: 'file',
+          updatedAt: Date.now()
+        },
+        {
+          path: '/app.js',
+          content: 'function App() { return <div className="card">Hello JSX</div>; }',
+          type: 'file',
+          updatedAt: Date.now()
+        }
+      ];
+
+      const { unmount } = render(<PreviewPanel files={staticJsxFiles as any} />);
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/bundling required/i).length).toBeGreaterThan(0);
+        expect(screen.getByRole('button', { name: /configure bundling/i })).toBeDefined();
+      });
+
+      expect(screen.queryByTitle('Preview')).toBeNull();
 
       unmount();
     });

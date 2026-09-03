@@ -28,6 +28,69 @@ import { stripTailwindDirectives } from '../../services/bundler/esbuild.worker';
 import { EmptyState } from '../shared/EmptyState';
 import { QRCodeModal } from '../modals/QRCodeModal';
 
+export function hasJsxSyntax(code: string): boolean {
+  // Strip comments and string literals to avoid false positives in vanilla JS
+  const stripped = code
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/`(?:\\[\s\S]|[^`\\])*`/g, '""')
+    .replace(/'(?:\\[\s\S]|[^'\\])*'/g, '""')
+    .replace(/"(?:\\[\s\S]|[^"\\])*"/g, '""');
+
+  // Closing tags: </tag> or </>
+  if (/<\/[a-zA-Z][\w.:-]*\s*>|<\/\s*>/.test(stripped)) return true;
+  // Fragment open tag: <>
+  if (/<\s*>/.test(stripped)) return true;
+  // Self-closing tags: <Tag ... /> or <div ... />
+  if (/<[a-zA-Z][\w.:-]*(\s+[^>]*)?\/>/.test(stripped)) return true;
+  // JSX opening tag after return, =>, =, (, {, [, or comma
+  if (/(?:return|=>|=|\(|\{|\[|,)\s*<[a-zA-Z][\w.:-]*/.test(stripped)) return true;
+
+  return false;
+}
+
+export function hasNonRelativeImport(code: string): boolean {
+  const isRelativeOrUrl = (specifier: string): boolean => {
+    const s = specifier.trim();
+    return (
+      s.startsWith('./') ||
+      s.startsWith('../') ||
+      s.startsWith('/') ||
+      s.startsWith('http://') ||
+      s.startsWith('https://') ||
+      s.startsWith('data:')
+    );
+  };
+
+  const noComments = code
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ');
+
+  const importRegexes = [
+    /(?:^|[;\n])\s*import\b[^;]*?\bfrom\s*['"]([^'"]+)['"]/g,
+    /(?:^|[;\n])\s*import\s*['"]([^'"]+)['"]/g,
+    /(?:^|[;\n])\s*export\b[^;]*?\bfrom\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
+    /\brequire\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g
+  ];
+
+  for (const regex of importRegexes) {
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(noComments)) !== null) {
+      const specifier = match[1]?.trim();
+      if (specifier && !isRelativeOrUrl(specifier)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+export function scriptNeedsBundling(content: string): boolean {
+  return hasJsxSyntax(content) || hasNonRelativeImport(content);
+}
+
 export function buildBundledHtml(code: string, indexHtmlContent?: string): string {
   let finalHtml: string;
 
@@ -306,13 +369,35 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
           }
         });
 
+        const inlineScripts = doc.querySelectorAll('script:not([src])');
+        for (const inlineScript of Array.from(inlineScripts)) {
+          if (inlineScript.textContent && scriptNeedsBundling(inlineScript.textContent)) {
+            if (!active) return;
+            const msg = `Inline script in "${indexFile.path}" requires bundling because it contains JSX syntax or non-relative imports. Add a package.json to enable bundling.`;
+            setError(msg);
+            setLastBuildError(msg);
+            setStatus(null);
+            setPreviewHtml(null);
+            return;
+          }
+        }
+
         const scripts = doc.querySelectorAll('script[src]');
-        scripts.forEach(script => {
+        for (const script of Array.from(scripts)) {
           const src = script.getAttribute('src');
           if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('//')) {
             const targetPath = resolvePath(indexFile.path, src);
             const targetFile = files.find(f => f.path === targetPath);
             if (targetFile) {
+              if (scriptNeedsBundling(targetFile.content)) {
+                if (!active) return;
+                const msg = `The file "${targetPath}" requires bundling because it contains JSX syntax or non-relative imports. Add a package.json to enable bundling.`;
+                setError(msg);
+                setLastBuildError(msg);
+                setStatus(null);
+                setPreviewHtml(null);
+                return;
+              }
               const inlineScript = doc.createElement('script');
               if (script.getAttribute('type') === 'module') {
                 inlineScript.setAttribute('type', 'module');
@@ -322,7 +407,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
               script.replaceWith(inlineScript);
             }
           }
-        });
+        }
 
         let finalHtml = doc.documentElement.outerHTML;
         const doctype = doc.doctype;
@@ -612,6 +697,26 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
                   >
                     <Sparkles size={14} />
                     <span>{SUGGESTION_PROMPTS.ADD_INDEX_HTML}</span>
+                  </button>
+                }
+              />
+            ) : error && (error.includes('requires bundling') || error.includes('needs bundling')) ? (
+              <EmptyState
+                icon={<AlertCircle size={20} className="text-oxide" />}
+                badge="Bundling Required"
+                title="Bundling required"
+                description={error}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQueuedPrompt("Set up package.json and bundling for this project");
+                      setActiveTab('chat');
+                    }}
+                    className="w-full py-2.5 px-3 bg-accent text-accent-text-on font-mono font-bold text-xs rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Sparkles size={14} />
+                    <span>Configure Bundling</span>
                   </button>
                 }
               />

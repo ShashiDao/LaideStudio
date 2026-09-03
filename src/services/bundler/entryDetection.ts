@@ -39,37 +39,17 @@ export function detectBundledProject(files: FileItem[]): BundledProjectInfo {
   let customRoot = '';
   const explicitInputs: string[] = [];
 
-  // 1. Check package.json dependencies and devDependencies
+  // 1. Any project with /package.json needs the bundler
   if (pkgFile) {
-    try {
-      const pkg = JSON.parse(pkgFile.content);
-      const allDeps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
-      
-      const bundledDeps = [
-        'react',
-        'react-dom',
-        'vue',
-        'vite',
-        'svelte',
-        '@sveltejs/vite-plugin-svelte',
-        'solid-js',
-        'vite-plugin-solid',
-        '@vitejs/plugin-react',
-        '@vitejs/plugin-vue'
-      ];
-
-      for (const dep of bundledDeps) {
-        if (allDeps[dep]) {
-          isBundled = true;
-          break;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to parse package.json for bundle detection:', e);
-    }
+    isBundled = true;
   }
 
-  // 2. Check vite.config.{js,ts,mjs,cjs}
+  // 2. Any project containing .jsx or .tsx files needs the bundler
+  if (files.some(f => f.path.endsWith('.jsx') || f.path.endsWith('.tsx'))) {
+    isBundled = true;
+  }
+
+  // 3. Check vite.config.{js,ts,mjs,cjs}
   if (viteConfigFile) {
     isBundled = true;
     const content = viteConfigFile.content;

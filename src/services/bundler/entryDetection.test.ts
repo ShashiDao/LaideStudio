@@ -193,4 +193,62 @@ describe('detectBundledProject', () => {
     expect(info.entryPoint).toBeNull();
     expect(info.expectedEntries).toEqual(DEFAULT_EXPECTED_ENTRIES);
   });
+
+  it('bundles project when no framework is listed in package.json but a .tsx file is present', () => {
+    const files = makeFiles([
+      {
+        path: '/package.json',
+        content: JSON.stringify({ dependencies: { zod: '^3.22.0' } })
+      },
+      { path: '/src/main.tsx', content: 'import { z } from "zod"; console.log(z);' },
+      { path: '/index.html', content: '<div id="root"></div>' }
+    ]);
+    const info = detectBundledProject(files);
+    expect(info.isBundled).toBe(true);
+    expect(info.entryPoint).toBe('/src/main.tsx');
+  });
+
+  it('bundles project when a .tsx file is present even without package.json', () => {
+    const files = makeFiles([
+      { path: '/index.html', content: '<script type="module" src="/src/main.tsx"></script>' },
+      { path: '/src/main.tsx', content: 'console.log("tsx app");' }
+    ]);
+    const info = detectBundledProject(files);
+    expect(info.isBundled).toBe(true);
+    expect(info.entryPoint).toBe('/src/main.tsx');
+  });
+
+  it('treats any project with package.json as bundled even with non-framework dependencies', () => {
+    const files = makeFiles([
+      {
+        path: '/package.json',
+        content: JSON.stringify({ dependencies: { 'date-fns': '^2.30.0' } })
+      },
+      { path: '/src/main.js', content: 'console.log("app");' },
+      { path: '/index.html', content: '<div id="root"></div>' }
+    ]);
+    const info = detectBundledProject(files);
+    expect(info.isBundled).toBe(true);
+    expect(info.entryPoint).toBe('/src/main.js');
+  });
+
+  it('identifies plain project with only relative imports and no package.json as static', () => {
+    const files = makeFiles([
+      {
+        path: '/index.html',
+        content: '<!DOCTYPE html><html><body><script type="module" src="./app.js"></script></body></html>'
+      },
+      {
+        path: '/app.js',
+        content: 'import { helper } from "./utils.js"; helper();'
+      },
+      {
+        path: '/utils.js',
+        content: 'export function helper() { console.log("relative helper"); }'
+      }
+    ]);
+    const info = detectBundledProject(files);
+    expect(info.isBundled).toBe(false);
+    expect(info.entryPoint).toBeNull();
+  });
 });
