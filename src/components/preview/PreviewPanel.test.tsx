@@ -579,6 +579,31 @@ describe('PreviewPanel script injection sanitization', () => {
 
       unmount();
     });
+
+    it('renders Sandpack engine when selected or configured via defaultEngine', async () => {
+      const sampleFiles = [
+        {
+          path: '/index.html',
+          content: '<!DOCTYPE html><html><body><h1>Sandpack Test</h1></body></html>',
+          type: 'file',
+          updatedAt: Date.now()
+        }
+      ];
+
+      const { unmount } = render(<PreviewPanel files={sampleFiles as any} defaultEngine="sandpack" />);
+
+      expect(screen.getByTestId('sandpack-preview-pane')).toBeDefined();
+
+      // Switch back to bundler engine
+      const bundlerBtn = screen.getByRole('button', { name: /bundler/i });
+      fireEvent.click(bundlerBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTitle('Preview')).toBeDefined();
+      });
+
+      unmount();
+    });
   });
 });
 

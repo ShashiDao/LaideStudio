@@ -1,8 +1,8 @@
 ## Current State
-- Phase: HOTFIX-120
-- Last verified working: Full TypeScript typecheck passing (`npm run typecheck` / `tsc --noEmit`), `compile_applet` build succeeded, and `TerminalPrompt.tsx` `inputRef` typing updated to `React.RefObject<HTMLInputElement | null>`.
+- Phase: HOTFIX-122
+- Last verified working: `PreviewPane.tsx` and `PreviewPanel.tsx` integrated with CodeSandbox Sandpack (`@codesandbox/sandpack-react`) engine toggle alongside the offline ESBuild bundler; all 29 preview unit and integration tests pass (`npx vitest run src/components/preview/PreviewPane.test.tsx src/components/preview/PreviewPanel.test.tsx`), full repository typecheck passes (`tsc --noEmit` — 0 errors), and production build compiles cleanly.
 - Known issues / incomplete: none
-- Deviations from blueprint so far: Structure cleanup follow-up.
+- Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
   - `src/components/terminal/terminalExecutor.ts` (1365 lines) — Extract domain command executors (fs, git, npm, bisect) into separate handler files under `src/components/terminal/handlers/`.
   - `src/components/shared/FileTree.tsx` (1279 lines) — Extract tree node item rendering and search bar into `FileTreeNode.tsx` and `FileTreeSearch.tsx`.
@@ -14,7 +14,7 @@
   - `src/components/modals/DeployModal.tsx` (832 lines) — Extract Netlify and Vercel provider deployment workflows and status log stream into separate sub-components.
   - `src/components/chat/PatchReviewSheet.tsx` (811 lines) — Extract unified diff hunk viewer, file patch accordion, and batch approve/reject bar into `PatchDiffHunk.tsx` and `PatchReviewControls.tsx`.
   - `src/components/shared/LockScreen.tsx` (781 lines) — Extract vault setup form, passphrase unlock form, and BIP-39 recovery phrase wizard into separate sub-views.
-  - `src/components/preview/PreviewPanel.tsx` (765 lines) — Extract preview iframe wrapper, viewport scaling bar, and live console inspector drawer into dedicated sub-components.
+  - `src/components/preview/PreviewPanel.tsx` (870 lines) — Extract preview iframe wrapper, viewport scaling bar, and live console inspector drawer into dedicated sub-components.
   - `src/services/agent/ensemble.ts` (762 lines) — Extract candidate execution runner and arbiter judge prompt builder into separate sub-services under `src/services/agent/`.
   - `src/components/project/ProjectMetadataPanel.tsx` (761 lines) — Extract language distribution Recharts view, project statistics grid, and tag manager into modular panels.
   - `src/services/bundler/esbuild.worker.ts` (744 lines) — Extract VFS virtual plugin resolver and Tailwind CDN CSS transformer into separate helper modules.
@@ -39,7 +39,8 @@
 ## Archived Log Summary
 
 ### 2026-08-27
-- **TerminalPrompt inputRef RefObject Null Typing Follow-up & Bundled Project Detection Fix** (HOTFIX-120): [HOTFIX] Follow-up to the SettingsPanel and TerminalPanel file-split work: updated `inputRef` prop type in `TerminalPrompt.tsx` to `React.RefObject<HTMLInputElement | null>` to match `useRef<HTMLInputElement>(null)`. Updated `detectBundledProject` in `entryDetection.ts` to treat projects containing `/package.json` or `.jsx`/`.tsx` files as bundled (`isBundled = true`) regardless of hardcoded framework dependency names, and guarded static preview fallback in `PreviewPanel.tsx` against unbundled JSX and bare-specifier imports with a "Bundling Required" error card.
+- **Framework-Agnostic Bundled Project Detection & Static Preview Fallback Guard** (HOTFIX-121): Updated `detectBundledProject` in `entryDetection.ts` to treat projects containing `/package.json` or `.jsx`/`.tsx` files as bundled (`isBundled = true`) regardless of hardcoded framework dependency names, and guarded static preview fallback in `PreviewPanel.tsx` against unbundled JSX and bare-specifier imports with a "Bundling Required" error card.
+- **TerminalPrompt inputRef RefObject Null Typing Follow-up** (HOTFIX-120): Follow-up to the SettingsPanel and TerminalPanel file-split work: updated `inputRef` prop type in `TerminalPrompt.tsx` to `React.RefObject<HTMLInputElement | null>` to match `useRef<HTMLInputElement>(null)`.
 - **Mobile Coding Accessory Toolbar, Searchable Model Picker Bottom Sheet & Touch Polish** (HOTFIX-80): Implemented CodeMirror mobile coding toolbar pinned above virtual keyboard on phone viewports with quick symbols (`Tab`, `{`, `}`, `(`, `)`, `[`, `]`, `<`, `>`, `=>`, `;`, `'`, `"`, `=`) and `Undo`/`Redo` with `onMouseDown` preventDefault to prevent blurring editor selection.
 - **CreateProjectModal Mobile Bottom-Sheet Framing, Uniform Card Geometry & Haptics** (HOTFIX-79): Refactored `CreateProjectModal` dialog container to `fixed inset-x-0 bottom-0 z-50 max-h-[88vh] rounded-t-2xl sm:inset-auto sm:max-w-lg sm:rounded-2xl sm:max-h-[90vh]`, providing natural mobile bottom-sheet ergonomics with slide-in-from-bottom animation and centered desktop framing.
 - **Keyboard Dynamic Tab Bar Hiding, Thumb Ergonomics & Subcommand Tab Autocomplete** (HOTFIX-78): Added real-time virtual keyboard detection in `App.tsx` via `focusin`/`focusout` and `window.visualViewport` height resize tracking, hiding the bottom navigation bar (`<nav role="tablist">`) so the terminal prompt and accessory strip sit flush above the keyboard.
@@ -229,583 +230,7 @@
 
 ## Log
 
-### [HOTFIX-106] Honest Shell Messaging, Capabilities Command & Simulated Environment Transparency — 2026-09-01
-Prompt: Replace POSIX-mimicking command-not-found error with honest scope messaging, expand help/capabilities command detailing real vs. simulated execution, and make uname clearly simulated.
-Files touched:
-- `src/components/terminal/TerminalPanel.tsx` (modified)
-- `src/components/terminal/TerminalPanel.test.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Replaced POSIX error formatting `sh: command not found: <cmd>` with transparent browser shell messaging: `laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is`.
-- Added a dedicated `capabilities` command and expanded `help` to explicitly clarify what is real (VFS IndexedDB file operations, Web Worker isolated JS execution via sandboxRunner.ts, in-browser WebAssembly ESBuild, Vitest runner, offline vendoring) vs. what is simulated (no arbitrary binaries, no live npm/pip registry client).
-- Updated `uname` and `uname -a` easter eggs to clearly label the environment as `LAIDE-Browser-Shell (simulated environment)` and `LAIDE Browser Sandbox 1.0.0 (simulated environment; WebAssembly/Worker VFS)`.
-- Updated unit tests in `TerminalPanel.test.tsx` to verify honest error messages, the `capabilities` output breakdown, and simulated `uname` responses.
-Decisions:
-- Preserved all supported commands and syntax rules, scoping modifications strictly to user-facing transparency, manual text, and error clarity.
-Deviations: none
-Verified: `npm test` passed 78/78 suites (615 tests); `npm run typecheck` passed with 0 errors; `npx eslint` passed with 0 errors.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-105] Cryptographically Signed Provenance Proofs & Standalone Verifier — 2026-09-01
-Prompt: Implement cryptographically signed provenance proof export, verification, standalone zero-dependency verification script, and historical trust progression tracking.
-Files touched:
-- `src/services/provenance/signing.ts` (new)
-- `src/services/provenance/signing.test.ts` (new)
-- `public/verify-provenance.js` (new)
-- `src/components/modals/TrustReportModal.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Built `src/services/provenance/signing.ts` providing ECDSA P-256 (SHA-256) keypair management, encrypted private key storage in IndexedDB vault, signed JSON provenance artifact export, proof verification with tamper detection index, PR markdown summary generation, and historical trust progression calculation.
-- Created `public/verify-provenance.js` delivering a zero-dependency standalone Node.js/Browser verification module using standard Web Crypto (`crypto.subtle`) APIs.
-- Extended `TrustReportModal.tsx` with dedicated "Cryptographic Proof" and "History" tabs supporting proof export, public key export, artifact verification, standalone verifier download, and visual trust progression timelines.
-- Added comprehensive unit tests in `signing.test.ts` validating key generation, signing, chain verification, tampering detection, and compatibility with the standalone script.
-Decisions:
-- Used Web Crypto ECDSA P-256 with SHA-256 and JWK/DER encoding to guarantee browser and Node.js cross-compatibility with zero external dependencies.
-Deviations: none
-Verified: All 78 Vitest test suites (613 tests) passed; `npm run typecheck` passed with 0 errors; ESLint passed with 0 errors; production build verified via `compile_applet`.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-99] Add EditorTabs to Phone Mode Editor Overlay — 2026-08-31
-Prompt: Wrap the phone-mode Editor view in a flex column with EditorTabs matching the desktop tab strip layout.
-Files touched:
-- `src/App.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Wrapped full-screen phone mode Editor overlay in `<div className="absolute inset-0 z-10 flex flex-col overflow-hidden">`.
-- Added `<EditorTabs>` above `<div className="flex-1 relative overflow-hidden"><Editor ... /></div>` in the phone files tab overlay.
-Decisions:
-- Used existing EditorTabs component, openFileIds, activeFileId, and file action handlers already scoped in App.tsx.
-Deviations: none
-Verified: `compile_applet` passed; `lint_applet` passed with 0 errors; all Vitest test suites passing.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-98] Fix Cloudflare Publish Button Label Bug & Re-apply AI Trust Gutter — 2026-08-31
-Prompt: Merge two branches that had diverged — an external review's verified AI Trust Gutter feature (never successfully landed after 3 prior attempts, most recently HOTFIX-93 in a since-abandoned branch) and this branch's own progress through HOTFIX-97 — into one correct, current state. The external review also flagged that HOTFIX-97's self-reported test results didn't match an independent run.
-Files touched:
-- `src/components/modals/DeployModal.tsx` (modified)
-- `src/components/editor/EditorAiBlame.tsx` (modified)
-- `src/components/editor/EditorAiBlame.test.tsx` (modified)
-- `src/components/editor/Editor.tsx` (modified)
-Changed:
-- Fixed `DeployModal.tsx` line ~740: the Publish button's label used a 2-way ternary (`activeTab === 'netlify' ? 'Netlify' : 'Vercel'`) that was never extended when the Cloudflare tab was added, so selecting Cloudflare and clicking publish showed "Publish to Vercel." Every other `activeTab` branch in the same file already correctly used the 3-way form (confirmed by checking all 13 occurrences) — this was the one spot that got missed. Fixed to match the established pattern.
-- Re-applied `classifyLineTrust()` / `createAiTrustGutter()` in EditorAiBlame.tsx and the toolbar toggle in Editor.tsx (full feature description in the original HOTFIX-93 entry from the now-abandoned branch this was cherry-picked from). Diffed the current files against that branch first and confirmed HOTFIX-93 through 97 never touched these 3 files, so no merge conflicts existed — copied forward directly.
-Decisions:
-- Ran the full suite independently before making any change, rather than trusting HOTFIX-97's self-reported "77 suites / 559 tests, all passing." Found 75 suites / 558 passing, 1 real failure (the Cloudflare button bug above) — not a flaky/environmental failure, a genuine missed case. Corrected the "Current State" block's HOTFIX-97 claim rather than silently overwriting it, per the "if the log and the code disagree, flag it" rule.
-Deviations: none
-Verified: `tsc --noEmit` clean. `npm run build` clean (the db.ts INEFFECTIVE_DYNAMIC_IMPORT warning is pre-existing, confirmed via git stash against the unmodified baseline — not introduced here). Full suite: 75/75 files, 564/564 tests passing (559 baseline + 5 new gutter tests, with the 1 prior failure now fixed). Ran DeployModal.test.tsx in isolation post-fix: 7/7 passing, including the previously-failing Cloudflare test. eslint: 0 errors.
-Open questions: none
-
-### [HOTFIX-87] Escape Interpolated HTML in Editor AI Blame Popover & XSS Audit — 2026-08-30
-Prompt: Fix XSS risk in EditorAiBlame.tsx by HTML-escaping all interpolated fields, and audit editor and chat directories for other innerHTML instances.
-Files touched:
-- `src/components/editor/EditorAiBlame.tsx` (modified)
-- `src/components/editor/EditorAiBlame.test.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Implemented and exported `escapeHtml` utility in `src/components/editor/EditorAiBlame.tsx` escaping `&`, `<`, `>`, `"`, and `'` characters.
-- Applied `escapeHtml` to all interpolated variables in CodeMirror 6 hover tooltip popover DOM creation: `entry.model`, `entry.provider`, formatted timestamp `timeStr`, `entry.rationale`, `shortHash`, `testInfo.label`, and `testInfo.details`.
-- Audited `src/components/editor/` and `src/components/chat/` for any other `innerHTML`, `outerHTML`, or raw HTML insertions; verified that no other unescaped `innerHTML` instances exist.
-- Added comprehensive unit tests in `EditorAiBlame.test.tsx` validating `escapeHtml` correctness and ensuring adversarial XSS payloads (e.g., `<script>`, `<img onerror>`, `"><svg onload>`) in provenance metadata are neutralized.
-Decisions:
-- Preserved identical visual styling and layout in the AI blame popover while guaranteeing zero unescaped strings reach the privileged DOM tree.
-Deviations: none
-Verified: All 72 test suites (535 tests) pass cleanly with 0 failures; `lint_applet` reports 0 errors; `compile_applet` build succeeded.
-Open questions: none
-
-### [HOTFIX-86] Friendly LLM Error Normalization & Model Picker Experimental Badges — 2026-08-30
-Prompt: Translate raw provider error messages into friendly UI summaries with collapsible details and add experimental badges to the model picker.
-Files touched:
-- `src/services/llm/friendlyError.ts` (new)
-- `src/services/llm/friendlyError.test.ts` (new)
-- `src/components/modals/ModelPickerModal.tsx` (modified)
-- `src/components/modals/ModelPickerModal.test.tsx` (modified)
-- `src/components/chat/ChatPanel.tsx` (modified)
-- `src/components/chat/ChatPanel.test.tsx` (modified)
-- `src/components/shared/SettingsPanel.tsx` (modified)
-- `src/services/fs/markdownExport.test.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Implemented `toFriendlyErrorMessage`, `formatFriendlyErrorForChat`, and `parseFriendlyErrorFromMessage` in `src/services/llm/friendlyError.ts` normalizing raw HTTP/JSON errors across providers into human-readable summaries with direct action links and structured raw error tags.
-- Handled OpenRouter data-policy / guardrail restrictions with direct link to `https://openrouter.ai/settings/preferences`, rate limits (429), authentication/API key errors (401), model not found (404), and fallback generic error cards with collapsible raw technical details.
-- Updated `ChatPanel.tsx` and `SettingsPanel.tsx` to display friendly summaries and action buttons with togglable technical debug payloads.
-- Added visual "Experimental" amber badge chip to model cards in `ModelPickerModal.tsx` matching `-exp` or `exp-` identifiers (such as `google/gemini-2.0-flash-exp:free`) while keeping all models accessible.
-Decisions:
-- Encapsulated raw error metadata inside structured HTML comment markers within chat history strings so persisted session data maintains both human-readable clarity and full raw error debuggability without breaking schema backwards compatibility.
-Deviations: none
-Verified: Comprehensive unit tests in `friendlyError.test.ts`, `ModelPickerModal.test.tsx`, `ChatPanel.test.tsx`, and full repository test suite (72 test files, 532 tests) passed with 0 failures; `lint_applet` passed with 0 errors; `compile_applet` built cleanly.
-Open questions: none
-
-### [HOTFIX-85] Eliminate Ineffective Dynamic Imports in Bundler & Deployment Pipelines — 2026-08-29
-Prompt: Resolve INEFFECTIVE_DYNAMIC_IMPORT warnings for testRunner.ts and PreviewPanel.tsx.
-Files touched:
-- `src/services/provenance/provenance.ts` (modified)
-- `src/services/deploy/deployClient.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Converted dynamic import of `testRunner.ts` in `src/services/provenance/provenance.ts` (`runBackgroundTestsForProvenance`) to a top-level static import (`runProjectTestsDetailed`).
-- Converted dynamic import of `PreviewPanel.tsx` helpers in `src/services/deploy/deployClient.ts` (`packageProjectForDeployment`) to top-level static imports (`buildBundledHtml`, `detectProjectTailwindVersion`, `injectTailwindScriptIntoHtml`).
-- Updated `AI_CHANGELOG.md` reflecting the resolved bundling warnings and verification status.
-Decisions:
-- Option (a) (static imports) was chosen for both modules: `testRunner.ts` is already statically bundled into the main chunk by core modules (`TerminalPanel.tsx`, `agent/tools.ts`, `agent/ensemble.ts`, `provenance/bisect.ts`), and `PreviewPanel.tsx` is already statically imported by `App.tsx`. Static imports remove unnecessary dynamic import overhead without altering any runtime behavior.
-Deviations: none
-Verified: Ran `npm run build` to verify that both `[INEFFECTIVE_DYNAMIC_IMPORT]` warnings are gone; ran full test suite via vitest (71 test suites, 518 tests passed); verified `lint_applet` and `compile_applet` succeed with zero errors.
-Open questions: none
-
-### [HOTFIX-84] Merge Archived Changelog Summary & Remove CHANGELOG.md — 2026-08-29
-Prompt: Merge CHANGELOG.md condensed entries as Archived Log Summary section into AI_CHANGELOG.md and delete CHANGELOG.md.
-Files touched:
-- `AI_CHANGELOG.md` (modified)
-- `CHANGELOG.md` (deleted)
-Changed:
-- Consolidated 172 condensed historical entries from `CHANGELOG.md` into `AI_CHANGELOG.md` under a new `## Archived Log Summary` section situated between `## Current State` and `## Log`.
-- Confirmed no build, test, or source code references to `CHANGELOG.md` exist across the codebase.
-- Deleted `CHANGELOG.md` to establish a single active changelog file going forward while preserving `AI_CHANGELOG_ARCHIVE.md` untouched.
-Decisions:
-- Maintained exact date groupings and entry descriptions from the condensed log to ensure consistent grep-ability for past phase and hotfix labels.
-Deviations: none
-Verified: Grepped workspace to confirm zero build/test references to `CHANGELOG.md`; confirmed `AI_CHANGELOG.md` contains all archived entries; ran `lint_applet` and `compile_applet` successfully.
-Open questions: none
-
-### [HOTFIX-83] Fix Mobile Bottom Tab Bar Visibility on Terminal Focus — 2026-08-29
-Prompt: Fix invisible/missing tab switch buttons when opening the terminal tab.
-Files touched:
-- `src/App.tsx` (modified)
-- `src/components/terminal/TerminalPanel.tsx` (modified)
-- `src/App.test.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Removed erroneous `isKeyboardOpen ? 'hidden' : 'flex'` logic from the mobile `<nav>` tab bar in `App.tsx` that caused the tab switcher to vanish whenever the terminal input was focused.
-- Removed aggressive `autoFocus` and container-level focus hijack from `TerminalPanel.tsx` to prevent unexpected keyboard popups and viewport shifts on mobile devices.
-- Scoped the full-screen mobile editor view overlay to `activeTab === 'files'` so that switching tabs directly reveals the active view.
-- Updated `App.test.ts` with assertions verifying that the bottom tab navigation bar remains permanently visible and functional when switching tabs and interacting with inputs.
-Decisions:
-- The bottom navigation bar on mobile must remain persistently visible to guarantee users can always switch views without being trapped in any single tab.
-Deviations: none
-Verified: `npm test` running `App.test.ts` and `TerminalPanel.test.tsx` passed (32/32 tests); `lint_applet` passed with 0 errors; `compile_applet` compiled successfully.
-Open questions: none
-
-### [HOTFIX-82] Official LAIDE Studio Vector Logo Integration — 2026-08-29
-Prompt: Add provided SVG monogram logo everywhere in the application.
-Files touched:
-- `public/icon.svg` (modified)
-- `src/components/shared/LaideLogo.tsx` (new)
-- `src/components/shared/LaideLogo.test.tsx` (new)
-- `src/components/shared/TopStrip.tsx` (modified)
-- `src/components/shared/LockScreen.tsx` (modified)
-- `src/components/shared/InstallPrompt.tsx` (modified)
-- `src/components/shared/SettingsPanel.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Replaced `public/icon.svg` with the user-provided vector monogram logo (dark rounded canvas, gold inner shield, and stylized geometric "LS" strokes).
-- Created reusable `<LaideLogo />` React component in `src/components/shared/LaideLogo.tsx` supporting custom sizing, optional background, accessibility labels, and standard SVG props.
-- Integrated the new logo into `TopStrip.tsx` (top application header), replacing the placeholder terminal square.
-- Added the logo to `LockScreen.tsx` (intro onboarding screen, passphrase initialization, and unlock vault headers).
-- Updated `InstallPrompt.tsx` (PWA install card) and `SettingsPanel.tsx` (settings header & sidebar brand footer).
-Decisions:
-- Encapsulated SVG vectors in a shared component for crisp rendering across all screen densities and themes without pixel distortion or external asset fetch delays.
-Deviations: none
-Verified: Unit tests in `LaideLogo.test.tsx`, `TopStrip.test.tsx`, and `LockScreen.test.tsx` passed (18/18); `lint_applet` passed with 0 errors; `compile_applet` compiled cleanly.
-Open questions: none
-
-### [HOTFIX-81] Snapshot Restore UI, Version History Modal & Deploy Token Deletion — 2026-08-29
-Prompt: Expose Snapshot restore / "Undo AI changes" via UI modal and wire deploy token deletion in DeployModal.
-Files touched:
-- `src/components/modals/SnapshotsModal.tsx` (new)
-- `src/components/modals/SnapshotsModal.test.tsx` (new)
-- `src/components/modals/DeployModal.tsx` (modified)
-- `src/components/modals/DeployModal.test.tsx` (modified)
-- `src/components/modals/FindWhatBrokeModal.tsx` (modified)
-- `src/components/modals/FindWhatBrokeModal.test.tsx` (modified)
-- `src/components/project/ProjectActionsMenu.tsx` (modified)
-- `src/components/project/ProjectFilesPane.tsx` (modified)
-- `src/App.tsx` (modified)
-- `AI_CHANGELOG.md` (new)
-Changed:
-- Built `SnapshotsModal.tsx` displaying all IndexedDB saved project snapshots with relative timestamps, file breakdown, one-click manual snapshot creation, destructive restore confirmation dialog, individual snapshot deletion, and clear all.
-- Added quick "Undo Last AI Changes" hero action banner in `SnapshotsModal` for immediate rollback of the most recent agent patch batch.
-- Wired "Snapshots & Version History" menu item into `ProjectActionsMenu.tsx` and connected modal lifecycle across `App.tsx` and `useModalState`.
-- Enhanced `FindWhatBrokeModal.tsx` regression view to offer direct snapshot rollback before the offending patch and added a button to open full version history.
-- Added "Revoke / Delete Token" action button with confirmation state to `DeployModal.tsx` utilizing `deleteDeployToken()`.
-Decisions:
-- Enforced strict confirmation dialogs before snapshot restore and deletion to prevent accidental workspace data loss.
-- Managed modal open state cleanly through React state and callbacks to comply with React 19 linting standards.
-Deviations: none
-Verified: Unit test suites in `SnapshotsModal.test.tsx`, `DeployModal.test.tsx`, `FindWhatBrokeModal.test.tsx`, and `ProjectActionsMenu.test.tsx` (23 tests total) all passed; `lint_applet` passed with 0 errors; `compile_applet` compiled successfully.
-Open questions: none
-
-### [HOTFIX-88] Secure Terminal node/eval with Web Worker Sandbox — 2026-08-30
-Prompt: Route terminal node/eval/run commands through isolated Web Worker sandbox instead of direct main-thread execution.
-Files touched:
-- `src/services/bundler/sandboxRunner.ts` (new)
-- `src/services/bundler/sandboxRunner.test.ts` (new)
-- `src/components/terminal/TerminalPanel.tsx` (modified)
-- `src/components/terminal/TerminalPanel.test.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Extracted terminal code evaluation into a dedicated Web Worker sandbox via Blob URL (`src/services/bundler/sandboxRunner.ts`), closing the main-thread `new Function` escape hatch that allowed access to `window` and `document`.
-- Mocked out `sandboxRunner` in `TerminalPanel.test.tsx` to maintain existing tests without depending on happy-dom Web Worker polyfills, preserving exact UX logic tests.
-- Formatted output formatting identical to previous behavior by serializing `fakeConsole` streams in Web Worker and mapping `FileItem` payloads safely over `postMessage`.
-Decisions:
-- Stripped non-transferable data (like methods or extraneous fields) from `files` array inside `TerminalPanel` before passing via `postMessage` to guarantee fast, safe serialization to the worker.
-- Applied exact same 30-second execution timeout guard and cleanup behavior as `runProjectTests` worker to prevent infinite loops in terminal.
-Deviations: none
-Verified: `TerminalPanel.test.tsx` and `sandboxRunner.test.ts` unit tests pass cleanly. `npm run lint` and `npm run build` succeed with 0 errors.
-Open questions: none
-
-### [HOTFIX-89] Add Strict Content-Security-Policy to index.html — 2026-08-30
-Prompt: Add a strict CSP meta tag to index.html, auditing and allowing all external network destinations, and denying everything else by default.
-Files touched:
-- `index.html` (modified)
-Changed:
-- Added `<meta http-equiv="Content-Security-Policy">` with `default-src 'none'`.
-- Allowed external LLM endpoints (Google, Anthropic, OpenAI, OpenRouter, Groq), GitHub API, Deploy endpoints (Netlify, Vercel), and bundler CDN dependencies (esm.sh, jsdelivr, tailwindcss) in `connect-src`.
-- Allowed `blob:` and `data:` for workers, iframes, and image sources as required by the bundler/preview.
-Decisions:
-- Restricting `connect-src` exactly to the audited list means custom user-configured OpenAI-compatible endpoints or custom MCP servers (other than localhost/127.0.0.1) will be blocked.
-- Required adding `'unsafe-eval'` to `script-src` because `esbuild-wasm` needs it to compile and instantiate WebAssembly, and `sandboxRunner.ts` evaluates code via `new Function` in workers.
-- Required adding `'unsafe-inline'` to `script-src` because the `PreviewPanel` injects user-authored application code via `srcDoc`, generating inline scripts that cannot run otherwise.
-Deviations: none
-Verified: `npm run build` succeeds, `npm run lint` succeeds.
-Open questions: The strict `connect-src` inheritance on the un-sandboxed `srcDoc` iframe prevents user-authored preview apps from fetching from external APIs (e.g., `https://pokeapi.co`). To fix this, either `connect-src` needs `https:` or the preview iframe must be sandboxed.
-
-### [HOTFIX-90] Standardize on "laide_" Storage Prefix & Clean Legacy Fallbacks — 2026-08-30
-Prompt: Standardize on "laide_" prefix across all localStorage/sessionStorage keys, add one-time on-boot migration copying old keys byte-for-byte and deleting old keys, update all read/write sites, and remove dead fallback branches.
-Files touched:
-- `src/utils/storageMigration.ts` (new)
-- `src/utils/storageMigration.test.ts` (new)
-- `src/db.ts` (modified)
-- `src/store.ts` (modified)
-- `src/App.tsx` (modified)
-- `src/hooks/useModalState.ts` (modified)
-- `src/components/shared/SettingsPanel.tsx` (modified)
-- `src/components/shared/InstallPrompt.tsx` (modified)
-- `src/components/modals/GithubImportModal.tsx` (modified)
-- `src/components/modals/GithubImportModal.test.ts` (modified)
-- `src/components/modals/GithubPushModal.tsx` (modified)
-- `src/components/modals/GithubPushModal.test.ts` (modified)
-- `src/services/security/lockConfig.ts` (modified)
-- `src/services/security/backup.ts` (modified)
-- `src/services/security/backup.test.ts` (modified)
-- `src/services/github/githubClient.ts` (modified)
-- `src/services/deploy/deployClient.ts` (modified)
-- `src/services/deploy/deployClient.test.ts` (modified)
-- `src/services/bundler/previewCapture.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Created `migrateLocalStorage()` utility in `src/utils/storageMigration.ts` that iterates `localStorage` and `sessionStorage`, copies any `xiom_` prefixed keys to `laide_` byte-for-byte without altering encryption payloads, and removes the old keys.
-- Wired `migrateLocalStorage()` into `migrateXiomToLaide()` in `src/db.ts` to run automatically before app rendering.
-- Migrated all read and write calls across Zustand store, settings panel, modals, GitHub client, deploy client, backup service, lock config, and preview capture scripts to use `laide_` exclusively.
-- Removed legacy fallback read chains (e.g., `localStorage.getItem('laide_...') || localStorage.getItem('xiom_...')`).
-Decisions:
-- Preserved existing ciphertext as-is without re-encryption during key rename since the payload data is identical.
-- Maintained fallback protection in migration utility so existing `laide_` values are not overwritten if already set.
-Deviations: none
-Verified: All 74 test suites (541 unit and integration tests) pass; `lint_applet` reports 0 errors; `compile_applet` compiles cleanly.
-Open questions: none
-
-
-### [HOTFIX-91] Migrate Encrypted Tokens from localStorage to IndexedDB — 2026-08-30
-Prompt: examine the existing Dexie/IndexedDB vault schema and crypto module (src/services/security/crypto.ts and related) and decide whether to (a) migrate these specific ciphertext values into the existing IndexedDB vault store for consistency with the documented model.
-Files touched:
-- `src/db.ts` (modified)
-- `src/components/shared/SettingsPanel.tsx` (modified)
-- `src/hooks/useModalState.ts` (modified)
-- `src/components/modals/DeployModal.tsx` (modified)
-- `src/components/modals/GithubImportModal.test.ts` (modified)
-- `src/components/modals/GithubPushModal.test.ts` (modified)
-- `src/services/github/githubClient.ts` (modified)
-- `src/services/deploy/deployClient.ts` (modified)
-- `src/services/deploy/deployClient.test.ts` (modified)
-- `src/services/security/backup.ts` (modified)
-- `src/services/security/backup.test.ts` (modified)
-Changed:
-- Added `SecureToken` interface and `secureTokens` table to `LaideDatabase` schema (bumped version to 5).
-- Expanded `migrateXiomToLaide()` to dynamically move `laide_github_pat`, `laide_netlify_token`, and `laide_vercel_token` from `localStorage` to `db.secureTokens` and delete old localStorage keys automatically on startup.
-- Refactored `githubClient`, `deployClient`, `SettingsPanel`, `backup` service, and relevant modals to read/write from `db.secureTokens` via Dexie asynchronously.
-Decisions:
-- Persisted tokens as strings in IndexedDB in their exact AES-GCM encrypted format (without decrypting and re-encrypting), avoiding any user re-auth or key re-derivation.
-- Avoided mutating `localStorage` keys for settings that are not sensitive (like `laide_custom_instructions` or `laide_active_profile_id`).
-Deviations: none
-Verified: All 74 test suites pass, fixing documentation discrepancy where API keys were claimed to be in IndexedDB but were in localStorage.
-Open questions: none
-
-### [HOTFIX-92] Remove Unsafe-Inline from CSP Script-Src & Add CSP Suite — 2026-08-30
-Prompt: remove unnecessary 'unsafe-inline' from index.html CSP script-src directive after verifying codebase needs, rewrite test-csp.js into a proper Vitest test checking CSP structure.
-Files touched:
-- `index.html` (modified)
-- `test-csp.js` (deleted)
-- `src/services/security/csp.test.ts` (new)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Audited repository for dynamic script tags or inline handlers that could require `script-src 'unsafe-inline'`; confirmed none exist in the outer application document.
-- Removed `'unsafe-inline'` from `script-src` in `index.html`'s `Content-Security-Policy` meta tag, hardening against XSS/DOM injection while retaining `'self' 'unsafe-eval' blob:`.
-- Replaced root `test-csp.js` with structured Vitest test suite in `src/services/security/csp.test.ts` parsing directives and verifying `default-src 'none'`, `script-src` restrictions, `connect-src` origins, and asset sandbox controls.
-Decisions:
-- Placed the CSP test under `src/services/security/csp.test.ts` to adhere to repository conventions for security tests.
-- Verified that preview iframe bundling and worker executions operate inside isolated iframe blob documents/Workers and do not affect the main window's CSP policy.
-Deviations: none
-Verified: All 75 test suites (546 tests) pass via `npx vitest run`; linter passes with 0 errors; `compile_applet` builds cleanly.
-Open questions: none
-
-### [HOTFIX-93] Add Create New Repository Option to GitHub Push Modal — 2026-08-31
-Prompt: Add a "Create new repository" option to the GitHub push feature in LAIDE Studio with githubClient method, modal toggle, conditional inputs, 422 collision handling, and tests.
-Files touched:
-- `src/services/github/githubClient.ts` (modified)
-- `src/components/modals/GithubPushModal.tsx` (modified)
-- `src/services/github/githubClient.test.ts` (modified)
-- `src/components/modals/GithubPushModal.test.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Added `createRepo(name, options)` to `GithubClient` supporting personal (`/user/repos`) and organization (`/orgs/{org}/repos`) endpoints with `auto_init: true`.
-- Added a segmented mode toggle in `GithubPushModal` switching between "Push to existing repository" and "Create new repository".
-- Rendered Repository Name, Description, Visibility (Private default / Public), and optional Organization inputs for new repository mode.
-- Orchestrated the push workflow to call `createRepo` first in new repo mode, skip the redundant 404 validation, map created repo metadata, and handle 422 name collisions with clear inline guidance.
-Decisions:
-- Preserved existing "Push to existing repository" behavior and decrypted PAT access via `createGithubClient(keys)` without alterations.
-- Reused existing success summary view with the added direct repository URL link alongside the PR comparison button.
-Deviations: none
-Verified: All 75 test suites (552 tests) pass via `npx vitest run`; `lint_applet` reports 0 errors; `compile_applet` compiles cleanly.
-Open questions: none
-
-### [HOTFIX-94] Fix Repository Initialization Race Condition on Create Repo Push — 2026-08-31
-Prompt: Fix a race condition in the "Create new repository" GitHub push flow by adding a retry loop before getBranch.
-Files touched:
-- `src/components/modals/GithubPushModal.tsx` (modified)
-- `src/components/modals/GithubPushModal.test.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Added retry loop (up to 5 attempts, 1s delay) for `client.getBranch()` immediately after `client.createRepo()` when `mode === 'create'`.
-- Updated `setProgress` on each attempt to indicate repository initialization status ("Waiting for repository to initialize... (attempt N/5)").
-- Throws clear actionable error if all retries fail, directing user to wait and click push again.
-- Preserved untouched the existing branch, tree, blob, and commit creation flows and the existing repository push mode.
-Decisions:
-- Maintained exact 1-second fixed delay for retries to keep implementation robust and responsive.
-- Added comprehensive unit test in `GithubPushModal.test.ts` mocking a 404 response on the first `getBranch` call followed by a 200 response on the second attempt.
-Deviations: none
-Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` passed 10/10 tests; `lint_applet` reported 0 errors; `compile_applet` compiled cleanly.
-Open questions: none
-
-### [HOTFIX-95] Extend Retry Coverage for Repo Initialization Race Condition — 2026-08-31
-Prompt: Fix the remaining race condition in the "Create new repository" GitHub push flow by extending the retry loop to cover getCommit and getRepoTree.
-Files touched:
-- `src/components/modals/GithubPushModal.tsx` (modified)
-- `src/components/modals/GithubPushModal.test.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Removed duplicate `client.getBranch` call outside the retry loop for `mode === 'create'`.
-- Restructured `baseCommitSha`, `baseTreeSha`, and `treeData` declaration to be accessible outside the `if (mode === 'create')` block.
-- Expanded the existing retry loop (for `mode === 'create'`) to attempt `getBranch`, `getCommit`, and `getRepoTree` in sequence. The loop only marks success if all three network requests resolve without throwing a 404.
-- Ensured the "Push to existing repository" mode strictly executes its normal 1-pass initialization without any polling/retry behavior.
-Decisions:
-- Grouped the dependent data retrievals (branch ref -> commit tree -> tree contents) under the same exception handler within the retry loop since a replication delay can cause any of these to be temporarily "not found".
-Deviations: none
-Verified: `npx vitest run src/components/modals/GithubPushModal.test.ts` passed 11/11 tests; `lint_applet` reported 0 errors; `compile_applet` compiled cleanly.
-Open questions: none
-
-### [HOTFIX-96] Add Searchable Repository Picker to Push to Existing Repo — 2026-08-31
-Prompt: Add a repository picker to the "Push to existing repository" mode in LAIDE Studio, replacing manual owner/repo typing with a searchable dropdown.
-Files touched:
-- `src/services/github/githubClient.ts` (modified)
-- `src/components/modals/GithubPushModal.tsx` (modified)
-- `src/components/modals/GithubPushModal.test.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Exported `GithubTreeResponse` and ensured `GithubRepo` includes `full_name`, `owner.login`, `name`, `default_branch`, and `private`.
-- Integrated `client.listRepos()` on modal load when in existing mode to populate available repositories list.
-- Replaced separate owner/repo text fields with a custom searchable combobox supporting client-side filtering, automatic owner/repo/default_branch population, and a manual typing fallback option.
-- Maintained mobile ergonomics with >=44px touch targets and click-outside dropdown closure.
-Decisions:
-- Built custom lightweight combobox using standard React state and hooks without adding external UI dependencies.
-- Retained full manual typing support when repos fail to fetch or when a non-listed repository is typed.
-Deviations: none
-Verified: Full test suite passing (75/75 test files, 556/556 tests); `lint_applet` passed with 0 errors; `compile_applet` build succeeded.
-Open questions: none
-
-
-
-### [HOTFIX-97] Add Cloudflare Pages to Deployment Providers — 2026-08-30
-Prompt: Add Cloudflare Pages as a third deploy provider alongside Netlify and Vercel using the exact same structural patterns.
-Files touched:
-- `src/services/deploy/deployClient.ts` (modified)
-- `src/services/deploy/deployClient.test.ts` (modified)
-- `src/components/modals/DeployModal.tsx` (modified)
-- `src/components/modals/DeployModal.test.tsx` (modified)
-Changed:
-- Implemented `deployToCloudflarePages` using the Cloudflare Direct Upload REST API via `FormData` mimicking Netlify and Vercel conventions.
-- Added support for a secondary vault secret (`cloudflare_account_id`) to the `saveDeployToken`, `getDeployToken`, and `deleteDeployToken` crypto helpers.
-- Added a new Cloudflare tab to `DeployModal.tsx` with inputs for both API Token and Account ID, utilizing the cached vault secrets on initialization.
-- Added unit tests mimicking existing deployments and updated `DeployModal.test.tsx` to assert new Cloudflare UI states and successful deployment mocks.
-Decisions:
-- Cloudflare Pages deployments require both an API Token and an Account ID. Both are stored securely via AES-GCM encrypted vault using the existing `db.secureTokens` API.
-Deviations: none
-Verified: `vitest` pass for all modified code blocks; `compile_applet` finishes completely.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-100] Single-Pass ZIP Decompression & GitHub Archive Streamlining — 2026-08-31
-Prompt: Replace sequential per-file GitHub import with single-archive zipball download, and optimize ZIP import to a single decompression pass with immediate user feedback toast.
-Files touched:
-- `src/services/github/githubClient.ts` (modified)
-- `src/services/github/githubClient.test.ts` (modified)
-- `src/services/fs/zipImport.ts` (modified)
-- `src/services/fs/zipImport.test.ts` (modified)
-- `src/components/modals/GithubImportModal.tsx` (modified)
-- `src/components/modals/GithubImportModal.test.ts` (modified)
-- `src/hooks/useFileOperations.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Added `getRepoArchive` method to `GithubClient` fetching repository zipball via `GET /repos/{owner}/{repo}/zipball/{ref}`.
-- Refactored `GithubImportModal` to fetch the complete repo archive in a single request and extract via `importZip`, removing per-file round-trips and concurrency batching.
-- Replaced double-decoding in `zipImport.ts` (`async('string')` + `async('base64')`) with a single `entry.async('uint8array')` pass decoded locally via `TextDecoder` or `uint8ArrayToBase64`.
-- Added immediate feedback toast upon file drop/selection in `useFileOperations.ts` before asynchronous extraction begins.
-- Integrated archive wrapper folder prefix stripping in `zipImport.ts` to preserve correct top-level project paths.
-Decisions:
-- Stripped common top-level repository wrapper folders directly from archive entries during decompression to maintain fidelity for projects where all files reside in a specific subfolder.
-- Used chunked `String.fromCharCode` in `uint8ArrayToBase64` to prevent call-stack overflow on large binary assets.
-Deviations: none
-Verified: All 75 test suites (570 tests) passing; targeted test suite (`zipImport.test.ts`, `GithubImportModal.test.ts`, `githubClient.test.ts`) passing with 150+ files integrity tests; `compile_applet` and `lint_applet` completed with 0 errors.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-101] Isolated Worker Sandbox Security Boundary — 2026-09-01
-Prompt: Harden arbitrary JS execution in sandboxRunner.ts with a real security boundary, evaluate iframe vs worker shadowing approaches, and add security assertions.
-Files touched:
-- `src/services/bundler/sandboxRunner.ts` (modified)
-- `src/services/bundler/sandboxRunner.test.ts` (modified)
-- `src/components/terminal/TerminalPanel.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Implemented multi-layered ambient global neutralization and Proxy security traps on `self`, `globalThis`, `WorkerGlobalScope.prototype`, and `DedicatedWorkerGlobalScope.prototype` inside the worker script.
-- Neutralized storage (`indexedDB`, `caches`, `openDatabase`), network (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`), sub-worker (`Worker`, `SharedWorker`, `serviceWorker`), messaging (`BroadcastChannel`, `postMessage`), and execution (`importScripts`) APIs with immediate descriptive `SecurityError` exceptions on property access/invocation.
-- Secured runner parameter scope by explicitly injecting sanitized proxies for `self`, `globalThis`, `window`, and individual dangerous global identifiers.
-- Added comprehensive unit tests in `sandboxRunner.test.ts` verifying immediate `SecurityError` throws when attempting `self.indexedDB.open`, `fetch`, `self.caches.open`, `self.importScripts`, `XMLHttpRequest`, or `self.postMessage`.
-- Updated `TerminalPanel.tsx` help documentation and welcome banner to accurately reflect isolated Web Worker sandbox guarantees without overclaiming WASM.
-Decisions:
-- Chose Approach (b) (layered worker global neutralization and scope proxy traps): allows preserving background thread execution with reliable 30s timeout interruptibility via `worker.terminate()` without blocking the UI event loop, while avoiding Chromium/WebKit security restrictions on spawning Workers from opaque-origin `srcdoc` iframes.
-- Standardized on immediate `SecurityError` exceptions upon accessing or invoking restricted ambient capabilities for consistent error attribution.
-Deviations: none
-Verified: All 75 test suites (579 tests) passing; `sandboxRunner.test.ts` (11/11 tests) and `TerminalPanel.test.tsx` (30/30 tests) passing; `lint_applet` clean (0 errors); `compile_applet` build succeeded.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-102] Lockfile Integrity Verification & Offline Package Vendoring — 2026-09-01
-Prompt: Implement dependency lockfile SHA-256 integrity verification, local package vendoring for zero-network builds, and npm terminal commands.
-Files touched:
-- `src/services/bundler/lockfile.ts` (new)
-- `src/services/bundler/lockfile.test.ts` (new)
-- `src/services/bundler/esbuild.worker.ts` (modified)
-- `src/services/bundler/esbuild.worker.test.ts` (modified)
-- `src/services/bundler/bundler.ts` (modified)
-- `src/components/terminal/TerminalPanel.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Implemented `.laide/lockfile.json` parser, serializer, and SHA-256 integrity checker in `lockfile.ts` with pure JS fallback and sorted deterministic formatting.
-- Added dependency integrity verification in `esbuild.worker.ts` VFS plugin: records SHA-256 hashes on first download and aborts builds with `[SECURITY INTEGRITY MISMATCH]` if remote bytes change or are tampered with.
-- Added vendored package resolution in `esbuild.worker.ts` checking `/vendor/<pkg>.js` to resolve bare imports locally with 0 network calls.
-- Integrated `npm vendor <pkg>`, `vendor <pkg>`, `npm update-lock [pkg]`, and `lockfile [update|status]` shell commands in `TerminalPanel.tsx` for vendoring and lock management.
-- Extended unit tests in `lockfile.test.ts` and `esbuild.worker.test.ts` covering hashing, lockfile round-trips, mismatch rejections, and zero-network vendor builds.
-Decisions:
-- Standardized lockfile location at `/.laide/lockfile.json` (with fallback discovery for `lockfile.json` and `.lockfile.json`) matching the `.laide/` project metadata directory convention.
-- Vendored files are placed under `/vendor/<pkg>.js` (and `@scope/pkg.js`), allowing full transparency and direct in-editor inspection.
-Deviations: none
-Verified: All 76 test suites (592 tests) passing; `lockfile.test.ts` (11/11 tests) and `esbuild.worker.test.ts` (34/34 tests) passing; `lint_applet` clean (0 errors); `compile_applet` build succeeded.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-103] Opt-In Offline WebGPU In-Browser LLM Provider — 2026-09-01
-Prompt: Add an opt-in offline model provider using WebLLM via WebGPU, running a compact instruction-tuned model with weight caching, feature detection, and clear UI notices.
-Files touched:
-- `src/services/llm/providers/webllm.ts` (new)
-- `src/services/llm/providers/webllm.test.ts` (new)
-- `src/services/llm/factory.ts` (modified)
-- `src/services/llm/factory.test.ts` (modified)
-- `src/services/llm/modelDiscovery.ts` (modified)
-- `src/services/llm/modelDiscovery.test.ts` (modified)
-- `src/components/shared/SettingsPanel.tsx` (modified)
-- `src/components/shared/QuickConnectSheet.tsx` (modified)
-- `src/components/modals/ModelPickerModal.tsx` (modified)
-- `package.json` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Added `@mlc-ai/web-llm` integration in `webllm.ts` conforming directly to `LLMAdapter` with streaming support, token counting, structured tool calls, and text-based JSON/XML tool-call fallback parsing.
-- Configured default recommended model: `Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC` (~1.1 GB download, ~1.4 GB VRAM) for best code reasoning and patch adherence on mid-range laptop integrated GPUs, along with lightweight alternatives (`Llama-3.2-1B`, `SmolLM2-1.7B`, `Qwen2.5-Coder-0.5B`).
-- Added WebGPU device capability detection (`checkWebGPUSupport()`) surfacing GPU vendor/driver status or actionable browser requirements if unavailable.
-- Integrated weight caching and cache lifecycle management via browser Cache API / OPFS (`isModelCachedInBrowser`, `deleteCachedOfflineModel`), ensuring weights are never downloaded without explicit user initiation and work fully offline once cached.
-- Updated `factory.ts` and `modelDiscovery.ts` to seamlessly route `webllm` profiles into the existing agent loop, tool execution, and patch application flows without code path divergence.
-- Added visual warnings in `SettingsPanel`, `QuickConnectSheet`, and `ModelPickerModal` clearly identifying offline models as lower-capability and slower than hosted frontier models.
-- Added unit tests in `webllm.test.ts`, `factory.test.ts`, and `modelDiscovery.test.ts` with comprehensive engine mocks.
-Decisions:
-- Selected `Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC` as default recommended offline model: it fits well within the <2GB threshold (~1.1GB weights download), requires only ~1.4GB GPU memory (comfortably executable on Intel Iris Xe, Apple Silicon, or AMD Radeon integrated GPUs), and exhibits superior code syntax generation and diff formatting compared to generic non-coder models.
-- Maintained zero API key requirement for offline provider while keeping all profile persistence, model discovery, and agent tool execution compatible with standard connection profiles.
-Deviations: none
-Verified: All 77 test suites (605 tests) passing; `webllm.test.ts` (11/11 tests), `factory.test.ts` (3/3 tests), `modelDiscovery.test.ts` (11/11 tests) passing; production build verified clean with `compile_applet`.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-104] GitHub Actions CI Workflow, Typecheck Script & Status Badge — 2026-09-01
-Prompt: Add .github/workflows/ci.yml running on every push and pull request with npm ci, typecheck, lint, full vitest test suite, production build, fail-fast and npm caching, plus CI status badge in README.md.
-Files touched:
-- `.github/workflows/ci.yml` (new)
-- `package-lock.json` (new)
-- `package.json` (modified)
-- `README.md` (modified)
-- `src/services/llm/providers/webllm.ts` (modified)
-- `src/services/llm/providers/webllm.test.ts` (modified)
-- `src/components/shared/SettingsPanel.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Created `.github/workflows/ci.yml` triggering on `push` and `pull_request` to `main` and `master`, configuring `actions/checkout@v4`, `actions/setup-node@v4` with Node 20 and npm cache, sequential fail-fast step execution for `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build`.
-- Added `"typecheck": "tsc --noEmit"` script and separated `"lint": "eslint ."` in `package.json` for clear CI step distinction and local developer tooling.
-- Generated `package-lock.json` to enable reproducible `npm ci` installs and lockfile-keyed npm caching on GitHub runners.
-- Added GitHub Actions workflow status badge and script documentation in `README.md`.
-- Fixed type exports (`WebLLMEngineState`), caught error `cause` chaining, and unused import lint warnings in `webllm.ts`, `SettingsPanel.tsx`, and `webllm.test.ts`.
-Decisions:
-- Configured concurrency cancellation (`group: ${{ github.workflow }}-${{ github.ref }}`, `cancel-in-progress: true`) in `ci.yml` to automatically cancel outdated pending runs when new commits are pushed to open pull requests.
-- Retained fail-fast ordering: Typecheck -> Lint -> Test -> Build to surface syntax and type errors within seconds before launching lengthy test suites or full bundle optimization.
-Deviations: none
-Verified: `npm run typecheck` passed (0 errors); `npm run lint` passed (0 errors); full vitest suite passed (77/77 test suites, 605/605 tests); `compile_applet` production build succeeded.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-105] Honest Terminal Shell Messaging & Capabilities Documentation — 2026-09-01
-Prompt: Update TerminalPanel unrecognized command message to be honest about browser scope, expand help/capabilities command detailing real vs simulated execution, and revisit uname easter egg.
-Files touched:
-- `src/components/terminal/TerminalPanel.tsx` (modified)
-- `src/components/terminal/TerminalPanel.test.tsx` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Updated unrecognized command output to honest scope message: `laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is`.
-- Expanded `help` and added `capabilities` command detailing real capabilities (IndexedDB VFS, Web Worker sandboxed JS execution, in-browser WebAssembly ESBuild, Vitest runner, offline vendoring) vs. simulated environment features.
-- Transparently formatted `uname` and `uname -a` easter egg to clarify browser sandbox context.
-- Updated `TerminalPanel.test.tsx` tests to verify honest command messaging.
-Decisions:
-- Standardized shell prefix to `laide: '<cmd>' isn't available in this browser-based shell — type 'help' to see what is` rather than mimicking POSIX OS errors.
-Deviations: none
-Verified: All 30 tests in `TerminalPanel.test.tsx` passed; full vitest suite passed.
-Commit: pending
-Open questions: none
-
-### [HOTFIX-106] Swipe Gesture per Hunk Row in PatchReviewSheet — 2026-09-01
-Prompt: Add a swipe gesture per hunk row in PatchReviewSheet (swipe right to approve/check, swipe left to reject/uncheck) using Pointer Events, preserving checkbox clicks, keyboard operability, and reduced-motion preferences.
-Files touched:
-- `src/components/chat/PatchReviewSheet.tsx` (modified)
-- `src/components/chat/PatchReviewSheet.test.ts` (modified)
-- `AI_CHANGELOG.md` (modified)
-Changed:
-- Implemented `HunkReviewRow` sub-component with Pointer Events (`onPointerDown`, `onPointerMove`, `onPointerUp`, `onPointerCancel`) to support touch, mouse, and trackpad drag.
-- Added visual swipe action indicator backgrounds behind each hunk card with smooth opacity transitions for swipe right (Approve Hunk) and swipe left (Reject Hunk).
-- Preserved standard checkbox click fallback, keyboard navigation (Tab, Space, and Enter), and `aria-label` screen reader announcements.
-- Added `usePrefersReducedMotion` hook to respect `(prefers-reduced-motion: reduce)` by disabling transform translation effects and transitions.
-- Added unit tests in `PatchReviewSheet.test.ts` covering swipe-to-reject, swipe-to-approve, keyboard Space/Enter toggling, and reduced-motion styles.
-Decisions:
-- Used a 50px threshold (`SWIPE_THRESHOLD`) and clamped horizontal drag offset (max 120px) with 8px vertical scroll dead-band to prevent conflicts with page scrolling.
-Deviations: none
-Verified: `PatchReviewSheet.test.ts` (8/8 tests) passed; full vitest test suite (78/78 suites, 618/618 tests) passed; `npm run lint` clean (0 errors); `compile_applet` passed.
-Commit: pending
-Open questions: none
+— entries before 2026-09-02 moved to AI_CHANGELOG_ARCHIVE.md —
 
 ### [HOTFIX-107] Rebrand Cleanup, Github Import Modal Integration & Accessibility Pass — 2026-09-02
 Prompt: Search repository for legacy "xiom" references, bump cache storage to laide-esm-dep-cache-v2 with legacy cache cleanup, integrate GithubImportModal, and perform accessibility hygiene pass with axe-core on EditorAiBlame, TerminalPanel, and PatchReviewSheet.
@@ -1096,6 +521,50 @@ Decisions:
 - Follow-up type refinement directly addressing React 19 / TypeScript `RefObject` nullable value ergonomics.
 Deviations: none
 Verified: `npm run typecheck` (`tsc --noEmit` — 0 errors) and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-121] Framework-Agnostic Bundled Project Detection & Static Preview Fallback Guard — 2026-09-03
+Prompt: Detect bundled projects containing package.json or JSX/TSX files and guard static preview fallback against raw JSX and bare-specifier imports with a clear bundling-required error state.
+Files touched:
+- `src/services/bundler/entryDetection.ts` (modified)
+- `src/components/preview/PreviewPanel.tsx` (modified)
+- `src/components/preview/PreviewPanel.test.tsx` (modified)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Updated `detectBundledProject` in `entryDetection.ts` to identify projects with `/package.json` or `.jsx`/`.tsx` files as bundled (`isBundled = true`), eliminating reliance on hardcoded framework dependency names.
+- Added `hasJsxSyntax`, `hasNonRelativeImport`, and `scriptNeedsBundling` regex heuristics in `PreviewPanel.tsx` to detect unbundled JSX and bare-specifier imports in static script tags.
+- Guarded static preview fallback to render a "Bundling Required" guidance card with a direct action button to switch to or configure bundling rather than failing silently with broken script tags.
+- Updated `PreviewPanel.test.tsx` test suite with happy-dom mock worker support and coverage for syntax detection and UI fallback states.
+Decisions:
+- Allowed plain vanilla JS/HTML projects with relative imports to continue rendering instantly via the static fallback path without requiring the WebAssembly bundler.
+Deviations: none
+Verified: `npx vitest run src/services/bundler/entryDetection.test.ts src/components/preview/PreviewPanel.test.tsx` (34/34 tests passed in 4.38s), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` clean (0 errors), and `compile_applet` build succeeded.
+Commit: pending
+Open questions: none
+
+### [HOTFIX-122] Sandpack Preview Engine Integration & Multi-Engine Selector — 2026-09-03
+Prompt: Replace custom service worker/Babel preview with Sandpack (@codesandbox/sandpack-react), support dynamic templates, and integrate multi-engine preview selection in PreviewPanel.
+Files touched:
+- `src/components/preview/PreviewPane.tsx` (new)
+- `src/components/preview/PreviewPane.test.tsx` (new)
+- `src/components/preview/PreviewPanel.tsx` (modified)
+- `src/components/preview/PreviewPanel.test.tsx` (modified)
+- `vite.config.ts` (modified)
+- `package.json` (modified)
+- `AI_CHANGELOG.md` (modified)
+- `AI_CHANGELOG_ARCHIVE.md` (modified)
+Changed:
+- Built `PreviewPane.tsx` utilizing `@codesandbox/sandpack-react` (`SandpackProvider` + `SandpackPreview`) for instant client-side bundling, CDN package resolution (esm.sh), and fast hot reload without service worker overhead.
+- Implemented `detectSandpackTemplate` dynamically resolving project templates (`react`, `react-ts`, `vanilla`, `static`) based on file extensions, React imports, and package manifests.
+- Added `normalizeSandpackFiles` and `extractDependenciesFromPackageJson` ensuring full file structure fidelity and dependency inheritance in Sandpack.
+- Added Preview Engine segmented toggle in `PreviewPanel.tsx` (`[Bundler] [Sandpack]`), allowing developers to switch between the local offline ESBuild bundler and Sandpack CDN engine with one click, plus a quick-switch action from bundling-required error states.
+- Configured Vitest `server.deps.inline` in `vite.config.ts` for `@codesandbox/sandpack-react`, `@codesandbox/sandpack-client`, and `static-browser-server` to resolve ESM/CJS interop in happy-dom environments.
+Decisions:
+- Preserved the existing ESBuild bundler as default engine (`defaultEngine = 'bundler'`) for zero-network offline local execution while offering Sandpack for immediate CDN-backed previews with external npm dependencies.
+- Performed routine log archive rotation of 27 pre-2026-09-02 entries to `AI_CHANGELOG_ARCHIVE.md` to keep the active log concise and under context limits.
+Deviations: none
+Verified: 29/29 preview tests passed (`npx vitest run src/components/preview/PreviewPane.test.tsx src/components/preview/PreviewPanel.test.tsx` in 5.48s), full typecheck passed with 0 errors (`tsc --noEmit`), and `compile_applet` build succeeded.
 Commit: pending
 Open questions: none
 

@@ -9,6 +9,11 @@ export default defineConfig(() => {
   return {
     test: {
       environment: 'happy-dom',
+      server: {
+        deps: {
+          inline: ['static-browser-server', '@codesandbox/sandpack-client', '@codesandbox/sandpack-react'],
+        },
+      },
     },
     plugins: [
       react(),

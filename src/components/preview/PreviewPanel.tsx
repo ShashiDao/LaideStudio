@@ -27,6 +27,7 @@ import { injectCaptureScriptIntoHtml, captureIframeScreenshot } from '../../serv
 import { stripTailwindDirectives } from '../../services/bundler/esbuild.worker';
 import { EmptyState } from '../shared/EmptyState';
 import { QRCodeModal } from '../modals/QRCodeModal';
+import { PreviewPane } from './PreviewPane';
 
 export function hasJsxSyntax(code: string): boolean {
   // Strip comments and string literals to avoid false positives in vanilla JS
@@ -169,6 +170,7 @@ interface PreviewPanelProps {
   files: FileItem[];
   breakpoint?: ShellBreakpoint;
   onOpenDeploy?: () => void;
+  defaultEngine?: 'bundler' | 'sandpack';
 }
 
 function resolvePath(base: string, relative: string): string {
@@ -180,7 +182,7 @@ function resolvePath(base: string, relative: string): string {
   return (dir ? dir + '/' : '/') + relative;
 }
 
-export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelProps) {
+export function PreviewPanel({ files, breakpoint, onOpenDeploy, defaultEngine = 'bundler' }: PreviewPanelProps) {
   const { 
     setLastBuildError, 
     setActiveTab, 
@@ -189,6 +191,7 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
     setAttachPreviewVision,
     autoVisionOnPatch
   } = useAppStore();
+  const [engine, setEngine] = useState<'bundler' | 'sandpack'>(defaultEngine);
   const [viewportMode, setViewportMode] = useState<'desktop' | 'tablet' | 'phone'>('desktop');
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -633,6 +636,40 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
             </div>
           )}
 
+          {/* Preview Engine Selector */}
+          <div 
+            className="flex items-center rounded bg-surface-elevated border border-border p-0.5 shrink-0" 
+            role="group" 
+            aria-label="Preview Engine"
+          >
+            <button
+              type="button"
+              onClick={() => setEngine('bundler')}
+              className={`p-1 px-1.5 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+                engine === 'bundler'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="Built-in ESBuild bundler"
+              aria-pressed={engine === 'bundler'}
+            >
+              Bundler
+            </button>
+            <button
+              type="button"
+              onClick={() => setEngine('sandpack')}
+              className={`p-1 px-1.5 rounded text-[11px] font-mono transition-colors cursor-pointer ${
+                engine === 'sandpack'
+                  ? 'bg-accent/15 border border-accent/30 text-accent font-semibold shadow-xs'
+                  : 'text-muted hover:text-text border border-transparent'
+              }`}
+              title="CodeSandbox Sandpack live CDN preview"
+              aria-pressed={engine === 'sandpack'}
+            >
+              Sandpack
+            </button>
+          </div>
+
           <button 
             type="button"
             onClick={() => setRefreshKey(k => k + 1)}
@@ -678,7 +715,24 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
       )}
 
       <div className={`flex-1 relative overflow-hidden ${isPhoneScreen || viewportMode === 'desktop' ? 'bg-white' : 'bg-bg/60 canvas-grid-pattern'}`}>
-        {error || runtimeError ? (
+        {engine === 'sandpack' ? (
+          <div className="w-full h-full flex items-center justify-center overflow-hidden">
+            <div 
+              data-testid="preview-viewport-container"
+              className={`h-full mx-auto transition-all duration-200 ease-in-out flex flex-col ${
+                isPhoneScreen
+                  ? 'w-full shadow-none'
+                  : viewportMode === 'phone'
+                  ? 'w-[420px] max-w-full border-x border-border shadow-xl'
+                  : viewportMode === 'tablet'
+                  ? 'w-[768px] max-w-full border-x border-border shadow-xl'
+                  : 'w-full shadow-none'
+              }`}
+            >
+              <PreviewPane files={files} />
+            </div>
+          </div>
+        ) : error || runtimeError ? (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center bg-bg canvas-grid-pattern">
             {error && error.includes('No index.html found') ? (
               <EmptyState
@@ -707,17 +761,27 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
                 title="Bundling required"
                 description={error}
                 action={
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQueuedPrompt("Set up package.json and bundling for this project");
-                      setActiveTab('chat');
-                    }}
-                    className="w-full py-2.5 px-3 bg-accent text-accent-text-on font-mono font-bold text-xs rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors cursor-pointer shadow-xs"
-                  >
-                    <Sparkles size={14} />
-                    <span>Configure Bundling</span>
-                  </button>
+                  <div className="flex flex-col gap-2 w-full">
+                    <button
+                      type="button"
+                      onClick={() => setEngine('sandpack')}
+                      className="w-full py-2.5 px-3 bg-accent text-accent-text-on font-mono font-bold text-xs rounded flex items-center justify-center gap-2 hover:bg-accent/90 transition-colors cursor-pointer shadow-xs"
+                    >
+                      <Play size={14} />
+                      <span>Preview with Sandpack</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQueuedPrompt("Set up package.json and bundling for this project");
+                        setActiveTab('chat');
+                      }}
+                      className="w-full py-2 px-3 bg-surface text-muted hover:text-text font-mono text-xs rounded border border-border flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Sparkles size={14} />
+                      <span>Configure Bundling</span>
+                    </button>
+                  </div>
                 }
               />
             ) : (
@@ -867,4 +931,6 @@ export function PreviewPanel({ files, breakpoint, onOpenDeploy }: PreviewPanelPr
     </div>
   );
 }
+
+export { PreviewPane };
 
