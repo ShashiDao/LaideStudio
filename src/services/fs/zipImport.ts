@@ -30,14 +30,18 @@ export function uint8ArrayToBase64(bytes: Uint8Array): string {
 }
 
 export async function importZip(
-  zipData: Blob | ArrayBuffer | Uint8Array, 
-  projectId: string, 
+  zipData: Blob | ArrayBuffer | Uint8Array,
+  projectId: string,
   options?: { autoRestructure?: boolean }
 ): Promise<{ count: number; skipped: string[] }> {
+  const startedAt = performance.now();
   const rawData = (typeof Blob !== 'undefined' && zipData instanceof Blob)
     ? await zipData.arrayBuffer()
     : zipData;
+  const zipReadFinishedAt = performance.now();
+
   const zip = await JSZip.loadAsync(rawData);
+  const zipParsedFinishedAt = performance.now();
   const rawEntries = Object.values(zip.files).filter(entry => !entry.dir);
 
   if (rawEntries.length === 0) {
@@ -59,6 +63,7 @@ export async function importZip(
       }
     }
   }
+  const structureDetectedAt = performance.now();
 
   // Parallel single-pass decode of files from ZIP with path sanitization
   const skipped: string[] = [];
@@ -69,7 +74,7 @@ export async function importZip(
       const relativePath = (commonFolder && rawPath.startsWith(`${commonFolder}/`))
         ? rawPath.substring(commonFolder.length + 1)
         : rawPath;
-      
+
       const safePath = sanitizeImportedPath(relativePath);
       if (!safePath) {
         skipped.push(entry.name);
@@ -85,13 +90,30 @@ export async function importZip(
       return { path: safePath, content };
     })
   );
+  const decodeFinishedAt = performance.now();
 
   const decodedFiles = decodedEntries.filter((f): f is { path: string; content: string } => f !== null);
 
   await bulkCreateOrUpdateFiles(projectId, decodedFiles);
+  const persistenceFinishedAt = performance.now();
 
   if (options?.autoRestructure && !commonFolder) {
     await flattenWrapperFolder(projectId);
+  }
+  const restructureFinishedAt = performance.now();
+
+  if (import.meta.env?.DEV) {
+    console.debug('[LAIDE ZIP import]', {
+      files: decodedFiles.length,
+      skipped: skipped.length,
+      readZipMs: Math.round((zipReadFinishedAt - startedAt) * 100) / 100,
+      parseZipMs: Math.round((zipParsedFinishedAt - zipReadFinishedAt) * 100) / 100,
+      detectStructureMs: Math.round((structureDetectedAt - zipParsedFinishedAt) * 100) / 100,
+      decodeMs: Math.round((decodeFinishedAt - structureDetectedAt) * 100) / 100,
+      persistenceMs: Math.round((persistenceFinishedAt - decodeFinishedAt) * 100) / 100,
+      restructureMs: Math.round((restructureFinishedAt - persistenceFinishedAt) * 100) / 100,
+      totalMs: Math.round((restructureFinishedAt - startedAt) * 100) / 100,
+    });
   }
 
   return { count: decodedFiles.length, skipped };
