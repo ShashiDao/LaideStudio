@@ -99,7 +99,7 @@ export const executeShellCommand: TerminalCommandHandler = async (command, args,
     case 'cls': {
       setHistory([]);
       setIsRunning(false);
-      return;
+      return { stop: true };
     }
     
     case 'bisect': {
@@ -197,7 +197,7 @@ export const executeShellCommand: TerminalCommandHandler = async (command, args,
       const now = Date.now();
       setHistory([{ id: `reset-${now}`, type: 'system', text: 'Terminal session and environment reset to defaults.', timestamp: now }]);
       setIsRunning(false);
-      return;
+      return { stop: true };
     }
     default:
       return {};
