@@ -23,11 +23,6 @@ export interface FileSelectionState {
   activeFileId: string | null;
 }
 
-/**
- * Removes editor selections that no longer exist in the durable VFS.
- * If the active file disappeared, the most recently opened surviving file
- * becomes active; otherwise selection is cleared.
- */
 export function reconcileFileSelection(
   files: FileItem[],
   selection: FileSelectionState,
@@ -41,12 +36,6 @@ export function reconcileFileSelection(
   return { openFileIds, activeFileId };
 }
 
-/**
- * Owns the active project's file list plus every file-level operation:
- * reading the VFS, importing dropped/uploaded files (including ZIPs),
- * and auto-provisioning a project when files are dropped with none open.
- * Extracted from App.tsx.
- */
 export function useFileOperations({
   activeProject,
   activeFileId,
@@ -64,9 +53,6 @@ export function useFileOperations({
     return calculateProjectMetadata(files);
   }, [files]);
 
-  // Keep Zustand's editor selection constrained to files that actually exist
-  // in the current durable VFS. This covers deletes performed outside this hook
-  // (for example FileTree and terminal operations) after their refresh callback.
   useEffect(() => {
     const current = useAppStore.getState();
     const next = reconcileFileSelection(files, {
@@ -89,9 +75,6 @@ export function useFileOperations({
     }
   };
 
-  // Reload the file list whenever the active project changes. Clear the old
-  // project's files first so stale content is never presented while hydration
-  // of the new project's durable state is in flight.
   const activeProjectId = activeProject?.id;
   useEffect(() => {
     let ignore = false;
@@ -185,16 +168,27 @@ export function useFileOperations({
 
       let totalImported = 0;
       let totalSkipped = 0;
+      let recoveredArchives = 0;
 
       for (const zipFile of zipFiles) {
-        const { count, skipped } = await importZip(zipFile, targetProjectId, { autoRestructure: true });
-        totalImported += count;
-        if (skipped && skipped.length > 0) {
-          totalSkipped += skipped.length;
+        const result = await importZip(zipFile, targetProjectId, { autoRestructure: true });
+        totalImported += result.count;
+        if (result.skipped && result.skipped.length > 0) {
+          totalSkipped += result.skipped.length;
+        }
+        if (result.recovered) {
+          recoveredArchives++;
         }
       }
 
-      if (totalSkipped > 0) {
+      if (recoveredArchives > 0) {
+        useAppStore.getState().addToast(
+          `ZIP recovery salvaged ${totalImported} readable file${totalImported !== 1 ? 's' : ''}. Some damaged or unsafe entries may have been skipped.`,
+          'warning'
+        );
+      }
+
+      if (totalSkipped > 0 && recoveredArchives === 0) {
         useAppStore.getState().addToast(
           `${totalSkipped} file${totalSkipped > 1 ? 's were' : ' was'} skipped due to unsafe path names`,
           'warning'
