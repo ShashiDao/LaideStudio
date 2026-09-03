@@ -24,13 +24,21 @@ interface UseProjectActionsParams {
 }
 
 /**
- * Clears UI state that belongs to the previously selected project.
- * Durable project/file data remains owned by Dexie/VFS.
+ * Clears project-scoped UI state while preserving file selections that
+ * demonstrably belong to the newly active project.
  */
-export function resetProjectScopedState(setActiveFileId: (id: string | null) => void) {
+export function resetProjectScopedState(
+  setActiveFileId: (id: string | null) => void,
+  validFileIds: ReadonlySet<string>
+) {
   const state = useAppStore.getState();
-  setActiveFileId(null);
-  state.setOpenFileIds([]);
+  const nextOpenFileIds = state.openFileIds.filter(id => validFileIds.has(id));
+  const nextActiveFileId = state.activeFileId && validFileIds.has(state.activeFileId)
+    ? state.activeFileId
+    : null;
+
+  state.setOpenFileIds(nextOpenFileIds);
+  setActiveFileId(nextActiveFileId);
   state.setExpandedFolderPaths([]);
   state.clearPendingPatches();
   state.setLastBuildError(null);
@@ -71,13 +79,19 @@ export function useProjectActions({ activeFileId, setActiveFileId }: UseProjectA
   });
 
   // A project switch invalidates project-scoped UI state immediately.
-  // The file-operation effect below then hydrates files from the new project.
+  // File ids are preserved only when they belong to the newly active project;
+  // this avoids wiping a preferred file selected during project creation.
   useEffect(() => {
     if (previousActiveProjectIdRef.current !== activeProjectId) {
-      resetProjectScopedState(setActiveFileId);
+      const validFileIds = new Set(
+        fileOps.files
+          .filter(file => file.projectId === activeProjectId)
+          .map(file => file.id)
+      );
+      resetProjectScopedState(setActiveFileId, validFileIds);
       previousActiveProjectIdRef.current = activeProjectId;
     }
-  }, [activeProjectId, setActiveFileId]);
+  }, [activeProjectId, fileOps.files, setActiveFileId]);
 
   // Initial DB readback: load projects, archived projects, and restore
   // the previously active project (or most recently updated one).
