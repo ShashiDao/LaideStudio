@@ -119,7 +119,7 @@ export async function executeTerminalCommand(
       return;
     }
 
-    if (targetRedirectFile && outputType !== 'stderr') {
+    if (targetRedirectFile && context.projectId && outputType !== 'stderr') {
       await writeRedirectedOutput(context, targetRedirectFile, redirectMode, outputText);
       return;
     }
