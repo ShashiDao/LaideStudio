@@ -17,6 +17,7 @@ export interface RunAgentLoopOptions {
   model?: string;
   provider?: string;
   overlay?: WorkspaceOverlay;
+  baseRevision?: string;
 }
 
 export async function runAgentLoop(
@@ -36,7 +37,8 @@ export async function runAgentLoop(
   const mcpConnectionErrors: { serverId: string; url: string; error: string }[] = [];
 
   const baseFiles = await listFiles(projectId);
-  const overlay: WorkspaceOverlay = options?.overlay ?? new AgentWorkspaceOverlay(projectId, baseFiles);
+  const baseRevision = options?.baseRevision || (baseFiles.length > 0 ? String(Math.max(...baseFiles.map(f => f.updatedAt || 0))) : 'base');
+  const overlay: WorkspaceOverlay = options?.overlay ?? new AgentWorkspaceOverlay(projectId, baseFiles, baseRevision);
 
   // Initialize MCP tools
   for (const server of mcpServers) {

@@ -177,9 +177,16 @@ export async function executeAgentTool(
           return pathValidation.error!;
         }
 
-        const overlay = context?.overlay ?? new AgentWorkspaceOverlay(projectId, await listFiles(projectId));
+        const overlay = context?.overlay;
+        if (!overlay) {
+          console.warn(
+            `[executeAgentTool] Warning: write_file invoked without a persistent WorkspaceOverlay in context for project "${projectId}". ` +
+            `A transient overlay was instantiated; edits will NOT accumulate across tool calls unless a persistent run-level WorkspaceOverlay is provided.`
+          );
+        }
+        const activeOverlay = overlay ?? new AgentWorkspaceOverlay(projectId, await listFiles(projectId));
         if (context && !context.overlay) {
-          context.overlay = overlay;
+          context.overlay = activeOverlay;
         }
 
         const metadata = {
@@ -189,21 +196,21 @@ export async function executeAgentTool(
         };
 
         if (type === 'delete') {
-          await overlay.delete(path, rationale);
+          await activeOverlay.delete(path, rationale);
           return `Successfully queued patch for ${path} in workspace overlay.`;
         }
 
         if (type === 'append') {
-          const currentContent = await overlay.read(path);
+          const currentContent = await activeOverlay.read(path);
           const accumulated = currentContent !== null
             ? (currentContent.length === 0 || currentContent.endsWith('\n') ? currentContent + newContent : `${currentContent}\n${newContent}`)
             : newContent;
-          await overlay.write(path, accumulated, rationale, metadata);
+          await activeOverlay.write(path, accumulated, rationale, metadata);
           return `Successfully queued patch for ${path} in workspace overlay.`;
         }
 
         // 'create' or 'replace'
-        await overlay.write(path, newContent, rationale, metadata);
+        await activeOverlay.write(path, newContent, rationale, metadata);
         return `Successfully queued patch for ${path} in workspace overlay.`;
       }
       

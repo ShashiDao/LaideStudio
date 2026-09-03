@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-124
-- Last verified working: Write isolation enforced via WorkspaceOverlay; agent writes never mutate canonical VFS during execution; full test suite passes (57/57 tests passing in vitest), linting passes (0 errors), and compile_applet succeeded.
+- Phase: HOTFIX-125
+- Last verified working: Run-level persistent WorkspaceOverlay enforced for entire agent execution; single overlay created at task boundary and passed to all tool calls (read, write, list, search, test); write accumulation verified, canonical VFS remains strictly untouched during runs; all 89 test suites / 697 tests pass in Vitest, tsc --noEmit passes, and compile_applet succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -615,6 +615,27 @@ Deviations: none
 Verified: All 57 unit tests passed across 9 test suites (`npx vitest run src/services/agent/`), `npm run lint` passed with 0 errors, and `compile_applet` passed with 0 errors.
 Commit: pending
 Open questions: none
+
+### [HOTFIX-125] Enforce Single Persistent WorkspaceOverlay for Agent Runs — 2026-09-03
+Prompt: Finish Prompt 1 — enforce ONE persistent WorkspaceOverlay for the entire agent run; remove dangerous fallback, verify accumulation across tool calls, keep canonical VFS untouched, add regression tests A-G.
+Files touched:
+- `src/services/agent/agentLoop.ts` (modified)
+- `src/services/agent/tools.ts` (modified)
+- `src/services/agent/workspace/overlayRunLifecycle.test.ts` (new)
+- `AI_CHANGELOG.md` (modified)
+Changed:
+- Guaranteed single `WorkspaceOverlay` instantiation at the agent execution boundary (`runAgentLoop`) and ensured that exact same instance is passed via `ToolExecutionContext.overlay` to every agent tool call (`read_file`, `write_file`, `list_directory`, `search_code`, `run_tests`).
+- Replaced the dangerous silent per-tool fallback in `tools.ts` with an explicit invariant warning and unified active overlay handling across all workspace operations.
+- Added `baseRevision` option support to `RunAgentLoopOptions` and `AgentWorkspaceOverlay` constructor so the run base revision remains stable throughout the run.
+- Implemented comprehensive regression test suite (`overlayRunLifecycle.test.ts`) validating all invariant requirements: A (same instance reuse), B (write -> read sees modified content), C (sequential write accumulation), D (write -> search_code finds staged content), E (write -> run_tests runs on materialized overlay), F (canonical VFS untouched across multiple tool calls), G (second agent run gets a fresh overlay without leaking prior runs).
+Decisions:
+- Retained defensive fallback in `tools.ts` with an explicit invariant warning rather than throwing an unhandled exception for compatibility with legacy standalone tool calls, while ensuring normal agent runs always pass the persistent run-level overlay.
+- Scoped `AgentWorkspaceOverlay` strictly to the execution lifecycle of `runAgentLoop` so distinct runs never leak uncommitted overlay state.
+Deviations: none
+Verified: `npm run typecheck` passed (0 errors), `npm run lint` passed (0 errors), all 89 test files and 697 tests passed in Vitest (`npm test`), and `compile_applet` passed cleanly.
+Commit: pending
+Open questions: none
+
 
 
 
