@@ -114,6 +114,15 @@ export async function recoverZip(zipData: ArrayBuffer | Uint8Array): Promise<Zip
     const rawName = new TextDecoder('utf-8', { fatal: false })
       .decode(bytes.subarray(offset + 30, offset + 30 + fileNameLength));
     const safePath = sanitizeImportedPath(rawName.replace(/^\//, ''));
+    const isDirectoryEntry = rawName.endsWith('/') || rawName.endsWith('\\');
+
+    // Directory entries are structural metadata, not VFS files. In particular,
+    // do not turn /src/ into /src, or bulk validation will correctly reject it
+    // as a parent of /src/components/*.
+    if (isDirectoryEntry) {
+      offset = headerEnd + compressedSize;
+      continue;
+    }
 
     if (flags & ENCRYPTED_FLAG) {
       skipped.push(rawName);
