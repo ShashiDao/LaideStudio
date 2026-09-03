@@ -81,6 +81,7 @@ export function useProjectActions({ activeFileId, setActiveFileId }: UseProjectA
   // A project switch invalidates project-scoped UI state immediately.
   // File ids are preserved only when they belong to the newly active project;
   // this avoids wiping a preferred file selected during project creation.
+  // Until the new project is hydrated, the old project's file list is hidden.
   useEffect(() => {
     if (previousActiveProjectIdRef.current !== activeProjectId) {
       const validFileIds = new Set(
@@ -89,6 +90,9 @@ export function useProjectActions({ activeFileId, setActiveFileId }: UseProjectA
           .map(file => file.id)
       );
       resetProjectScopedState(setActiveFileId, validFileIds);
+      if (validFileIds.size === 0) {
+        fileOps.setFiles([]);
+      }
       previousActiveProjectIdRef.current = activeProjectId;
     }
   }, [activeProjectId, fileOps.files, setActiveFileId]);
