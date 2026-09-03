@@ -1,6 +1,6 @@
 ## Current State
-- Phase: REVIEW-FIX-01
-- Last verified working: Hardened the bounded autonomous repair loop and enforced strict fail-closed verification semantics (Prompt 4 review fix). Addressed all 4 review defects: (1) Fail-Closed vs. Unavailable in candidate verification: CandidateVerificationResult explicitly distinguishes 'passed', 'failed', and 'unavailable' statuses. When Worker is unavailable and build or test verification is required, verification fails closed with status 'unavailable' instead of falsely reporting success or a verified pass; the agent loop halts without publishing unverified candidate patches; (2) Strict Repair Bounds: Enforced hard upper bound of Math.min(1, Math.max(0, maxRepairAttempts)) ensuring caller options cannot exceed the MVP architectural ceiling of at most 1 automatic repair attempt; (3) Failure Evidence Normalization: Implemented normalizeVerificationEvidence bounding failure output to 1200 characters while preserving actionable syntax/type error summaries, failing test names, and entry points, protecting the model context window from unbounded log dumps; (4) Exact Same Overlay Identity: Enforced and verified that repair turns execute against the exact same WorkspaceOverlay instance and base revision as the initial turn without recreation. All 93 Vitest test suites (728 tests) pass cleanly, npm run typecheck (tsc --noEmit) passes with 0 errors, npm run lint passes with 0 errors, and compile_applet build succeeded.
+- Phase: HOTFIX-129
+- Last verified working: Implemented minimal, durable task lifecycle and safe interruption recovery semantics (Prompt 5). Enforced strict state machine transitions across CREATED -> RUNNING -> VERIFYING -> REPAIRING -> VERIFIED / FAILED / ABORTED / INTERRUPTED. Task updates persist atomically to Dexie IndexedDB with executionToken stale-update guarding to prevent race conditions across browser tabs. Integrated recovery mechanism on startup (`taskStore.recoverInterruptedTasks()`) in `main.tsx` that marks any active non-terminal tasks (RUNNING, VERIFYING, REPAIRING) as INTERRUPTED, distinguishing durable task state from durable execution and guaranteeing the agent never claims unearned success or fabricates repair after process/tab crash. Maintained canonical VFS isolation, repairAttempts <= 1, and fail-closed unavailable verification semantics. All 26 Prompt 5 regression tests in `taskLifecycle.test.ts` pass, all 35 tests in `src/services/agent/task/` pass, 15 agent test suites (119 tests) pass, `npm run typecheck` (`tsc --noEmit`) passes with 0 errors, `npm run lint` passes with 0 errors, and `compile_applet` build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -22,6 +22,7 @@
   - `src/services/provenance/signing.ts` (666 lines) — Extract HMAC/Ed25519 signing primitives and audit chain verification into separate cryptographic services.
   - `src/services/llm/providers/webllm.ts` (652 lines) — Extract engine state subscription and WebGPU model cache manager into separate helper modules.
   - `src/components/modals/FindWhatBrokeModal.tsx` (620 lines) — Extract bisection progress indicator and historical test run diff viewer into sub-components.
+  - `src/services/agent/agentLoop.ts` (610 lines) — Extract candidate verification and bounded repair turn orchestration into dedicated repair coordinator under `src/services/agent/workspace/`.
   - `src/services/deploy/deployClient.ts` (609 lines) — Extract Netlify API and Vercel API client implementations into separate provider adapters.
   - `src/services/templates/projectTemplates.ts` (596 lines) — Extract template definitions and file manifest generators into individual template files under `src/services/templates/definitions/`.
   - `src/services/usage/tokenSpend.ts` (550 lines) — Extract pricing catalog definitions and token counting heuristics into `pricingCatalog.ts` and `tokenCounter.ts`.
@@ -33,7 +34,6 @@
   - `src/components/modals/ImageViewerModal.tsx` (505 lines) — Extract image canvas pan/zoom controls and image metadata footer into sub-components.
   - `src/components/project/ProjectActionsMenu.tsx` (482 lines) — Extract ZIP export/import modal triggers and project deletion confirmation dialog into separate sub-components.
   - `src/services/security/passwordStrength.ts` (480 lines) — Extract password dictionary wordlists and pattern matchers into separate security utilities.
-  - `src/services/agent/agentLoop.ts` (476 lines) — Extract candidate verification and bounded repair turn orchestration into dedicated repair coordinator under `src/services/agent/workspace/`.
   - `src/components/shared/QuickConnectSheet.tsx` (473 lines) — Extract individual provider quick-connect cards into sub-components under `src/components/shared/`.
   - `src/services/provenance/trustScore.ts` (442 lines) — Extract penalty computation rules and letter grade formatters into separate provenance helpers.
   - `src/services/agent/agentLoop.test.ts` (401 lines) — Split streaming/abort tests and MCP error surface tests into separate test files under `src/services/agent/`.
@@ -769,6 +769,53 @@ Open questions: none
   - Max repair attempts is architecturally clamped to 1 in MVP; caller options cannot relax this constraint.
 - Deviations: none
 - Verified: PASS — `npx vitest run src/services/agent/workspace/overlayRepairHardening.test.ts` (5 tests passed), `npx vitest run src/services/agent/` (14 test files, 93 tests passed), full test suite `npx vitest run` (93 test files, 728 tests passed), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` (0 errors), and `compile_applet` build succeeded.
+- Commit: pending
+- Open questions: none
+
+### [HOTFIX-129] Minimal Durable Task Lifecycle & Interruption Recovery Semantics — 2026-09-03
+- Prompt: Implement a minimal, durable task lifecycle so an agent task has explicit persisted state and can be safely recovered/interpreted after interruption.
+- Files touched:
+  - `src/services/agent/task/taskTypes.ts` (modified)
+  - `src/services/agent/task/taskStateMachine.ts` (modified)
+  - `src/services/agent/task/taskStore.ts` (modified)
+  - `src/services/agent/agentLoop.ts` (modified)
+  - `src/main.tsx` (modified)
+  - `src/services/agent/task/taskStateMachine.test.ts` (modified)
+  - `src/services/agent/task/taskStore.test.ts` (modified)
+  - `src/services/agent/task/taskLifecycle.test.ts` (new)
+  - `AI_CHANGELOG.md` (modified)
+- Changed:
+  - In `src/services/agent/task/taskTypes.ts`:
+    - Updated `TaskState` union to `'created' | 'running' | 'verifying' | 'repairing' | 'verified' | 'failed' | 'aborted' | 'interrupted'`.
+    - Added persistence metadata fields on `AgentTask`: `executionToken?: string`, `repairAttempts?: number`, `verificationStatus?: 'passed' | 'failed' | 'unavailable'`, and `failureSummary?: string`.
+  - In `src/services/agent/task/taskStateMachine.ts`:
+    - Defined explicit valid transition graph:
+      `created` -> `running`, `aborted`
+      `running` -> `verifying`, `aborted`, `failed`, `interrupted`
+      `verifying` -> `repairing`, `verified`, `failed`, `aborted`, `interrupted`
+      `repairing` -> `verifying`, `aborted`, `failed`, `interrupted`
+      Terminal states (`verified`, `failed`, `aborted`, `interrupted`) reject further transitions.
+    - Added helper methods `isTerminal()` and `isActive()`.
+  - In `src/services/agent/task/taskStore.ts`:
+    - Wrapped task state updates in Dexie IndexedDB atomic transactions (`db.transaction`).
+    - Enforced `executionToken` validation to reject stale run updates and prevent multi-tab concurrency hazards.
+    - Implemented `recoverInterruptedTasks()` identifying active tasks (`running`, `verifying`, `repairing`) on app startup and transitioning them to `interrupted` with explanatory failure evidence, preventing zombie tasks without fabricating model/tool execution.
+  - In `src/services/agent/agentLoop.ts`:
+    - Integrated lifecycle transitions into `runAgentLoop`: auto-creates or attaches task, drives `created` -> `running` -> `verifying` -> `repairing` -> `verifying` -> `verified` / `failed` / `aborted`.
+    - Attached `taskId` to returned `AgentLoopMessages`.
+    - Maintained strict invariant `repairAttempts <= 1`.
+    - Ensured signal abort transitions task state to `aborted` and clears `pendingPatches`.
+  - In `src/main.tsx`:
+    - Wired `taskStore.recoverInterruptedTasks()` into application boot sequence before rendering UI.
+  - In tests:
+    - Updated `taskStateMachine.test.ts` and `taskStore.test.ts` for the new `created` initial state and lifecycle model.
+    - Implemented comprehensive regression suite in `src/services/agent/task/taskLifecycle.test.ts` covering all Criteria A-Y and Section 14 interruption recovery.
+- Decisions:
+  - Distinguish durable task state from durable execution: an interrupted task is marked `interrupted` and preserved rather than falsely reporting success or silently continuing without user awareness.
+  - Reject stale updates using unique run-scoped `executionToken` to defend against concurrent updates from backgrounded or duplicate sessions.
+  - Preserve all existing invariants: agent writes remain isolated to `WorkspaceOverlay`, canonical VFS is untouched during task execution, verification precedes commit, and automatic repair attempts remain strictly capped at 1.
+- Deviations: none
+- Verified: PASS — `npx vitest run src/services/agent/task/taskLifecycle.test.ts` (26 tests passed), `npx vitest run src/services/agent/task/` (3 test files, 35 tests passed), `npx vitest run src/services/agent/` (15 test files, 119 tests passed), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` (0 errors), and `compile_applet` build succeeded.
 - Commit: pending
 - Open questions: none
 

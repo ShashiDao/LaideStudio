@@ -11,6 +11,7 @@ import {
   type CandidateVerificationResult,
   type CandidateVerifier
 } from './workspace/candidateVerifier';
+import { taskStore } from './task/taskStore';
 
 export interface RunAgentLoopOptions {
   temperature?: number;
@@ -28,12 +29,14 @@ export interface RunAgentLoopOptions {
   onVerification?: (result: CandidateVerificationResult, attempt: number) => void;
   onRepairAttempt?: (attempt: number, error: string) => void;
   taskId?: string;
+  executionToken?: string;
 }
 
 export interface AgentLoopMessages extends Array<LLMMessage> {
   verificationResult?: CandidateVerificationResult;
   repairAttempts?: number;
   verified?: boolean;
+  taskId?: string;
 }
 
 interface TurnExecutionCtx {
@@ -338,8 +341,55 @@ export async function runAgentLoop(
     options
   };
 
+  // 1. Task initialization / attachment
+  let taskId = options?.taskId;
+  const executionToken = options?.executionToken || crypto.randomUUID();
+
+  if (!taskId) {
+    const promptSummary = typeof userMessage === 'string'
+      ? userMessage.slice(0, 150)
+      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as { text?: string } | undefined)?.text?.slice(0, 150) || 'Agent Task' : 'Agent Task');
+    const createdTask = await taskStore.createTask(projectId, promptSummary, {
+      baseRevision: options?.baseRevision,
+      executionToken
+    });
+    taskId = createdTask.id;
+  }
+
+  // Ensure task transitions to 'running'
+  const currentTask = await taskStore.getTask(taskId);
+  if (currentTask && currentTask.state === 'created') {
+    await taskStore.updateTaskState(taskId, 'running', {
+      executionToken,
+      baseRevision: options?.baseRevision
+    });
+  }
+
   // Phase 1: Initial Agent Tool Turns (Editing)
-  await runToolCallingTurns(currentMessages, adapter, projectId, overlay, turnCtx);
+  try {
+    await runToolCallingTurns(currentMessages, adapter, projectId, overlay, turnCtx);
+  } catch (error) {
+    if (signal?.aborted) {
+      await taskStore.updateTaskState(taskId, 'aborted', {
+        abortedAt: Date.now(),
+        executionToken
+      });
+    } else {
+      await taskStore.updateTaskState(taskId, 'failed', {
+        failureSummary: String(error).slice(0, 1200),
+        executionToken,
+        completedAt: Date.now()
+      });
+    }
+    throw error;
+  }
+
+  if (signal?.aborted) {
+    await taskStore.updateTaskState(taskId, 'aborted', {
+      abortedAt: Date.now(),
+      executionToken
+    });
+  }
 
   // Phase 2: Candidate Verification & Bounded Autonomous Repair
   let repairAttempts = 0;
@@ -349,44 +399,124 @@ export async function runAgentLoop(
   const hasCandidateEdits = overlay.diff().length > 0;
   const shouldVerify = Boolean(options?.verifier || hasCandidateEdits);
 
-  if (shouldVerify && !signal?.aborted) {
+  if (signal?.aborted) {
+    // Already marked aborted
+  } else if (shouldVerify) {
+    // Transition to 'verifying'
+    await taskStore.updateTaskState(taskId, 'verifying', { executionToken });
+
     const verifier = options?.verifier ?? verifyCandidateOverlay;
 
     // Initial Verification of Candidate
     finalVerificationResult = await verifier(overlay);
     options?.onVerification?.(finalVerificationResult, repairAttempts);
 
-    const isUnavailable = finalVerificationResult.status === 'unavailable' || Boolean(finalVerificationResult.skippedWorkerVerification);
-
-    // If verification failed and is NOT an environment unavailability, invoke the single bounded repair attempt
-    if (!finalVerificationResult.success && !isUnavailable && repairAttempts < MAX_REPAIR_ATTEMPTS && !signal?.aborted) {
-      repairAttempts++;
-      const { formattedText: failureEvidence } = normalizeVerificationEvidence(finalVerificationResult);
-      options?.onRepairAttempt?.(repairAttempts, failureEvidence);
-
-      // Supply normalized bounded failure evidence to the agent in the same context
-      const repairPrompt = `[Verification Failure - Automatic Repair Attempt ${repairAttempts} of ${MAX_REPAIR_ATTEMPTS}]\n` +
-        `The candidate workspace changes failed verification:\n` +
-        `${failureEvidence}\n\n` +
-        `Please analyze the verification error and use tool calls (such as write_file) to repair the candidate workspace. ` +
-        `All repairs must be applied to the existing candidate overlay. ` +
-        `You have exactly ONE repair attempt. Do not repeat the same error.`;
-
-      currentMessages.push({
-        role: 'user',
-        content: repairPrompt
+    if (signal?.aborted) {
+      await taskStore.updateTaskState(taskId, 'aborted', {
+        abortedAt: Date.now(),
+        executionToken
       });
-      if (onUpdate) onUpdate([...currentMessages]);
+    } else {
+      const isUnavailable = finalVerificationResult.status === 'unavailable' || Boolean(finalVerificationResult.skippedWorkerVerification);
 
-      // Agent performs repair edits in the SAME WorkspaceOverlay
-      await runToolCallingTurns(currentMessages, adapter, projectId, overlay, turnCtx);
+      if (finalVerificationResult.success && !isUnavailable) {
+        // Initial verification passed! -> VERIFIED
+        await taskStore.updateTaskState(taskId, 'verified', {
+          verificationStatus: 'passed',
+          executionToken,
+          completedAt: Date.now()
+        });
+      } else if (isUnavailable) {
+        // Verification UNAVAILABLE -> do NOT repair, mark FAILED
+        const { formattedText: failureSummary } = normalizeVerificationEvidence(finalVerificationResult, 1200);
+        await taskStore.updateTaskState(taskId, 'failed', {
+          verificationStatus: 'unavailable',
+          failureSummary,
+          executionToken,
+          completedAt: Date.now()
+        });
+      } else if (repairAttempts < MAX_REPAIR_ATTEMPTS) {
+        // Verification failed, enter bounded repair attempt 1
+        repairAttempts++;
+        const { formattedText: failureEvidence } = normalizeVerificationEvidence(finalVerificationResult, 1200);
+        options?.onRepairAttempt?.(repairAttempts, failureEvidence);
 
-      // Verify the SAME candidate overlay again
-      if (!signal?.aborted) {
-        finalVerificationResult = await verifier(overlay);
-        options?.onVerification?.(finalVerificationResult, repairAttempts);
+        await taskStore.updateTaskState(taskId, 'repairing', {
+          repairAttempts,
+          verificationStatus: 'failed',
+          failureSummary: failureEvidence,
+          executionToken
+        });
+
+        // Supply normalized bounded failure evidence to the agent in the same context
+        const repairPrompt = `[Verification Failure - Automatic Repair Attempt ${repairAttempts} of ${MAX_REPAIR_ATTEMPTS}]\n` +
+          `The candidate workspace changes failed verification:\n` +
+          `${failureEvidence}\n\n` +
+          `Please analyze the verification error and use tool calls (such as write_file) to repair the candidate workspace. ` +
+          `All repairs must be applied to the existing candidate overlay. ` +
+          `You have exactly ONE repair attempt. Do not repeat the same error.`;
+
+        currentMessages.push({
+          role: 'user',
+          content: repairPrompt
+        });
+        if (onUpdate) onUpdate([...currentMessages]);
+
+        // Agent performs repair edits in the SAME WorkspaceOverlay
+        await runToolCallingTurns(currentMessages, adapter, projectId, overlay, turnCtx);
+
+        if (signal?.aborted) {
+          await taskStore.updateTaskState(taskId, 'aborted', {
+            abortedAt: Date.now(),
+            executionToken
+          });
+        } else {
+          // Transition back to 'verifying'
+          await taskStore.updateTaskState(taskId, 'verifying', { executionToken });
+
+          // Verify the SAME candidate overlay again
+          finalVerificationResult = await verifier(overlay);
+          options?.onVerification?.(finalVerificationResult, repairAttempts);
+
+          if (signal?.aborted) {
+            await taskStore.updateTaskState(taskId, 'aborted', {
+              abortedAt: Date.now(),
+              executionToken
+            });
+          } else if (
+            finalVerificationResult.success &&
+            finalVerificationResult.status !== 'unavailable' &&
+            !finalVerificationResult.skippedWorkerVerification
+          ) {
+            // Repaired candidate verified!
+            await taskStore.updateTaskState(taskId, 'verified', {
+              verificationStatus: 'passed',
+              repairAttempts,
+              executionToken,
+              completedAt: Date.now()
+            });
+          } else {
+            // Second verification failed or unavailable -> Terminal 'failed'
+            const { formattedText: finalFailureSummary } = normalizeVerificationEvidence(finalVerificationResult, 1200);
+            await taskStore.updateTaskState(taskId, 'failed', {
+              verificationStatus: finalVerificationResult.status === 'unavailable' ? 'unavailable' : 'failed',
+              failureSummary: finalFailureSummary,
+              repairAttempts,
+              executionToken,
+              completedAt: Date.now()
+            });
+          }
+        }
       }
     }
+  } else {
+    // No edits to verify and no custom verifier -> transition through verifying to verified
+    await taskStore.updateTaskState(taskId, 'verifying', { executionToken });
+    await taskStore.updateTaskState(taskId, 'verified', {
+      verificationStatus: 'passed',
+      executionToken,
+      completedAt: Date.now()
+    });
   }
 
   // Record token spend and estimated cost for this entire agent run
@@ -431,8 +561,10 @@ export async function runAgentLoop(
   }
 
   // Phase 3: Final Diff / Pending Review
-  // If verification failed or was unavailable: stop with failure and do not publish unverified patches.
-  if (!signal?.aborted) {
+  // If verification failed or was unavailable or aborted: do not publish unverified patches.
+  if (signal?.aborted) {
+    useAppStore.getState().clearPendingPatches();
+  } else {
     const isFailedOrUnavailable = Boolean(
       shouldVerify &&
       finalVerificationResult &&
@@ -464,13 +596,15 @@ export async function runAgentLoop(
   resultMessages.verificationResult = finalVerificationResult ?? undefined;
   resultMessages.repairAttempts = repairAttempts;
   const isCandidateVerified = Boolean(
-    finalVerificationResult
+    !signal?.aborted &&
+    (finalVerificationResult
       ? (finalVerificationResult.success === true &&
          finalVerificationResult.status !== 'unavailable' &&
          !finalVerificationResult.skippedWorkerVerification)
-      : !hasCandidateEdits
+      : !hasCandidateEdits)
   );
   resultMessages.verified = isCandidateVerified;
+  resultMessages.taskId = taskId;
 
   return resultMessages;
 }

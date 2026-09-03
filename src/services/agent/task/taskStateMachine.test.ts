@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { TaskStateMachine } from './taskStateMachine';
 
 describe('TaskStateMachine', () => {
-  it('initializes with queued state by default', () => {
+  it('initializes with created state by default', () => {
     const sm = new TaskStateMachine();
-    expect(sm.getState()).toBe('queued');
+    expect(sm.getState()).toBe('created');
   });
 
   it('allows valid transitions', () => {

@@ -15,24 +15,24 @@ describe('TaskStore', () => {
     const task = await taskStore.createTask('p1', 'build an app');
     expect(task.id).toBeDefined();
     expect(task.projectId).toBe('p1');
-    expect(task.state).toBe('queued');
+    expect(task.state).toBe('created');
     expect(task.userRequest).toBe('build an app');
   });
 
   it('updates task state', async () => {
     const task = await taskStore.createTask('p1', 'build an app');
-    const updated = await taskStore.updateTaskState(task.id, 'analyzing');
+    const updated = await taskStore.updateTaskState(task.id, 'running');
     
-    expect(updated.state).toBe('analyzing');
+    expect(updated.state).toBe('running');
     
     const fetched = await taskStore.getTask(task.id);
-    expect(fetched?.state).toBe('analyzing');
+    expect(fetched?.state).toBe('running');
   });
 
   it('prevents invalid task state transitions', async () => {
     const task = await taskStore.createTask('p1', 'build an app');
     
-    await expect(taskStore.updateTaskState(task.id, 'applying')).rejects.toThrow();
+    await expect(taskStore.updateTaskState(task.id, 'verified')).rejects.toThrow();
   });
 
   it('creates and finishes a run', async () => {
