@@ -25,6 +25,7 @@ import {
   tokenize,
   getCommandManual
 } from './terminalTypes';
+import { executeFileCommand, FILE_COMMANDS } from './handlers/fileCommands';
 
 export async function executeTerminalCommand(
   rawCommand: string, 
@@ -104,7 +105,11 @@ export async function executeTerminalCommand(
     let outputText = '';
     let outputType: TerminalOutputItem['type'] = 'stdout';
 
-    switch (command) {
+    if (FILE_COMMANDS.has(command)) {
+      const result = await executeFileCommand(command, args, commandStr, context);
+      outputText = result.outputText ?? '';
+      outputType = result.outputType ?? 'stdout';
+    } else switch (command) {
       case 'capabilities': {
         outputText = `LAIDE Virtual Shell — Execution Model & Capabilities:
 
@@ -190,7 +195,7 @@ Tip: Use Tab for autocomplete, ↑/↓ for command history, Ctrl+L to clear.`;
         break;
       }
 
-      case 'clear':
+      case 'clear': {
       case 'cls': {
         setHistory([]);
         setIsRunning(false);
@@ -653,12 +658,7 @@ Tip: Use Tab for autocomplete, ↑/↓ for command history, Ctrl+L to clear.`;
           const words = found.content.trim() ? found.content.trim().split(/\s+/).length : 0;
           const modified = new Date(found.updatedAt || Date.now()).toISOString();
 
-          outputText = `  File: ${found.path}
-  Size: ${size} bytes (${formatByteSize(size)})  Lines: ${lines}  Words: ${words}
-  Type: Regular File
- Inode: ${found.id}
-Modify: ${modified}
-Access: 0644/-rw-r--r--`;
+          outputText = `  File: ${found.path}\n  Size: ${size} bytes (${formatByteSize(size)})  Lines: ${lines}  Words: ${words}\n  Type: Regular File\n Inode: ${found.id}\nModify: ${modified}\nAccess: 0644/-rw-r--r--`;
         }
         break;
       }
@@ -740,7 +740,7 @@ Access: 0644/-rw-r--r--`;
         if (onOpenBisect) {
           onOpenBisect(targetTest || undefined);
           outputType = 'info';
-          outputText = `Opening Bisection Finder${targetTest ? ` for test "${targetTest}"` : ''}...`;
+          outputText = `Opening Bisection Finder${targetTest ? ` for test \"${targetTest}\"` : ''}...`;
         } else {
           outputType = 'stderr';
           outputText = 'Bisection finder is unavailable in current mode.';
@@ -761,14 +761,14 @@ Access: 0644/-rw-r--r--`;
           const hasFailed = !result.includes('Failed: 0') && result.includes('Failed:');
           outputType = hasFailed ? 'stderr' : 'success';
           if (hasFailed && onOpenBisect) {
-            outputText += '\n💡 Tip: Type "bisect" or open Project Actions > "Find What Broke This" to binary search provenance history and isolate regressions.';
+            outputText += '\n💡 Tip: Type \"bisect\" or open Project Actions > \"Find What Broke This\" to binary search provenance history and isolate regressions.';
           }
         } else if (sub === 'bisect') {
           const targetTest = args.slice(1).join(' ').trim();
           if (onOpenBisect) {
             onOpenBisect(targetTest || undefined);
             outputType = 'info';
-            outputText = `Opening Bisection Finder${targetTest ? ` for test "${targetTest}"` : ''}...`;
+            outputText = `Opening Bisection Finder${targetTest ? ` for test \"${targetTest}\"` : ''}...`;
           } else {
             outputType = 'stderr';
             outputText = 'Bisection finder is unavailable in current mode.';
@@ -834,7 +834,7 @@ Access: 0644/-rw-r--r--`;
             outputType = 'stderr';
             outputText = 'npm vendor: no active project open';
           } else {
-            addOutput('info', `📦 Vendoring package "${pkgArg}"...`);
+            addOutput('info', `📦 Vendoring package \"${pkgArg}\"...`);
             let pkgName = pkgArg;
             let requestedVersion = '';
             if (pkgArg.startsWith('@')) {
@@ -902,12 +902,12 @@ Access: 0644/-rw-r--r--`;
 
               onFilesChanged?.();
               outputType = 'success';
-              outputText = `📦 Successfully vendored "${pkgName}"!
+              outputText = `📦 Successfully vendored \"${pkgName}\"!
   Source: ${targetUrl}
   Saved to: ${vendorPath} (${formatByteSize(new Blob([fetchedCode]).size)})
   Integrity: ${hash}
   Lockfile: updated ${LOCKFILE_PATH}
-✨ Future builds will resolve "${pkgName}" locally with 0 network calls.`;
+✨ Future builds will resolve \"${pkgName}\" locally with 0 network calls.`;
             } catch (err: unknown) {
               outputType = 'stderr';
               const msg = err instanceof Error ? err.message : String(err);
@@ -980,7 +980,7 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
           }
         } else {
           outputType = 'stderr';
-          outputText = `npm: unsupported command: "${sub}". Try "npm test", "npm run build", "npm vendor <pkg>", or "npm ls".`;
+          outputText = `npm: unsupported command: \"${sub}\". Try \"npm test\", \"npm run build\", \"npm vendor <pkg>\", or \"npm ls\".`;
         }
         break;
       }
@@ -994,7 +994,7 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
           outputType = 'stderr';
           outputText = 'vendor: no active project open';
         } else {
-          addOutput('info', `📦 Vendoring package "${pkgArg}"...`);
+          addOutput('info', `📦 Vendoring package \"${pkgArg}\"...`);
           let pkgName = pkgArg;
           let requestedVersion = '';
           if (pkgArg.startsWith('@')) {
@@ -1062,12 +1062,12 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
 
             onFilesChanged?.();
             outputType = 'success';
-            outputText = `📦 Successfully vendored "${pkgName}"!
+            outputText = `📦 Successfully vendored \"${pkgName}\"!
   Source: ${targetUrl}
   Saved to: ${vendorPath} (${formatByteSize(new Blob([fetchedCode]).size)})
   Integrity: ${hash}
   Lockfile: updated ${LOCKFILE_PATH}
-✨ Future builds will resolve "${pkgName}" locally with 0 network calls.`;
+✨ Future builds will resolve \"${pkgName}\" locally with 0 network calls.`;
           } catch (err: unknown) {
             outputType = 'stderr';
             const msg = err instanceof Error ? err.message : String(err);
@@ -1089,7 +1089,7 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
           if (!action || action === 'show' || action === 'list' || action === 'status') {
             const depKeys = Object.keys(lockfile.dependencies);
             if (depKeys.length === 0) {
-              outputText = `No dependencies currently locked in ${LOCKFILE_PATH}. Run "lockfile update" or "npm run build" to generate locks.`;
+              outputText = `No dependencies currently locked in ${LOCKFILE_PATH}. Run \"lockfile update\" or \"npm run build\" to generate locks.`;
             } else {
               const lines = [`Lockfile (${LOCKFILE_PATH}) — ${depKeys.length} locked packages:`];
               for (const key of depKeys) {
@@ -1153,7 +1153,7 @@ Updated dependencies (${updatedList.length}):
 ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
           } else {
             outputType = 'stderr';
-            outputText = `lockfile: unknown action "${action}". Try "lockfile list" or "lockfile update [pkg]".`;
+            outputText = `lockfile: unknown action \"${action}\". Try \"lockfile list\" or \"lockfile update [pkg]\".`;
           }
         }
         break;
@@ -1189,7 +1189,6 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
           break;
         }
 
-        // Strip non-transferable data from files for worker serialization
         const serializableFiles = files.map(f => ({
           id: f.id,
           projectId: f.projectId,
@@ -1226,7 +1225,7 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
             outputText = `diff --git a/${f?.path || 'workspace'} b/${f?.path || 'workspace'}\n--- a/${f?.path || 'workspace'}\n+++ b/${f?.path || 'workspace'}\n@@ -1 +1 @@\n [Local Virtual Workspace State Clean]`;
           }
         } else {
-          outputText = `git: '${gitSub}' is simulated. Use "git status" or "git diff".`;
+          outputText = `git: '${gitSub}' is simulated. Use \"git status\" or \"git diff\".`;
         }
         break;
       }
@@ -1247,7 +1246,7 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
 
       case 'export': {
         if (args.length === 0) {
-          outputText = Object.entries(env).map(([k, v]) => `declare -x ${k}="${v}"`).join('\n');
+          outputText = Object.entries(env).map(([k, v]) => `declare -x ${k}=\"${v}\"`).join('\n');
         } else {
           for (const item of args) {
             const eqIdx = item.indexOf('=');
@@ -1338,7 +1337,6 @@ ${updatedList.map(u => `  ✔ ${u}`).join('\n')}`;
       }
     }
 
-    // Handle file redirection only on success (outputType !== 'stderr') and valid target
     if (targetRedirectFile && projectId && outputType !== 'stderr') {
       const dest = resolvePath(cwd, targetRedirectFile);
       const existing = files.find(f => f.path === dest);
