@@ -1,7 +1,7 @@
 import { createFile, writeFile } from '../../../services/fs/vfs';
 import { formatByteSize } from '../../../utils/formatters';
 import { computeSha256, findLockfile, serializeLockfile, getCanonicalVendorPath, LOCKFILE_PATH } from '../../../services/bundler/lockfile';
-import type { CommandExecutionContext, TerminalOutputItem } from '../terminalTypes';
+import type { TerminalOutputItem } from '../terminalTypes';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const DEPENDENCIES_COMMANDS = new Set([
