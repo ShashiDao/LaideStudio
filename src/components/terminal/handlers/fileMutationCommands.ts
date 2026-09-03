@@ -1,10 +1,11 @@
 import { createFile, writeFile, deleteFile, deleteFolder, renameFile } from '../../../services/fs/vfs';
 import { resolvePath } from '../terminalTypes';
+import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILEMUTATION_COMMANDS = new Set(['touch', 'mkdir', 'rm', 'cp', 'mv']);
 
-export const executeFileMutationCommand: TerminalCommandHandler = async (command, _args, _commandStr, context) => {
+export const executeFileMutationCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
   if (!FILEMUTATION_COMMANDS.has(command)) return {};
   const { files, cwd, projectId, onFilesChanged } = context;
   switch (command) {
