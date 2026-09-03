@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-128
-- Last verified working: Implemented the bounded autonomous repair loop for agent runs (Prompt 4). When candidate verification fails, failure diagnostics and compiler/test error output are injected into the agent context for exactly one automatic repair turn. Repair edits accumulate in the exact same WorkspaceOverlay instance, keeping canonical VFS strictly read-only. Repaired overlay is re-verified; if verification passes, candidate diff is published to pendingPatches with verified: true; if repair verification fails, the run stops with failure, candidate patches are withheld (fail closed), and no recursive repair loops can trigger (strictly bounded to at most 1 repair attempt). All 92 Vitest test files (723 tests) pass cleanly, npm run typecheck (tsc --noEmit) passes with 0 errors, npm run lint passes with 0 errors, and compile_applet build succeeded.
+- Phase: REVIEW-FIX-01
+- Last verified working: Hardened the bounded autonomous repair loop and enforced strict fail-closed verification semantics (Prompt 4 review fix). Addressed all 4 review defects: (1) Fail-Closed vs. Unavailable in candidate verification: CandidateVerificationResult explicitly distinguishes 'passed', 'failed', and 'unavailable' statuses. When Worker is unavailable and build or test verification is required, verification fails closed with status 'unavailable' instead of falsely reporting success or a verified pass; the agent loop halts without publishing unverified candidate patches; (2) Strict Repair Bounds: Enforced hard upper bound of Math.min(1, Math.max(0, maxRepairAttempts)) ensuring caller options cannot exceed the MVP architectural ceiling of at most 1 automatic repair attempt; (3) Failure Evidence Normalization: Implemented normalizeVerificationEvidence bounding failure output to 1200 characters while preserving actionable syntax/type error summaries, failing test names, and entry points, protecting the model context window from unbounded log dumps; (4) Exact Same Overlay Identity: Enforced and verified that repair turns execute against the exact same WorkspaceOverlay instance and base revision as the initial turn without recreation. All 93 Vitest test suites (728 tests) pass cleanly, npm run typecheck (tsc --noEmit) passes with 0 errors, npm run lint passes with 0 errors, and compile_applet build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -33,8 +33,10 @@
   - `src/components/modals/ImageViewerModal.tsx` (505 lines) — Extract image canvas pan/zoom controls and image metadata footer into sub-components.
   - `src/components/project/ProjectActionsMenu.tsx` (482 lines) — Extract ZIP export/import modal triggers and project deletion confirmation dialog into separate sub-components.
   - `src/services/security/passwordStrength.ts` (480 lines) — Extract password dictionary wordlists and pattern matchers into separate security utilities.
+  - `src/services/agent/agentLoop.ts` (476 lines) — Extract candidate verification and bounded repair turn orchestration into dedicated repair coordinator under `src/services/agent/workspace/`.
   - `src/components/shared/QuickConnectSheet.tsx` (473 lines) — Extract individual provider quick-connect cards into sub-components under `src/components/shared/`.
   - `src/services/provenance/trustScore.ts` (442 lines) — Extract penalty computation rules and letter grade formatters into separate provenance helpers.
+  - `src/services/agent/agentLoop.test.ts` (401 lines) — Split streaming/abort tests and MCP error surface tests into separate test files under `src/services/agent/`.
 
 ## Archived Log Summary
 
@@ -728,6 +730,45 @@ Open questions: none
   - Maintained canonical VFS immutability throughout; candidate patches are only published if verification passes.
 - Deviations: none
 - Verified: PASS — `npx vitest run src/services/agent/workspace/overlayRepairLoop.test.ts` (5 tests passed), `npx vitest run src/services/agent/workspace/` (7 test files, 47 tests passed), `npx vitest run src/services/agent/` (13 test files, 88 tests passed), full test suite `npx vitest run` (92 test files, 723 tests passed), `compile_applet` build succeeded, and `npm run lint` passed with 0 errors.
+- Commit: pending
+- Open questions: none
+
+### [REVIEW-FIX-01] Autonomous Repair Loop Hardening & Fail-Closed Verification — 2026-09-03
+- Prompt: Fix the specific implementation defects found in the review of the bounded automatic repair loop: (1) Fail-Closed vs. Unavailable in candidate verification (Worker unavailable is NOT success, distinguish status, do not publish unverified candidates); (2) Strict repair bounds (hard-bound to at most 1 attempt, prevent options override); (3) Failure evidence normalization (extract summary, affected files/tests, truncate massive logs); (4) Repair in same overlay guarantee (reuse exact same instance and base revision); (5) Add comprehensive regression test coverage for all fixed defects.
+- Files touched:
+  - `src/services/agent/agentLoop.ts` (modified)
+  - `src/services/agent/workspace/candidateVerifier.ts` (modified)
+  - `src/services/agent/workspace/overlayRepairHardening.test.ts` (new)
+  - `src/services/agent/workspace/overlayRepairLoop.test.ts` (modified)
+  - `src/services/agent/workspace/overlayWrite.test.ts` (modified)
+  - `src/services/agent/agentLoop.test.ts` (modified)
+  - `AI_CHANGELOG.md` (modified)
+- Changed:
+  - In `src/services/agent/workspace/candidateVerifier.ts`:
+    - Refactored `CandidateVerificationResult` status to union `'passed' | 'failed' | 'unavailable'`.
+    - Eliminated false-positive `success: true` when `typeof Worker === 'undefined'` in browser/PWA runtimes: if build or test verification is required, verification fails closed with `status: 'unavailable'` and `success: false`.
+    - Added exported helper `isCandidateVerified(result): result is CandidateVerificationResult & { status: 'passed'; success: true }` to enforce single authoritative check across callers.
+    - Implemented `normalizeVerificationEvidence(result)` which classifies the failure kind (`build`, `tests`, `mixed`, `general`), extracts actionable error summaries, collects failing test names / entry points, and truncates large build outputs or stack traces to at most 1200 characters (preserving diagnostic head and tail lines with truncation notice).
+  - In `src/services/agent/agentLoop.ts`:
+    - Hard-bounded `maxRepairAttempts` using `Math.min(1, Math.max(0, options?.maxRepairAttempts ?? 1))` to ensure external options or recursive execution cannot exceed the architectural ceiling of 1 repair attempt.
+    - Integrated `isCandidateVerified` into the verification check: if candidate verification returns `status: 'unavailable'`, the agent loop surfaces a clear unavailable message, sets `verified: false`, clears `pendingPatches`, and halts without publishing unverified patches.
+    - Replaced raw error text injection in repair prompt with structured `normalizeVerificationEvidence(initialVerif).formattedText`, safeguarding context window budgets against runaway compiler logs.
+    - Preserved the exact same `WorkspaceOverlay` instance and base revision across initial and repair turns without resetting or recreating overlay state.
+  - In tests:
+    - Added comprehensive regression suite in `src/services/agent/workspace/overlayRepairHardening.test.ts` verifying:
+      - Test A: `Worker` unavailable returns `status: 'unavailable'` when verification is required (not success).
+      - Test B: `Worker` unavailable does not produce a verified candidate (`isCandidateVerified` returns `false`).
+      - Test C: `Worker` unavailable in `runAgentLoop` withholds candidate diff from `pendingPatches` and reports failure.
+      - Test D & E: Strict 1-attempt repair limit cannot be overridden by `maxRepairAttempts > 1`.
+      - Test F: `normalizeVerificationEvidence` normalizes kind, summaries, and bounds log size.
+      - Test G: Repair turn executes against the exact same `WorkspaceOverlay` instance and preserves base revision.
+    - Updated `overlayWrite.test.ts` and `agentLoop.test.ts` to supply explicit mock verifiers where needed to prevent environment worker absences from triggering fail-closed rejection.
+- Decisions:
+  - Verification unavailable must strictly fail closed: unverified candidates are never treated as verified passes or committed/published as verified patches.
+  - Failure evidence must be normalized and bounded before prompt injection to avoid context exhaustion on large compilation or test traces.
+  - Max repair attempts is architecturally clamped to 1 in MVP; caller options cannot relax this constraint.
+- Deviations: none
+- Verified: PASS — `npx vitest run src/services/agent/workspace/overlayRepairHardening.test.ts` (5 tests passed), `npx vitest run src/services/agent/` (14 test files, 93 tests passed), full test suite `npx vitest run` (93 test files, 728 tests passed), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` (0 errors), and `compile_applet` build succeeded.
 - Commit: pending
 - Open questions: none
 

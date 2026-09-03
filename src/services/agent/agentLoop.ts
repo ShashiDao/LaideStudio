@@ -7,6 +7,7 @@ import { AgentWorkspaceOverlay, type WorkspaceOverlay } from './workspace/overla
 import { listFiles } from '../fs/vfs';
 import {
   verifyCandidateOverlay,
+  normalizeVerificationEvidence,
   type CandidateVerificationResult,
   type CandidateVerifier
 } from './workspace/candidateVerifier';
@@ -27,7 +28,6 @@ export interface RunAgentLoopOptions {
   onVerification?: (result: CandidateVerificationResult, attempt: number) => void;
   onRepairAttempt?: (attempt: number, error: string) => void;
   taskId?: string;
-  maxRepairAttempts?: number;
 }
 
 export interface AgentLoopMessages extends Array<LLMMessage> {
@@ -343,7 +343,7 @@ export async function runAgentLoop(
 
   // Phase 2: Candidate Verification & Bounded Autonomous Repair
   let repairAttempts = 0;
-  const maxRepairAttempts = 1; // Strictly bounded to exactly ONE attempt in MVP
+  const MAX_REPAIR_ATTEMPTS = 1; // Strictly bounded to exactly ONE attempt in MVP
   let finalVerificationResult: CandidateVerificationResult | null = null;
 
   const hasCandidateEdits = overlay.diff().length > 0;
@@ -356,14 +356,16 @@ export async function runAgentLoop(
     finalVerificationResult = await verifier(overlay);
     options?.onVerification?.(finalVerificationResult, repairAttempts);
 
-    // If verification failed and we have not exhausted our single repair attempt:
-    if (!finalVerificationResult.success && repairAttempts < maxRepairAttempts && !signal?.aborted) {
+    const isUnavailable = finalVerificationResult.status === 'unavailable' || Boolean(finalVerificationResult.skippedWorkerVerification);
+
+    // If verification failed and is NOT an environment unavailability, invoke the single bounded repair attempt
+    if (!finalVerificationResult.success && !isUnavailable && repairAttempts < MAX_REPAIR_ATTEMPTS && !signal?.aborted) {
       repairAttempts++;
-      const failureEvidence = finalVerificationResult.error || finalVerificationResult.output || 'Candidate verification failed.';
+      const { formattedText: failureEvidence } = normalizeVerificationEvidence(finalVerificationResult);
       options?.onRepairAttempt?.(repairAttempts, failureEvidence);
 
-      // Supply failure evidence to the agent in the same context
-      const repairPrompt = `[Verification Failure - Automatic Repair Attempt ${repairAttempts} of ${maxRepairAttempts}]\n` +
+      // Supply normalized bounded failure evidence to the agent in the same context
+      const repairPrompt = `[Verification Failure - Automatic Repair Attempt ${repairAttempts} of ${MAX_REPAIR_ATTEMPTS}]\n` +
         `The candidate workspace changes failed verification:\n` +
         `${failureEvidence}\n\n` +
         `Please analyze the verification error and use tool calls (such as write_file) to repair the candidate workspace. ` +
@@ -429,13 +431,25 @@ export async function runAgentLoop(
   }
 
   // Phase 3: Final Diff / Pending Review
-  // If verification failed after the single repair attempt: stop with failure and do not publish unverified patches.
+  // If verification failed or was unavailable: stop with failure and do not publish unverified patches.
   if (!signal?.aborted) {
-    if (shouldVerify && finalVerificationResult && !finalVerificationResult.success) {
+    const isFailedOrUnavailable = Boolean(
+      shouldVerify &&
+      finalVerificationResult &&
+      (!finalVerificationResult.success ||
+        finalVerificationResult.status === 'unavailable' ||
+        finalVerificationResult.skippedWorkerVerification)
+    );
+
+    if (isFailedOrUnavailable && finalVerificationResult) {
       useAppStore.getState().clearPendingPatches();
+      const isUnavailable = finalVerificationResult.status === 'unavailable' || Boolean(finalVerificationResult.skippedWorkerVerification);
+      const failureMessage = isUnavailable
+        ? `⚠️ Candidate verification was unavailable in this environment:\n${finalVerificationResult.error || finalVerificationResult.output || 'Web Worker unavailable'}\nCandidate changes were not verified and will not be published.`
+        : `⚠️ Automatic repair failed. The candidate workspace could not be verified:\n${finalVerificationResult.error || finalVerificationResult.output || 'Verification failure'}`;
       currentMessages.push({
         role: 'assistant',
-        content: `⚠️ Automatic repair failed. The candidate workspace could not be verified:\n${finalVerificationResult.error || finalVerificationResult.output || 'Verification failure'}`
+        content: failureMessage
       });
       if (onUpdate) onUpdate([...currentMessages]);
     } else {
@@ -449,7 +463,14 @@ export async function runAgentLoop(
   const resultMessages: AgentLoopMessages = currentMessages;
   resultMessages.verificationResult = finalVerificationResult ?? undefined;
   resultMessages.repairAttempts = repairAttempts;
-  resultMessages.verified = finalVerificationResult ? finalVerificationResult.success : true;
+  const isCandidateVerified = Boolean(
+    finalVerificationResult
+      ? (finalVerificationResult.success === true &&
+         finalVerificationResult.status !== 'unavailable' &&
+         !finalVerificationResult.skippedWorkerVerification)
+      : !hasCandidateEdits
+  );
+  resultMessages.verified = isCandidateVerified;
 
   return resultMessages;
 }

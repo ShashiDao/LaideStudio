@@ -60,7 +60,12 @@ describe('agentLoop', () => {
       'Update App.tsx please',
       [],
       mockAdapter,
-      projectId
+      projectId,
+      undefined,
+      undefined,
+      undefined,
+      10,
+      { verifier: async () => ({ success: true, status: 'passed' }) }
     );
 
     // 1. Pending patch must be queued in store

@@ -508,8 +508,8 @@ describe('Autonomous Repair Loop in AgentWorkspaceOverlay', () => {
       }
 
       // In second verification attempt: BOTH Config.ts (from step 1) AND Logger.ts (from repair step) exist in SAME overlay!
-      expect(config.content).toContain('broken: true');
-      expect(logger.content).toContain('[DEBUG]');
+      expect(config?.content).toContain('broken: true');
+      expect(logger?.content).toContain('[DEBUG]');
 
       return {
         success: true,

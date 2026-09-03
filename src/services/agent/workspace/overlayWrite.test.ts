@@ -295,7 +295,17 @@ describe('WorkspaceOverlay Write Isolation & Accumulation', () => {
       { role: 'user', content: 'Update counter to 1' }
     ];
 
-    await runAgentLoop('Update counter to 1', initialMessages, mockAdapter, projectId);
+    await runAgentLoop(
+      'Update counter to 1',
+      initialMessages,
+      mockAdapter,
+      projectId,
+      undefined,
+      undefined,
+      undefined,
+      10,
+      { verifier: async () => ({ success: true, status: 'passed' }) }
+    );
 
     // 1. Canonical VFS remained untouched throughout
     const canonical = await db.files.get('f-loop-1');
