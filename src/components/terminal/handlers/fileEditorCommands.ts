@@ -4,7 +4,7 @@ import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILEEDITOR_COMMANDS = new Set(['open', 'code', 'edit']);
 
-export const executeFileEditorCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
+export const executeFileEditorCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILEEDITOR_COMMANDS.has(command)) return {};
   const { cwd, setActiveFileId } = context;
   switch (command) {
