@@ -5,7 +5,7 @@ import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILESEARCH_COMMANDS = new Set(['grep', 'find', 'wc', 'stat', 'tree']);
 
-export const executeFileSearchCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
+export const executeFileSearchCommand: TerminalCommandHandler = async (command, args, _commandStr, context) => {
   if (!FILESEARCH_COMMANDS.has(command)) return {};
   const { files, cwd, getDirEntries, dirExists } = context;
   switch (command) {
