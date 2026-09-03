@@ -99,6 +99,7 @@ export async function recoverZip(zipData: ArrayBuffer | Uint8Array): Promise<Zip
     scannedEntries++;
     const flags = readUint16(view, offset + 6);
     const method = readUint16(view, offset + 8);
+    const expectedCrc = readUint32(view, offset + 14);
     const compressedSize = readUint32(view, offset + 18);
     const uncompressedSize = readUint32(view, offset + 22);
     const fileNameLength = readUint16(view, offset + 26);
@@ -115,7 +116,7 @@ export async function recoverZip(zipData: ArrayBuffer | Uint8Array): Promise<Zip
     const safePath = sanitizeImportedPath(rawName.replace(/^\//, ''));
 
     if (flags & ENCRYPTED_FLAG) {
-      if (safePath) skipped.push(rawName);
+      skipped.push(rawName);
       offset += 4;
       continue;
     }
@@ -124,13 +125,13 @@ export async function recoverZip(zipData: ArrayBuffer | Uint8Array): Promise<Zip
     // the compressed-data boundary. That is unsafe, so leave it for a future
     // stronger recovery implementation rather than importing corrupted bytes.
     if (flags & DATA_DESCRIPTOR_FLAG || compressedSize === 0xffffffff || uncompressedSize === 0xffffffff) {
-      if (safePath) skipped.push(rawName);
+      skipped.push(rawName);
       offset = headerEnd;
       continue;
     }
 
     if (!safePath || compressedSize > MAX_RECOVERY_ENTRY_BYTES || uncompressedSize > MAX_RECOVERY_ENTRY_BYTES) {
-      if (safePath) skipped.push(rawName);
+      skipped.push(rawName);
       offset = headerEnd;
       continue;
     }
@@ -150,7 +151,7 @@ export async function recoverZip(zipData: ArrayBuffer | Uint8Array): Promise<Zip
           ? await inflateRaw(compressed)
           : null;
 
-      if (!decoded || decoded.length !== uncompressedSize || (readUint32(view, offset + 14) !== 0 && crc32(decoded) !== readUint32(view, offset + 14))) {
+      if (!decoded || decoded.length !== uncompressedSize || (expectedCrc !== 0 && crc32(decoded) !== expectedCrc)) {
         skipped.push(rawName);
         offset = dataEnd;
         continue;
