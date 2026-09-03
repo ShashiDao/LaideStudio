@@ -1,5 +1,6 @@
 import { formatByteSize } from '../../../utils/formatters';
 import { resolvePath } from '../terminalTypes';
+import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILESEARCH_COMMANDS = new Set(['grep', 'find', 'wc', 'stat', 'tree']);
