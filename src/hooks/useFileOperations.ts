@@ -18,6 +18,29 @@ interface UseFileOperationsParams {
   setActiveProjectId: (id: string | null) => void;
 }
 
+export interface FileSelectionState {
+  openFileIds: string[];
+  activeFileId: string | null;
+}
+
+/**
+ * Removes editor selections that no longer exist in the durable VFS.
+ * If the active file disappeared, the most recently opened surviving file
+ * becomes active; otherwise selection is cleared.
+ */
+export function reconcileFileSelection(
+  files: FileItem[],
+  selection: FileSelectionState,
+): FileSelectionState {
+  const validIds = new Set(files.map(file => file.id));
+  const openFileIds = selection.openFileIds.filter(id => validIds.has(id));
+  const activeFileId = selection.activeFileId && validIds.has(selection.activeFileId)
+    ? selection.activeFileId
+    : openFileIds[openFileIds.length - 1] || null;
+
+  return { openFileIds, activeFileId };
+}
+
 /**
  * Owns the active project's file list plus every file-level operation:
  * reading the VFS, importing dropped/uploaded files (including ZIPs),
@@ -41,23 +64,51 @@ export function useFileOperations({
     return calculateProjectMetadata(files);
   }, [files]);
 
+  // Keep Zustand's editor selection constrained to files that actually exist
+  // in the current durable VFS. This covers deletes performed outside this hook
+  // (for example FileTree and terminal operations) after their refresh callback.
+  useEffect(() => {
+    const current = useAppStore.getState();
+    const next = reconcileFileSelection(files, {
+      openFileIds: current.openFileIds,
+      activeFileId: current.activeFileId,
+    });
+
+    if (next.openFileIds.length !== current.openFileIds.length ||
+        next.openFileIds.some((id, index) => id !== current.openFileIds[index])) {
+      current.setOpenFileIds(next.openFileIds);
+    }
+    if (next.activeFileId !== current.activeFileId) {
+      setActiveFileId(next.activeFileId);
+    }
+  }, [files, setActiveFileId]);
+
   const refreshFiles = async () => {
     if (activeProject) {
       setFiles(await listFiles(activeProject.id));
     }
   };
 
-  // Reload the file list whenever the active project changes.
+  // Reload the file list whenever the active project changes. Clear the old
+  // project's files first so stale content is never presented while hydration
+  // of the new project's durable state is in flight.
   const activeProjectId = activeProject?.id;
   useEffect(() => {
     let ignore = false;
+    setFiles([]);
+
     if (activeProjectId) {
       listFiles(activeProjectId).then(fileList => {
         if (!ignore) {
           setFiles(fileList);
         }
+      }).catch(err => {
+        if (!ignore) {
+          console.error('Failed to load project files', err);
+        }
       });
     }
+
     return () => {
       ignore = true;
     };
@@ -93,8 +144,8 @@ export function useFileOperations({
 
     if (zipFiles.length > 0) {
       useAppStore.getState().addToast(
-        zipFiles.length === 1 
-          ? `Extracting "${zipFiles[0].name}"...` 
+        zipFiles.length === 1
+          ? `Extracting "${zipFiles[0].name}"...`
           : `Processing ${fileArray.length} files...`,
         'info'
       );
@@ -109,7 +160,6 @@ export function useFileOperations({
       let targetProjectId = activeProject?.id;
       let targetProjectName = activeProject?.name;
 
-      // Automatically initialize new project if none is currently active
       if (!targetProjectId) {
         const newProjId = crypto.randomUUID();
         const zipFile = fileArray.find(f => f.name.toLowerCase().endsWith('.zip'));
@@ -136,7 +186,6 @@ export function useFileOperations({
       let totalImported = 0;
       let totalSkipped = 0;
 
-      // Extract ZIP archives fast
       for (const zipFile of zipFiles) {
         const { count, skipped } = await importZip(zipFile, targetProjectId, { autoRestructure: true });
         totalImported += count;
@@ -152,7 +201,6 @@ export function useFileOperations({
         );
       }
 
-      // Process and write regular files in parallel
       if (regularFiles.length > 0) {
         const entries = await Promise.all(regularFiles.map(readFileAsContent));
         await bulkCreateOrUpdateFiles(targetProjectId, entries);
