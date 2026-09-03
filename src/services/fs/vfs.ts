@@ -166,7 +166,7 @@ export async function bulkCreateOrUpdateFiles(
   if (entries.length === 0) return [];
 
   const normalizedEntries = entries.map((entry) => ({
-    path: (entry.path.startsWith('/') ? entry.path : `/${entry.path}`).replace(/\/+/g, '/'),
+    path: (entry.path.startsWith('/') ? entry.path : `/${entry.path}`).replace(/\\+/g, '/'),
     content: entry.content,
   }));
   const uniqueMap = new Map<string, string>();
@@ -176,21 +176,75 @@ export async function bulkCreateOrUpdateFiles(
 
   const existingFiles = await db.files.where('projectId').equals(projectId).toArray();
   const existingMap = new Map(existingFiles.map((file) => [file.path, file]));
+  const existingPaths = new Set(existingFiles.map((file) => file.path));
+  const existingPrefixOwners = new Map<string, string>();
 
-  // Validate every incoming path before mutating either storage layer.
-  for (const [path] of uniqueMap) {
-    await checkPathCollision(projectId, path, existingMap.get(path)?.id);
+  // Index all directory prefixes once. This lets an incoming path detect an
+  // existing descendant without rescanning the whole project for every entry.
+  for (const file of existingFiles) {
+    const segments = file.path.split('/').filter(Boolean);
+    for (let i = 1; i < segments.length; i++) {
+      const prefix = '/' + segments.slice(0, i).join('/');
+      if (!existingPrefixOwners.has(prefix)) existingPrefixOwners.set(prefix, file.path);
+    }
   }
 
-  // Validate collisions between entries in the same batch as well.
-  const incomingPaths = [...uniqueMap.keys()];
-  for (let i = 0; i < incomingPaths.length; i++) {
-    for (let j = i + 1; j < incomingPaths.length; j++) {
-      const a = incomingPaths[i];
-      const b = incomingPaths[j];
-      if (a === b || a.startsWith(b + '/') || b.startsWith(a + '/')) {
-        throw new Error(`Path collision within bulk operation: ${a} and ${b}`);
+  // Validate every incoming path against the single existing-file snapshot.
+  for (const [path] of uniqueMap) {
+    if (!path.startsWith('/')) throw new Error(`Path must start with '/': ${path}`);
+    if (!isValidFilePath(path)) throw new Error(`Invalid file path: ${path}`);
+
+    const existing = existingMap.get(path);
+    if (existing && existing.id !== existingMap.get(path)?.id) {
+      throw new Error(`Duplicate path: ${path} already exists`);
+    }
+
+    const segments = path.split('/').filter(Boolean);
+    for (let i = 1; i < segments.length; i++) {
+      const prefix = '/' + segments.slice(0, i).join('/');
+      const ancestor = existingMap.get(prefix);
+      if (ancestor) {
+        throw new Error(`Path collision: existing file ${ancestor.path} is a folder prefix for ${path}`);
       }
+    }
+
+    const descendant = existingPrefixOwners.get(path);
+    if (descendant && !existing) {
+      throw new Error(`Path collision: ${path} is a folder prefix for existing file ${descendant}`);
+    }
+  }
+
+  // Validate collisions between entries in the same batch in O(n * path-depth)
+  // rather than comparing every pair of entries.
+  const incomingPaths = new Set<string>();
+  const incomingPrefixOwners = new Map<string, string>();
+  for (const [path] of uniqueMap) {
+    if (incomingPaths.has(path)) {
+      throw new Error(`Path collision within bulk operation: ${path} and ${path}`);
+    }
+
+    const segments = path.split('/').filter(Boolean);
+    for (let i = 1; i < segments.length; i++) {
+      const prefix = '/' + segments.slice(0, i).join('/');
+      const ancestor = incomingPaths.has(prefix) ? prefix : undefined;
+      if (ancestor) {
+        throw new Error(`Path collision within bulk operation: ${ancestor} and ${path}`);
+      }
+      const descendant = incomingPrefixOwners.get(path);
+      if (descendant) {
+        throw new Error(`Path collision within bulk operation: ${path} and ${descendant}`);
+      }
+    }
+
+    const descendant = incomingPrefixOwners.get(path);
+    if (descendant) {
+      throw new Error(`Path collision within bulk operation: ${path} and ${descendant}`);
+    }
+
+    incomingPaths.add(path);
+    for (let i = 1; i < segments.length; i++) {
+      const prefix = '/' + segments.slice(0, i).join('/');
+      if (!incomingPrefixOwners.has(prefix)) incomingPrefixOwners.set(prefix, path);
     }
   }
 
