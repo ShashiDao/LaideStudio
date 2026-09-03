@@ -1,4 +1,5 @@
 import { resolvePath } from '../terminalTypes';
+import { findFile } from './fileCommandUtils';
 import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILEEDITOR_COMMANDS = new Set(['open', 'code', 'edit']);
