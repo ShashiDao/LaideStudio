@@ -201,7 +201,10 @@ export function useFileOperations({
         totalImported += entries.length;
       }
 
-      const updatedFiles = await listFiles(targetProjectId);
+      // Import has just committed the authoritative Dexie records. Avoid immediately
+      // re-hydrating every file from OPFS; the normal project-load path still performs
+      // OPFS hydration when a project is opened or refreshed.
+      const updatedFiles = await db.files.where('projectId').equals(targetProjectId).toArray();
       setFiles(updatedFiles);
 
       if (updatedFiles.length > 0 && !activeFileId) {
