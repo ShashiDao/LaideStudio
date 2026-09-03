@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { testDatabaseReadback } from '../seed';
 import { db, type Project, type ArchivedProject } from '../db';
@@ -24,6 +24,20 @@ interface UseProjectActionsParams {
 }
 
 /**
+ * Clears UI state that belongs to the previously selected project.
+ * Durable project/file data remains owned by Dexie/VFS.
+ */
+export function resetProjectScopedState(setActiveFileId: (id: string | null) => void) {
+  const state = useAppStore.getState();
+  setActiveFileId(null);
+  state.setOpenFileIds([]);
+  state.setExpandedFolderPaths([]);
+  state.clearPendingPatches();
+  state.setLastBuildError(null);
+  state.setLastPreviewScreenshot(null);
+}
+
+/**
  * Owns the project list, archived-project list, the active project
  * derivation, and every project-level lifecycle action (rename, delete,
  * archive, restore, create-from-template). Composes useFileOperations
@@ -36,6 +50,7 @@ export function useProjectActions({ activeFileId, setActiveFileId }: UseProjectA
   const [dbTested, setDbTested] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [archivedProjects, setArchivedProjects] = useState<ArchivedProject[]>([]);
+  const previousActiveProjectIdRef = useRef<string | null>(activeProjectId);
 
   const activeProject = useMemo(() => {
     if (projects.length === 0) return null;
@@ -54,6 +69,15 @@ export function useProjectActions({ activeFileId, setActiveFileId }: UseProjectA
     setProjects,
     setActiveProjectId,
   });
+
+  // A project switch invalidates project-scoped UI state immediately.
+  // The file-operation effect below then hydrates files from the new project.
+  useEffect(() => {
+    if (previousActiveProjectIdRef.current !== activeProjectId) {
+      resetProjectScopedState(setActiveFileId);
+      previousActiveProjectIdRef.current = activeProjectId;
+    }
+  }, [activeProjectId, setActiveFileId]);
 
   // Initial DB readback: load projects, archived projects, and restore
   // the previously active project (or most recently updated one).
