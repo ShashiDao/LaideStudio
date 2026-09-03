@@ -1,6 +1,6 @@
 ## Current State
-- Phase: HOTFIX-127
-- Last verified working: All agent verification paths audited and hardened around the run-level WorkspaceOverlay; runTestsFromOverlay and runTestsDetailedFromOverlay added in testRunner.ts; run_tests, verify_tests, build_project, and verify_build fail closed with explicit errors when context.overlay is missing without falling back to canonical VFS; test and build runners evaluate the exact same candidate view materialized from the run-level overlay; comprehensive audit test suite overlayVerificationConsistency.test.ts (8 tests) verifies candidate modification visibility, accumulation, deletion propagation, byte-for-byte canonical immutability, and rejection of canonical fallback; all 91 test files (718 tests) pass in Vitest, tsc --noEmit passes (0 errors), npm run lint passes (0 errors), and compile_applet build succeeded.
+- Phase: HOTFIX-128
+- Last verified working: Implemented the bounded autonomous repair loop for agent runs (Prompt 4). When candidate verification fails, failure diagnostics and compiler/test error output are injected into the agent context for exactly one automatic repair turn. Repair edits accumulate in the exact same WorkspaceOverlay instance, keeping canonical VFS strictly read-only. Repaired overlay is re-verified; if verification passes, candidate diff is published to pendingPatches with verified: true; if repair verification fails, the run stops with failure, candidate patches are withheld (fail closed), and no recursive repair loops can trigger (strictly bounded to at most 1 repair attempt). All 92 Vitest test files (723 tests) pass cleanly, npm run typecheck (tsc --noEmit) passes with 0 errors, npm run lint passes with 0 errors, and compile_applet build succeeded.
 - Known issues / incomplete: none
 - Deviations from blueprint so far: none
 - Tech Debt / Split Candidates:
@@ -696,6 +696,38 @@ Open questions: none
   - Verification paths fail closed immediately if called without active overlay context, completely preventing accidental execution against stale canonical disk state.
 - Deviations: none
 - Verified: PASS — `npx vitest run src/services/agent/workspace/overlayVerificationConsistency.test.ts` (8 tests passed), `npx vitest run src/services/agent/workspace/overlayRunLifecycle.test.ts` (7 tests passed), `npx vitest run src/services/agent/` (12 test suites, 83 tests passed), `npx vitest run src/services/bundler/` (7 test suites, 80 tests passed), full test suite `npm test` (91 test files, 718 tests passed), `npm run typecheck` (`tsc --noEmit` — 0 errors), `npm run lint` (0 errors), and `compile_applet` passed cleanly.
+- Commit: pending
+- Open questions: none
+
+### [HOTFIX-128] Autonomous Bounded Repair Loop for Agent Runs — 2026-09-03
+- Prompt: Implement the first bounded autonomous repair loop for agent runs (Prompt 4). Target behavior: Agent edits -> Verify candidate -> PASS finishes with verified candidate; FAIL passes failure evidence to agent -> Agent performs repair edits in SAME WorkspaceOverlay -> Verify SAME candidate again -> PASS finishes with verified candidate; FAIL stops with failure (strictly bounded to at most 1 automatic repair attempt).
+- Files touched:
+  - `src/services/agent/agentLoop.ts` (modified)
+  - `src/services/agent/workspace/candidateVerifier.ts` (new)
+  - `src/services/agent/workspace/overlayRepairLoop.test.ts` (new)
+  - `AI_CHANGELOG.md` (modified)
+- Changed:
+  - Implemented candidate verification and autonomous bounded repair lifecycle in `runAgentLoop` (`src/services/agent/agentLoop.ts`):
+    - Initial tool turns run against the run-level `WorkspaceOverlay`.
+    - If initial verification succeeds, diff is materialized and published to `pendingPatches` with `repairAttempts: 0`, `verified: true`.
+    - If initial verification fails, failure diagnostics (compilation/test error messages) are injected as a repair prompt (`[Verification Failure - Automatic Repair Attempt 1 of 1]`).
+    - Tool execution context (`turnCtx`) and the exact same `WorkspaceOverlay` instance are provided to the agent for repair tool calls.
+    - Repair edits accumulate sequentially inside the candidate overlay without mutating canonical VFS.
+    - Repaired overlay candidate is verified a second time. If verified, diff is published to `pendingPatches` with `repairAttempts: 1`, `verified: true`.
+    - If second verification fails, `pendingPatches` is cleared, candidate is withheld (fail closed), and the run halts with failure (strictly bounded; no recursive loop).
+  - Created `candidateVerifier.ts` in `src/services/agent/workspace/` unifying build and test verification on a candidate `WorkspaceOverlay`.
+  - Added full test suite in `src/services/agent/workspace/overlayRepairLoop.test.ts` (5 tests):
+    - First-pass pass (0 repairs, verified candidate diff published).
+    - Failure -> evidence injection -> repair in same overlay -> verified pass (1 repair, verified candidate diff published).
+    - Failure -> repair failure -> stops with failure (1 repair, unverified diff cleared, no infinite loop).
+    - Abort during repair stream cleanly terminates without verifying or publishing patches.
+    - Sequential multi-file edits across initial phase and repair phase accumulate correctly in candidate overlay while canonical VFS remains byte-for-byte untouched.
+- Decisions:
+  - Hard-bounded repair loop to a strict maximum of 1 automatic attempt to prevent runaway token spend and infinite loops.
+  - Reused the exact same `WorkspaceOverlay` instance across initial and repair turns so repair modifications are additive to the candidate changeset.
+  - Maintained canonical VFS immutability throughout; candidate patches are only published if verification passes.
+- Deviations: none
+- Verified: PASS — `npx vitest run src/services/agent/workspace/overlayRepairLoop.test.ts` (5 tests passed), `npx vitest run src/services/agent/workspace/` (7 test files, 47 tests passed), `npx vitest run src/services/agent/` (13 test files, 88 tests passed), full test suite `npx vitest run` (92 test files, 723 tests passed), `compile_applet` build succeeded, and `npm run lint` passed with 0 errors.
 - Commit: pending
 - Open questions: none
 
