@@ -5,9 +5,9 @@ import type { TerminalCommandHandler } from '../commandTypes';
 
 export const FILECONTENT_COMMANDS = new Set(['ls', 'cat', 'head', 'tail']);
 
-export const executeFileContentCommand: TerminalCommandHandler = async (command, _args, _commandStr, context) => {
+export const executeFileContentCommand: TerminalCommandHandler = async (command, args, commandStr, context) => {
   if (!FILECONTENT_COMMANDS.has(command)) return {};
-  const { files, cwd, env, getDirEntries } = context;
+  const { files, cwd, env, getDirEntries, dirExists } = context;
   switch (command) {
     
     case 'ls': {
