@@ -8,6 +8,7 @@ import { listFiles } from '../fs/vfs';
 import {
   verifyCandidateOverlay,
   normalizeVerificationEvidence,
+  isSecurityFailure,
   type CandidateVerificationResult,
   type CandidateVerifier
 } from './workspace/candidateVerifier';
@@ -300,6 +301,332 @@ export async function runAgentLoop(
   const currentMessages: LLMMessage[] = [
     ...messages,
     { role: 'user', content: userContent }
+  ];
+
+  if (mcpConnectionErrors.length > 0) {
+    const errorDetails = mcpConnectionErrors
+      .map(err => `• **${err.url}**: ${err.error}`)
+      .join('\n');
+    currentMessages.push({
+      role: 'assistant',
+      content: `⚠️ **MCP Server Connection Failure**\nCould not connect or retrieve tools from MCP server(s):\n${errorDetails}\n\nTools from these servers will not be available during this session.`
+    });
+  }
+
+  if (onUpdate) onUpdate([...currentMessages]);
+
+  let effectiveSystemPrompt = systemPrompt;
+  if (mcpConnectionErrors.length > 0) {
+    const errorText = mcpConnectionErrors.map(e => `- ${e.url}: ${e.error}`).join('\n');
+    effectiveSystemPrompt = (systemPrompt ? `${systemPrompt}\n\n` : '') +
+      `<mcp_connection_warnings>\nFailed to connect to MCP server(s):\n${errorText}\n</mcp_connection_warnings>`;
+  }
+
+  const stepCounter = { count: 0 };
+  const tokenTracker = {
+    totalInputTokens: 0,
+    totalOutputTokens: 0,
+    totalCachedTokens: 0,
+    hasReportedUsage: false
+  };
+
+  const turnCtx: TurnExecutionCtx = {
+    effectiveSystemPrompt,
+    dynamicTools,
+    mcpToolMappings,
+    onUpdate,
+    signal,
+    maxSteps,
+    stepCounter,
+    tokenTracker,
+    options
+  };
+
+  // 1. Task initialization / attachment
+  let taskId = options?.taskId;
+  const executionToken = options?.executionToken || crypto.randomUUID();
+
+  if (!taskId) {
+    const promptSummary = typeof userMessage === 'string'
+      ? userMessage.slice(0, 150)
+      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as { text?: string } | undefined)?.text?.slice(0, 150) || 'Agent Task' : 'Agent Task');
+    const createdTask = await taskStore.createTask(projectId, promptSummary, {
+      baseRevision: options?.baseRevision,
+      executionToken
+    });
+    taskId = createdTask.id;
+  }
+
+  // Ensure task transitions to 'running'
+  const currentTask = await taskStore.getTask(taskId);
+  if (currentTask && currentTask.state === 'created') {
+    await taskStore.updateTaskState(taskId, 'running', {
+      executionToken,
+      baseRevision: options?.baseRevision
+    });
+  }
+
+  // Phase 1: Initial Agent Tool Turns (Editing)
+  try {
+    await runToolCallingTurns(currentMessages, adapter, projectId, overlay, turnCtx);
+  } catch (error) {
+    if (signal?.aborted) {
+      await taskStore.updateTaskState(taskId, 'aborted', {
+        abortedAt: Date.now(),
+        executionToken
+      });
+    } else {
+      await taskStore.updateTaskState(taskId, 'failed', {
+        failureSummary: String(error).slice(0, 1200),
+        executionToken,
+        completedAt: Date.now()
+      });
+    }
+    throw error;
+  }
+
+  if (signal?.aborted) {
+    await taskStore.updateTaskState(taskId, 'aborted', {
+      abortedAt: Date.now(),
+      executionToken
+    });
+  }
+
+  // Phase 2: Candidate Verification & Bounded Autonomous Repair
+  let repairAttempts = 0;
+  const MAX_REPAIR_ATTEMPTS = 1; // Strictly bounded to exactly ONE attempt in MVP
+  let finalVerificationResult: CandidateVerificationResult | null = null;
+
+  const hasCandidateEdits = overlay.diff().length > 0;
+  const shouldVerify = Boolean(options?.verifier || hasCandidateEdits);
+
+  if (signal?.aborted) {
+    // Already marked aborted
+  } else if (shouldVerify) {
+    // Transition to 'verifying'
+    await taskStore.updateTaskState(taskId, 'verifying', { executionToken });
+
+    const verifier = options?.verifier ?? verifyCandidateOverlay;
+
+    // Initial Verification of Candidate
+    finalVerificationResult = await verifier(overlay);
+    options?.onVerification?.(finalVerificationResult, repairAttempts);
+
+    if (signal?.aborted) {
+      await taskStore.updateTaskState(taskId, 'aborted', {
+        abortedAt: Date.now(),
+        executionToken
+      });
+    } else {
+      const isUnavailable = finalVerificationResult.status === 'unavailable' || Boolean(finalVerificationResult.skippedWorkerVerification);
+
+      if (finalVerificationResult.success && !isUnavailable) {
+        // Initial verification passed! -> VERIFIED
+        await taskStore.updateTaskState(taskId, 'verified', {
+          verificationStatus: 'passed',
+          executionToken,
+          completedAt: Date.now()
+        });
+      } else if (isUnavailable) {
+        // Verification UNAVAILABLE -> do NOT repair, mark FAILED
+        const { formattedText: failureSummary } = normalizeVerificationEvidence(finalVerificationResult, 1200);
+        await taskStore.updateTaskState(taskId, 'failed', {
+          verificationStatus: 'unavailable',
+          failureSummary,
+          executionToken,
+          completedAt: Date.now()
+        });
+      } else if (isSecurityFailure(finalVerificationResult)) {
+        // Verification blocked by the secret scan -> do NOT repair. A leaked
+        // credential needs a human to remove/rotate it, not an LLM repair pass,
+        // and it must never consume the one bounded automatic repair attempt.
+        const { formattedText: failureSummary } = normalizeVerificationEvidence(finalVerificationResult, 1200);
+        await taskStore.updateTaskState(taskId, 'failed', {
+          verificationStatus: 'failed',
+          failureSummary,
+          executionToken,
+          completedAt: Date.now()
+        });
+      } else if (repairAttempts < MAX_REPAIR_ATTEMPTS) {
+        // Verification failed, enter bounded repair attempt 1
+        repairAttempts++;
+        const { formattedText: failureEvidence } = normalizeVerificationEvidence(finalVerificationResult, 1200);
+        options?.onRepairAttempt?.(repairAttempts, failureEvidence);
+
+        await taskStore.updateTaskState(taskId, 'repairing', {
+          repairAttempts,
+          verificationStatus: 'failed',
+          failureSummary: failureEvidence,
+          executionToken
+        });
+
+        // Supply normalized bounded failure evidence to the agent in the same context
+        const repairPrompt = `[Verification Failure - Automatic Repair Attempt ${repairAttempts} of ${MAX_REPAIR_ATTEMPTS}]\n` +
+          `The candidate workspace changes failed verification:\n` +
+          `${failureEvidence}\n\n` +
+          `Please analyze the verification error and use tool calls (such as write_file) to repair the candidate workspace. ` +
+          `All repairs must be applied to the existing candidate overlay. ` +
+          `You have exactly ONE repair attempt. Do not repeat the same error.`;
+
+        currentMessages.push({
+          role: 'user',
+          content: repairPrompt
+        });
+        if (onUpdate) onUpdate([...currentMessages]);
+
+        // Agent performs repair edits in the SAME WorkspaceOverlay
+        await runToolCallingTurns(currentMessages, adapter, projectId, overlay, turnCtx);
+
+        if (signal?.aborted) {
+          await taskStore.updateTaskState(taskId, 'aborted', {
+            abortedAt: Date.now(),
+            executionToken
+          });
+        } else {
+          // Transition back to 'verifying'
+          await taskStore.updateTaskState(taskId, 'verifying', { executionToken });
+
+          // Verify the SAME candidate overlay again
+          finalVerificationResult = await verifier(overlay);
+          options?.onVerification?.(finalVerificationResult, repairAttempts);
+
+          if (signal?.aborted) {
+            await taskStore.updateTaskState(taskId, 'aborted', {
+              abortedAt: Date.now(),
+              executionToken
+            });
+          } else if (
+            finalVerificationResult.success &&
+            finalVerificationResult.status !== 'unavailable' &&
+            !finalVerificationResult.skippedWorkerVerification
+          ) {
+            // Repaired candidate verified!
+            await taskStore.updateTaskState(taskId, 'verified', {
+              verificationStatus: 'passed',
+              repairAttempts,
+              executionToken,
+              completedAt: Date.now()
+            });
+          } else {
+            // Second verification failed or unavailable -> Terminal 'failed'
+            const { formattedText: finalFailureSummary } = normalizeVerificationEvidence(finalVerificationResult, 1200);
+            await taskStore.updateTaskState(taskId, 'failed', {
+              verificationStatus: finalVerificationResult.status === 'unavailable' ? 'unavailable' : 'failed',
+              failureSummary: finalFailureSummary,
+              repairAttempts,
+              executionToken,
+              completedAt: Date.now()
+            });
+          }
+        }
+      }
+    }
+  } else {
+    // No edits to verify and no custom verifier -> transition through verifying to verified
+    await taskStore.updateTaskState(taskId, 'verifying', { executionToken });
+    await taskStore.updateTaskState(taskId, 'verified', {
+      verificationStatus: 'passed',
+      executionToken,
+      completedAt: Date.now()
+    });
+  }
+
+  // Record token spend and estimated cost for this entire agent run
+  try {
+    let inputTokens = tokenTracker.totalInputTokens;
+    let outputTokens = tokenTracker.totalOutputTokens;
+    let totalTokens = inputTokens + outputTokens;
+
+    if (!tokenTracker.hasReportedUsage || (inputTokens === 0 && outputTokens === 0)) {
+      const tokenStats = countTurnTokens(currentMessages, systemPrompt, dynamicTools);
+      inputTokens = tokenStats.inputTokens;
+      outputTokens = tokenStats.outputTokens;
+      totalTokens = tokenStats.totalTokens;
+    }
+
+    const pricing = getModelPricing(options?.provider, options?.model || options?.modelName);
+    const estimatedCostUsd = calculateEstimatedCost(inputTokens, outputTokens, pricing);
+
+    let promptPreview = typeof userMessage === 'string'
+      ? userMessage
+      : (Array.isArray(userMessage) ? (userMessage.find(b => b.type === 'text') as { text?: string } | undefined)?.text || '' : '');
+    if (promptPreview && promptPreview.length > 100) {
+      promptPreview = promptPreview.slice(0, 100) + '...';
+    }
+
+    useAppStore.getState().recordTokenUsage({
+      projectId,
+      provider: options?.provider || 'assistant',
+      model: options?.model || options?.modelName || 'assistant',
+      profileLabel: options?.modelName,
+      inputTokens,
+      outputTokens,
+      cachedTokens: tokenTracker.totalCachedTokens > 0 ? tokenTracker.totalCachedTokens : undefined,
+      totalTokens,
+      estimatedCostUsd,
+      category: 'agent_chat',
+      promptPreview,
+      stepCount: stepCounter.count
+    });
+  } catch (e) {
+    console.warn('Failed to record token usage in agent loop:', e);
+  }
+
+  // Phase 3: Final Diff / Pending Review
+  // If verification failed or was unavailable or aborted: do not publish unverified patches.
+  if (signal?.aborted) {
+    useAppStore.getState().clearPendingPatches();
+  } else {
+    const isFailedOrUnavailable = Boolean(
+      shouldVerify &&
+      finalVerificationResult &&
+      (!finalVerificationResult.success ||
+        finalVerificationResult.status === 'unavailable' ||
+        finalVerificationResult.skippedWorkerVerification)
+    );
+
+    if (isFailedOrUnavailable && finalVerificationResult) {
+      useAppStore.getState().clearPendingPatches();
+      const isUnavailable = finalVerificationResult.status === 'unavailable' || Boolean(finalVerificationResult.skippedWorkerVerification);
+      const isBlockedBySecurity = isSecurityFailure(finalVerificationResult);
+      const failureMessage = isBlockedBySecurity
+        ? `🔒 Blocked: the candidate changes were not applied because the pre-flight scan detected ` +
+          `${finalVerificationResult.secretMatches?.length ?? 0} potential secret(s) or credential pattern(s):\n` +
+          `${finalVerificationResult.output || ''}\n\n` +
+          `Remove or replace the exposed value(s) and ask the agent to try again — this is not eligible for automatic repair.`
+        : isUnavailable
+        ? `⚠️ Candidate verification was unavailable in this environment:\n${finalVerificationResult.error || finalVerificationResult.output || 'Web Worker unavailable'}\nCandidate changes were not verified and will not be published.`
+        : `⚠️ Automatic repair failed. The candidate workspace could not be verified:\n${finalVerificationResult.error || finalVerificationResult.output || 'Verification failure'}`;
+      currentMessages.push({
+        role: 'assistant',
+        content: failureMessage
+      });
+      if (onUpdate) onUpdate([...currentMessages]);
+    } else {
+      const diffPatches = overlay.diff();
+      if (diffPatches.length > 0) {
+        useAppStore.getState().setPendingPatches(diffPatches);
+      }
+    }
+  }
+
+  const resultMessages: AgentLoopMessages = currentMessages;
+  resultMessages.verificationResult = finalVerificationResult ?? undefined;
+  resultMessages.repairAttempts = repairAttempts;
+  const isCandidateVerified = Boolean(
+    !signal?.aborted &&
+    (finalVerificationResult
+      ? (finalVerificationResult.success === true &&
+         finalVerificationResult.status !== 'unavailable' &&
+         !finalVerificationResult.skippedWorkerVerification)
+      : !hasCandidateEdits)
+  );
+  resultMessages.verified = isCandidateVerified;
+  resultMessages.taskId = taskId;
+
+  return resultMessages;
+}
+serContent }
   ];
 
   if (mcpConnectionErrors.length > 0) {
