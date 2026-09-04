@@ -448,8 +448,9 @@ export async function generateDiffProvenanceSummary(
   if (options.specificEntryIds && options.specificEntryIds.length > 0) {
     const idSet = new Set(options.specificEntryIds);
     diffEntries = allEntries.filter(e => idSet.has(e.id));
-  } else if (options.sinceTimestamp) {
-    diffEntries = allEntries.filter(e => e.timestamp >= options.sinceTimestamp);
+  } else if (options.sinceTimestamp !== undefined) {
+    const sinceTimestamp = options.sinceTimestamp;
+    diffEntries = allEntries.filter(e => e.timestamp >= sinceTimestamp);
   }
 
   const chainIntegrity = await verifyProvenanceChain(allEntries);
