@@ -7,7 +7,6 @@ const file = (id: string, path = `/${id}.ts`): FileItem => ({
   projectId: 'project-1',
   path,
   content: '',
-  createdAt: 1,
   updatedAt: 1,
 });
 

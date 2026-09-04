@@ -119,8 +119,9 @@ export async function executeTerminalCommand(
       return;
     }
 
-    if (targetRedirectFile && context.projectId && outputType !== 'stderr') {
-      await writeRedirectedOutput(context, targetRedirectFile, redirectMode, outputText);
+    if (targetRedirectFile && context.projectId && outputType !== 'stderr' && redirectMode) {
+      const writeMode: 'append' | 'overwrite' = redirectMode === 'append' ? 'append' : 'overwrite';
+      await writeRedirectedOutput(context, targetRedirectFile, writeMode, outputText);
       return;
     }
 

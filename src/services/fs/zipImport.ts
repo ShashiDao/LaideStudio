@@ -54,9 +54,12 @@ export async function importZip(
   options?: { autoRestructure?: boolean }
 ): Promise<{ count: number; skipped: string[]; recovered?: boolean }> {
   const startedAt = performance.now();
-  const rawData = (typeof Blob !== 'undefined' && zipData instanceof Blob)
-    ? await zipData.arrayBuffer()
-    : zipData;
+  let rawData: ArrayBuffer | Uint8Array;
+  if (typeof Blob !== 'undefined' && zipData instanceof Blob) {
+    rawData = await zipData.arrayBuffer();
+  } else {
+    rawData = zipData as ArrayBuffer | Uint8Array;
+  }
   const zipReadFinishedAt = performance.now();
 
   let zip: JSZip;
