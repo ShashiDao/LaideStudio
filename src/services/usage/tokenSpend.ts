@@ -41,7 +41,7 @@ export interface UsageRecord {
   cachedTokens?: number;
   totalTokens: number;
   estimatedCostUsd: number;
-  category: 'agent_chat' | 'ensemble_candidate_a' | 'ensemble_candidate_b' | 'ensemble_arbiter' | 'bisect' | 'other';
+  category: 'agent_chat' | 'ensemble_candidate_a' | 'ensemble_candidate_b' | 'ensemble_arbiter' | 'fresh_context_review' | 'bisect' | 'other';
   promptPreview?: string;
   stepCount?: number;
 }

@@ -398,4 +398,57 @@ describe('agentLoop', () => {
 
     useAppStore.getState().setMcpServers([]);
   });
+
+  it('runs fresh-context reviewer after verification succeeds and stores findings', async () => {
+    let call = 0;
+    const mockAdapter: LLMAdapter = {
+      countTokens: async () => 10,
+      send: async () => ({
+        text: JSON.stringify({
+          findings: [
+            {
+              severity: 'warning',
+              file: '/src/test.ts',
+              summary: 'Consider handling edge case when count is zero'
+            }
+          ]
+        }),
+        usage: { inputTokens: 40, outputTokens: 20 }
+      }),
+      async *stream(_req: LLMRequest): AsyncGenerator<LLMStreamYield, void, unknown> {
+        call++;
+        if (call === 1) {
+          yield {
+            type: 'tool_call',
+            toolCall: {
+              id: 'call_1',
+              name: 'write_file',
+              args: JSON.stringify({
+                path: '/src/test.ts',
+                content: 'export const count = 1;'
+              })
+            }
+          };
+        } else {
+          yield { type: 'text', text: 'Done implementing test' };
+        }
+      }
+    };
+
+    const result = await runAgentLoop(
+      'Create test file',
+      [],
+      mockAdapter,
+      projectId
+    );
+
+    expect(result.verified).toBe(true);
+    expect(result.reviewFindings).toHaveLength(1);
+    expect(result.reviewFindings![0].severity).toBe('warning');
+    expect(result.reviewFindings![0].summary).toContain('edge case');
+
+    const storeFindings = useAppStore.getState().reviewFindings;
+    expect(storeFindings).toHaveLength(1);
+    expect(storeFindings[0].severity).toBe('warning');
+  });
 });

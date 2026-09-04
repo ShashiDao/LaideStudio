@@ -1,5 +1,6 @@
 import { binaryExtensions } from '../fs/zipExport';
 import { formatSkillsForPrompt, type Skill } from './skills';
+import { formatSessionMemoryForPrompt, type SessionMemoryItem } from './sessionMemory';
 
 export const SUGGESTION_PROMPTS = {
   WHAT_IS_IN_PROJECT: "What's in this project?",
@@ -69,7 +70,8 @@ export function buildFileManifest(files: Array<{ path: string; content: string }
 export function buildSystemPrompt(
   files: Array<{ path: string; content: string }>, 
   customInstructions?: string,
-  skills?: Skill[] | string
+  skills?: Skill[] | string,
+  sessionMemory?: SessionMemoryItem[] | string
 ): string {
   const custom = customInstructions?.trim()
     ? `\n\n<custom_instructions>\n${customInstructions.trim()}\n</custom_instructions>`
@@ -86,6 +88,17 @@ export function buildSystemPrompt(
     ? `\n\n<skills>\n${skillsText}\n</skills>`
     : '';
 
+  let sessionMemoryText = '';
+  if (typeof sessionMemory === 'string') {
+    sessionMemoryText = sessionMemory.trim();
+  } else if (Array.isArray(sessionMemory) && sessionMemory.length > 0) {
+    sessionMemoryText = formatSessionMemoryForPrompt(sessionMemory).trim();
+  }
+
+  const sessionMemoryBlock = sessionMemoryText
+    ? `\n\n<session_memory>\n${sessionMemoryText}\n</session_memory>`
+    : '';
+
   const manifest = buildFileManifest(files);
-  return `${BASE_SYSTEM_PROMPT}${custom}${skillsBlock}\n\n${manifest}`;
+  return `${BASE_SYSTEM_PROMPT}${custom}${skillsBlock}${sessionMemoryBlock}\n\n${manifest}`;
 }

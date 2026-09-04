@@ -1,6 +1,7 @@
 import { db } from '../../../db';
 import type { AgentTask, AgentRun, PatchSet, TaskState } from './taskTypes';
 import { TaskStateMachine } from './taskStateMachine';
+import { recordTaskCompletionMemory } from '../sessionMemory';
 
 export interface CreateTaskOptions {
   risk?: AgentTask['risk'];
@@ -69,7 +70,7 @@ export class TaskStore {
     newState: TaskState,
     options?: UpdateTaskStateOptions
   ): Promise<AgentTask> {
-    return await db.transaction('rw', db.tasks, async () => {
+    const updatedTaskResult = await db.transaction('rw', db.tasks, async () => {
       const task = await db.tasks.get(id);
       if (!task) throw new Error(`Task ${id} not found`);
 
@@ -109,6 +110,14 @@ export class TaskStore {
       await db.tasks.put(updatedTask);
       return updatedTask;
     });
+
+    if (newState === 'verified' || newState === 'completed') {
+      recordTaskCompletionMemory(updatedTaskResult).catch((err) => {
+        console.warn('Failed to record session memory on task completion:', err);
+      });
+    }
+
+    return updatedTaskResult;
   }
 
   /**
@@ -213,7 +222,7 @@ export class TaskStore {
     status: AgentRun['status'] = 'completed',
     options?: { executionToken?: string }
   ): Promise<AgentRun> {
-    return await db.transaction('rw', [db.tasks, db.taskRuns], async () => {
+    const { updatedRun, completedTask } = await db.transaction('rw', [db.tasks, db.taskRuns], async () => {
       const run = await db.taskRuns.get(runId);
       if (!run) throw new Error(`Run ${runId} not found`);
 
@@ -260,8 +269,16 @@ export class TaskStore {
         });
       }
 
-      return updatedRun;
+      return { updatedRun, completedTask: status === 'completed' && task ? task : null };
     });
+
+    if (completedTask) {
+      recordTaskCompletionMemory(completedTask).catch((err) => {
+        console.warn('Failed to record session memory on task run completion:', err);
+      });
+    }
+
+    return updatedRun;
   }
 
   async createPatchSet(

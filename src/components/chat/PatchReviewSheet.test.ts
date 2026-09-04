@@ -443,4 +443,59 @@ describe('PatchReviewSheet', () => {
       window.matchMedia = originalMatchMedia;
     }
   });
+
+  it('renders advisory Reviewer Critique section with severity badges and never blocks patch application', async () => {
+    await createFile(projectId, '/src/auth.ts', 'export const check = () => false;\n');
+
+    const patches: PendingPatch[] = [
+      {
+        path: '/src/auth.ts',
+        type: 'replace',
+        oldContent: 'export const check = () => false;\n',
+        newContent: 'export const check = () => true;\n',
+        rationale: 'Update auth check'
+      }
+    ];
+
+    useAppStore.getState().setPendingPatches(patches);
+    useAppStore.getState().setReviewFindings([
+      {
+        severity: 'critical',
+        file: '/src/auth.ts',
+        summary: 'Authentication bypasses all validation checks'
+      },
+      {
+        severity: 'warning',
+        file: '/src/auth.ts',
+        summary: 'Missing unit test coverage for true condition'
+      }
+    ]);
+
+    render(React.createElement(PatchReviewSheet, { projectId }));
+
+    // Verify Reviewer Critique header and non-blocking advisory note appear
+    expect(screen.getByText(/Reviewer Critique \(2\)/i)).toBeDefined();
+    expect(screen.getByText(/Advisory · Non-blocking/i)).toBeDefined();
+    expect(screen.getByText(/1 critical/i)).toBeDefined();
+    expect(screen.getByText(/1 warning/i)).toBeDefined();
+
+    // Verify individual finding details
+    expect(screen.getByText('Authentication bypasses all validation checks')).toBeDefined();
+    expect(screen.getByText('Missing unit test coverage for true condition')).toBeDefined();
+
+    // Verify Apply button is NOT disabled despite critical finding
+    const applyButton = screen.getByRole('button', { name: /Apply Selected/i });
+    expect(applyButton).toBeDefined();
+    expect(applyButton.hasAttribute('disabled')).toBe(false);
+
+    // Apply the patch
+    fireEvent.click(applyButton);
+
+    await waitFor(async () => {
+      const files = await listFiles(projectId);
+      const authFile = files.find(f => f.path === '/src/auth.ts');
+      expect(authFile?.content).toBe('export const check = () => true;\n');
+    });
+  });
 });
+

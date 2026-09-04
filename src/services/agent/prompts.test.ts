@@ -139,4 +139,46 @@ describe('Agent Prompts & File Manifest', () => {
     );
     expect(promptWithStringSkills).toContain('<skills>\n### Skill: Direct Markdown Content\n</skills>');
   });
+
+  it('injects session memories into buildSystemPrompt as a new <session_memory> block', () => {
+    const sampleFiles = [
+      { path: 'src/main.ts', content: 'console.log("hello");' }
+    ];
+
+    const mockMemories = [
+      {
+        id: 'm1',
+        projectId: 'proj-1',
+        insight: 'Project uses pnpm not npm',
+        timestamp: 1000
+      },
+      {
+        id: 'm2',
+        projectId: 'proj-1',
+        insight: 'Auth is in src/services/auth.ts',
+        timestamp: 2000
+      }
+    ];
+
+    const promptWithMemories = buildSystemPrompt(sampleFiles, undefined, undefined, mockMemories);
+    expect(promptWithMemories).toContain('<session_memory>');
+    expect(promptWithMemories).toContain('- Project uses pnpm not npm');
+    expect(promptWithMemories).toContain('- Auth is in src/services/auth.ts');
+    expect(promptWithMemories).toContain('</session_memory>');
+    expect(promptWithMemories).not.toContain('<skills>');
+    expect(promptWithMemories).not.toContain('<custom_instructions>');
+    expect(promptWithMemories).toContain('<file_manifest>');
+
+    // Combined custom instructions, skills, and session memory
+    const promptWithAll = buildSystemPrompt(
+      sampleFiles,
+      'Use TypeScript strict mode',
+      '### Skill: Custom Skill',
+      mockMemories
+    );
+    expect(promptWithAll).toContain('<custom_instructions>\nUse TypeScript strict mode\n</custom_instructions>');
+    expect(promptWithAll).toContain('<skills>\n### Skill: Custom Skill\n</skills>');
+    expect(promptWithAll).toContain('<session_memory>\n- Project uses pnpm not npm\n- Auth is in src/services/auth.ts\n</session_memory>');
+    expect(promptWithAll).toContain('<file_manifest>');
+  });
 });

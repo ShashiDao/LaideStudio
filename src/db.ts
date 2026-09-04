@@ -96,6 +96,16 @@ export interface Skill {
   updatedAt: number;
 }
 
+export interface SessionMemoryItem {
+  id: string;
+  projectId: string;
+  insight: string;
+  key?: string;
+  sourceTaskId?: string;
+  sourceTaskPrompt?: string;
+  timestamp: number;
+}
+
 export class LaideDatabase extends Dexie {
   projects!: Table<Project, string>;
   files!: Table<FileItem, string>;
@@ -110,6 +120,7 @@ export class LaideDatabase extends Dexie {
   taskRuns!: Table<AgentRun, string>;
   patchSets!: Table<PatchSet, string>;
   skills!: Table<Skill, string>;
+  sessionMemory!: Table<SessionMemoryItem, string>;
 
   constructor() {
     super('LaideDatabase');
@@ -194,6 +205,22 @@ export class LaideDatabase extends Dexie {
       taskRuns: 'id, taskId, startedAt',
       patchSets: 'id, runId, taskId, projectId',
       skills: 'id, name, createdAt, updatedAt',
+    });
+    this.version(9).stores({
+      projects: 'id, name, createdAt, updatedAt',
+      files: 'id, projectId, path, updatedAt',
+      snapshots: 'id, projectId, createdAt',
+      connectionProfiles: 'id, provider, label',
+      provenanceEntries: 'id, projectId, filePath, timestamp, prevEntryHash, entryHash',
+      vaultSessions: 'id, createdAt, expiresAt',
+      archivedProjects: 'id, name, createdAt, updatedAt, archivedAt',
+      archivedFiles: 'id, projectId, path, updatedAt',
+      secureTokens: 'key',
+      tasks: 'id, projectId, state, createdAt',
+      taskRuns: 'id, taskId, startedAt',
+      patchSets: 'id, runId, taskId, projectId',
+      skills: 'id, name, createdAt, updatedAt',
+      sessionMemory: 'id, projectId, timestamp',
     });
   }
 }

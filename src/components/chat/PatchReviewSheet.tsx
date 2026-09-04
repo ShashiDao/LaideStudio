@@ -5,7 +5,7 @@ import { writeFile, createFile, deleteFile, listFiles } from '../../services/fs/
 import { createSnapshot } from '../../services/fs/snapshot';
 import { recordProvenanceEntry, runBackgroundTestsForProvenance } from '../../services/provenance';
 import { structuredPatch, applyPatch } from 'diff';
-import { CheckSquare, Square, ChevronUp, ChevronDown, Check, Eye, AlertTriangle, Trash2, X } from 'lucide-react';
+import { CheckSquare, Square, ChevronUp, ChevronDown, Check, Eye, AlertTriangle, Trash2, X, ShieldAlert } from 'lucide-react';
 
 interface HunkState {
   patchIndex: number;
@@ -314,11 +314,13 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
     isPatchReviewOpen, 
     setIsPatchReviewOpen,
     triggerInstallEngagement,
-    flashPatchedPaths
+    flashPatchedPaths,
+    reviewFindings
   } = useAppStore();
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [applyErrors, setApplyErrors] = useState<string[]>([]);
+  const [isFindingsExpanded, setIsFindingsExpanded] = useState(true);
   const sheetContainerRef = useRef<HTMLDivElement>(null);
 
   // Escape key handler and focus trap when review sheet is open
@@ -658,6 +660,86 @@ export function PatchReviewSheet({ projectId }: { projectId: string }) {
               </button>
             </div>
           )}
+
+          {/* Advisory Fresh-Context Review Findings */}
+          {/*
+           * Note: Review findings are strictly ADVISORY and do not block user approval
+           * or trigger autonomous repair, unlike isSecurityFailure() or build/test errors.
+           */}
+          {reviewFindings && reviewFindings.length > 0 && (
+            <div className="border border-border/80 rounded-lg overflow-hidden bg-surface/60" data-testid="review-findings-section">
+              <button
+                type="button"
+                onClick={() => setIsFindingsExpanded(!isFindingsExpanded)}
+                className="w-full flex items-center justify-between p-3 bg-surface hover:bg-black/5 transition-colors text-left cursor-pointer"
+                aria-expanded={isFindingsExpanded}
+                aria-label={`Toggle reviewer critique with ${reviewFindings.length} findings`}
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <ShieldAlert size={16} className="text-amber-500 shrink-0" />
+                  <span className="text-xs sm:text-sm font-sans font-bold text-text">
+                    Reviewer Critique ({reviewFindings.length})
+                  </span>
+                  <span className="text-[10px] text-muted font-sans font-normal">
+                    (Advisory &middot; Non-blocking)
+                  </span>
+                  <div className="flex items-center gap-1.5 ml-1">
+                    {(['critical', 'warning', 'info'] as const).map((sev) => {
+                      const count = reviewFindings.filter(f => f.severity === sev).length;
+                      if (count === 0) return null;
+                      return (
+                        <span
+                          key={sev}
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase ${
+                            sev === 'critical'
+                              ? 'bg-oxide/20 text-oxide border border-oxide/40'
+                              : sev === 'warning'
+                              ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40'
+                              : 'bg-blue-500/20 text-blue-500 border border-blue-500/40'
+                          }`}
+                        >
+                          {count} {sev}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="shrink-0 text-muted">
+                  {isFindingsExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                </div>
+              </button>
+              {isFindingsExpanded && (
+                <div className="p-3 border-t border-border/60 space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
+                  {reviewFindings.map((finding, idx) => (
+                    <div
+                      key={idx}
+                      className="text-xs p-2.5 rounded bg-bg border border-border flex flex-col gap-1"
+                      data-testid={`review-finding-${idx}`}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-mono text-[11px] text-text font-bold break-all">
+                          {finding.file}
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                            finding.severity === 'critical'
+                              ? 'bg-oxide/20 text-oxide border border-oxide/40'
+                              : finding.severity === 'warning'
+                              ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40'
+                              : 'bg-blue-500/20 text-blue-500 border border-blue-500/40'
+                          }`}
+                        >
+                          {finding.severity}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted leading-relaxed break-words">{finding.summary}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {hunkStates.map((state, idx) => {
             const { patch, hunks } = computedData.data[state.patchIndex];
             const hunk = hunks[state.hunkIndex];

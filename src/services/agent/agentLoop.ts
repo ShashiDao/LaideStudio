@@ -14,6 +14,8 @@ import {
 } from './workspace/candidateVerifier';
 import { taskStore } from './task/taskStore';
 import { formatSkillsForPrompt, getMatchedSkillsForMessage } from './skills';
+import { formatSessionMemoryForPrompt, getSessionMemories } from './sessionMemory';
+import { runFreshContextReview, type ReviewFinding } from './review';
 
 export interface RunAgentLoopOptions {
   temperature?: number;
@@ -39,6 +41,7 @@ export interface AgentLoopMessages extends Array<LLMMessage> {
   repairAttempts?: number;
   verified?: boolean;
   taskId?: string;
+  reviewFindings?: ReviewFinding[];
 }
 
 interface TurnExecutionCtx {
@@ -334,6 +337,16 @@ export async function runAgentLoop(
     }
   }
 
+  if (!effectiveSystemPrompt?.includes('<session_memory>') && projectId) {
+    const memories = await getSessionMemories(projectId);
+    if (memories.length > 0) {
+      const memoryBlock = `<session_memory>\n${formatSessionMemoryForPrompt(memories)}\n</session_memory>`;
+      effectiveSystemPrompt = effectiveSystemPrompt
+        ? `${effectiveSystemPrompt}\n\n${memoryBlock}`
+        : memoryBlock;
+    }
+  }
+
   if (mcpConnectionErrors.length > 0) {
     const errorText = mcpConnectionErrors.map(e => `- ${e.url}: ${e.error}`).join('\n');
     effectiveSystemPrompt = (effectiveSystemPrompt ? `${effectiveSystemPrompt}\n\n` : '') +
@@ -623,6 +636,35 @@ export async function runAgentLoop(
     } else {
       const diffPatches = overlay.diff();
       if (diffPatches.length > 0) {
+        // Run advisory fresh-context reviewer after WorkspaceOverlay verification succeeds
+        // and before patches reach the UI.
+        // Note: Fresh-context review findings are strictly ADVISORY.
+        // Distinct from candidate verification failures which trigger autonomous repair,
+        // and distinct from isSecurityFailure() which hard-blocks patch publication,
+        // review findings NEVER block patch approval or feed the repair loop.
+        try {
+          const rawUserText = typeof userMessage === 'string'
+            ? userMessage
+            : Array.isArray(userMessage)
+              ? userMessage.map(b => b.type === 'text' ? b.text : '').join('\n')
+              : '';
+          const findings = await runFreshContextReview(
+            diffPatches,
+            rawUserText,
+            adapter,
+            signal,
+            {
+              projectId,
+              provider: options?.provider,
+              model: options?.model || options?.modelName,
+              profileLabel: options?.modelName
+            }
+          );
+          useAppStore.getState().setReviewFindings(findings);
+        } catch (reviewErr) {
+          console.warn('Fresh-context review error:', reviewErr);
+          useAppStore.getState().setReviewFindings([]);
+        }
         useAppStore.getState().setPendingPatches(diffPatches);
       }
     }
@@ -631,6 +673,7 @@ export async function runAgentLoop(
   const resultMessages: AgentLoopMessages = currentMessages;
   resultMessages.verificationResult = finalVerificationResult ?? undefined;
   resultMessages.repairAttempts = repairAttempts;
+  resultMessages.reviewFindings = useAppStore.getState().reviewFindings;
   const isCandidateVerified = Boolean(
     !signal?.aborted &&
     (finalVerificationResult

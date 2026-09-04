@@ -1,6 +1,7 @@
 import { create, StateCreator } from 'zustand';
 import type { KeyMaterial } from './services/security/crypto';
 import type { PatchDefinition } from './services/agent/patchSchema';
+import type { ReviewFinding } from './services/agent/review';
 import type { LLMMessage } from './services/llm/llmAdapter';
 import type { BeforeInstallPromptEvent } from './types';
 import { DEFAULT_MANIFEST_EXCLUDE_PATTERNS } from './services/agent/prompts';
@@ -77,6 +78,8 @@ export interface PatchSlice {
   setIsPatchReviewOpen: (open: boolean) => void;
   flashingPaths: string[];
   flashPatchedPaths: (paths: string[]) => void;
+  reviewFindings: ReviewFinding[];
+  setReviewFindings: (findings: ReviewFinding[]) => void;
 }
 
 export interface ChatSlice {
@@ -319,7 +322,9 @@ const createPatchSlice: StateCreator<AppState, [], [], PatchSlice> = (set) => ({
     }
     return { pendingPatches: [...state.pendingPatches, patch], isPatchReviewOpen: true };
   }),
-  clearPendingPatches: () => set({ pendingPatches: [], isPatchReviewOpen: false }),
+  reviewFindings: [],
+  setReviewFindings: (reviewFindings) => set({ reviewFindings }),
+  clearPendingPatches: () => set({ pendingPatches: [], reviewFindings: [], isPatchReviewOpen: false }),
   isPatchReviewOpen: false,
   setIsPatchReviewOpen: (open) => set({ isPatchReviewOpen: open }),
   flashingPaths: [],
