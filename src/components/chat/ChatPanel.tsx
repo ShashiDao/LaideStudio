@@ -36,6 +36,7 @@ import {
   buildSystemPrompt,
   isPathExcludedFromManifest
 } from '../../services/agent/prompts';
+import { getMatchedSkillsForMessage } from '../../services/agent/skills';
 import { getModelContextWindow } from '../../services/llm/modelDiscovery';
 import { 
   computeSessionUsageSummary, 
@@ -190,7 +191,8 @@ export function ChatPanel({
 
       const files = await listFiles(projectId);
       const manifestFiles = files.filter(f => !isPathExcludedFromManifest(f.path, manifestExcludePatterns));
-      const systemPrompt = buildSystemPrompt(manifestFiles, customInstructions);
+      const matchedSkills = await getMatchedSkillsForMessage(messageToSend);
+      const systemPrompt = buildSystemPrompt(manifestFiles, customInstructions, matchedSkills);
 
       const screenshotToPass = (attachPreviewVision && lastPreviewScreenshot)
         ? {

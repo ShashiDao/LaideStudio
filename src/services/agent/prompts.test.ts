@@ -90,5 +90,53 @@ describe('Agent Prompts & File Manifest', () => {
     expect(promptWithCustom).toContain('<custom_instructions>');
     expect(promptWithCustom).toContain('Always use TypeScript strict mode.');
     expect(promptWithCustom).toContain('<file_manifest>');
+    expect(promptWithCustom).not.toContain('<skills>');
+  });
+
+  it('injects matched skills into buildSystemPrompt as a new <skills> block', () => {
+    const sampleFiles = [
+      { path: '/src/App.tsx', content: 'export default function App() {}' }
+    ];
+
+    const mockSkills = [
+      {
+        id: 's1',
+        name: 'Tailwind conventions',
+        description: 'Utility classes and tokens',
+        keywords: ['tailwind', 'css'],
+        content: '- Use semantic tokens\n- Mobile first',
+        createdAt: 1000,
+        updatedAt: 1000
+      }
+    ];
+
+    const promptWithSkills = buildSystemPrompt(sampleFiles, undefined, mockSkills);
+    expect(promptWithSkills).toContain('<skills>');
+    expect(promptWithSkills).toContain('### Skill: Tailwind conventions');
+    expect(promptWithSkills).toContain('*Utility classes and tokens*');
+    expect(promptWithSkills).toContain('- Use semantic tokens');
+    expect(promptWithSkills).toContain('</skills>');
+    expect(promptWithSkills).not.toContain('<custom_instructions>');
+    expect(promptWithSkills).toContain('<file_manifest>');
+
+    // Combined custom instructions and skills
+    const promptWithBoth = buildSystemPrompt(
+      sampleFiles,
+      'Never use any type',
+      mockSkills
+    );
+    expect(promptWithBoth).toContain('<custom_instructions>\nNever use any type\n</custom_instructions>');
+    expect(promptWithBoth).toContain('<skills>');
+    expect(promptWithBoth).toContain('### Skill: Tailwind conventions');
+    expect(promptWithBoth).toContain('</skills>');
+    expect(promptWithBoth).toContain('<file_manifest>');
+
+    // Also supports raw formatted string
+    const promptWithStringSkills = buildSystemPrompt(
+      sampleFiles,
+      undefined,
+      '### Skill: Direct Markdown Content'
+    );
+    expect(promptWithStringSkills).toContain('<skills>\n### Skill: Direct Markdown Content\n</skills>');
   });
 });

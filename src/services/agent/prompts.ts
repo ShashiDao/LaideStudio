@@ -1,4 +1,5 @@
 import { binaryExtensions } from '../fs/zipExport';
+import { formatSkillsForPrompt, type Skill } from './skills';
 
 export const SUGGESTION_PROMPTS = {
   WHAT_IS_IN_PROJECT: "What's in this project?",
@@ -67,11 +68,24 @@ export function buildFileManifest(files: Array<{ path: string; content: string }
 
 export function buildSystemPrompt(
   files: Array<{ path: string; content: string }>, 
-  customInstructions?: string
+  customInstructions?: string,
+  skills?: Skill[] | string
 ): string {
   const custom = customInstructions?.trim()
     ? `\n\n<custom_instructions>\n${customInstructions.trim()}\n</custom_instructions>`
     : '';
+
+  let skillsText = '';
+  if (typeof skills === 'string') {
+    skillsText = skills.trim();
+  } else if (Array.isArray(skills) && skills.length > 0) {
+    skillsText = formatSkillsForPrompt(skills).trim();
+  }
+
+  const skillsBlock = skillsText
+    ? `\n\n<skills>\n${skillsText}\n</skills>`
+    : '';
+
   const manifest = buildFileManifest(files);
-  return `${BASE_SYSTEM_PROMPT}${custom}\n\n${manifest}`;
+  return `${BASE_SYSTEM_PROMPT}${custom}${skillsBlock}\n\n${manifest}`;
 }

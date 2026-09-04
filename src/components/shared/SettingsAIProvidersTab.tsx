@@ -34,6 +34,7 @@ import { toFriendlyErrorMessage } from '../../services/llm/friendlyError';
 import { ModelPickerModal } from '../modals/ModelPickerModal';
 import { encryptData, decryptData } from '../../services/security/crypto';
 import { PROVIDERS, API_KEY_HINTS, DEFAULT_MODELS } from './settingsConstants';
+import { SettingsSkillsSection } from './SettingsSkillsSection';
 
 export function SettingsAIProvidersTab() {
   const {
@@ -888,6 +889,9 @@ export function SettingsAIProvidersTab() {
           </div>
         )}
       </div>
+
+      {/* Skills Library Section */}
+      <SettingsSkillsSection />
 
       {/* Custom Instructions Panel */}
       <div className="bg-surface/50 border border-border p-4 sm:p-5 rounded">
