@@ -31,9 +31,9 @@ describe('scanFilesForSecrets', () => {
         path: '/src/keys.ts',
         content: `
 // Some keys
-const anthropicKey = 'sk-ant-api03-1234567890abcdefghijklmnopqrstuvwxyz';
-const openaiKey = 'sk-proj-abcdefghijklmnopqrstuvwxyz123456';
-const googleKey = 'AIzaSyA12345678901234567890123456789012';
+const anthropicKey = 'sk-ant-api03-1234567890abcdefghijklmnopprstuvwxyz';
+const openaiKey = 'sk-proj-abcdefghijklmnopqwstuvwxyz123456';
+const googleKey = 'AIzaSyA12345678901234567893495456789012';
 const ghToken = 'ghp_123456789012345678901234567890123456';
 const config = {
   API_KEY: "supersecrettoken1234567890",
