@@ -3,6 +3,7 @@ import type { BuildVerificationResult } from '../../bundler/buildRunner';
 import { verifyBuildFromOverlay } from '../../bundler/buildRunner';
 import { runTestsDetailedFromOverlay } from '../../bundler/testRunner';
 import { detectBundledProject } from '../../bundler/entryDetection';
+import { scanFilesForSecrets, type SecretMatch } from '../../security/secretScan';
 import type { ProvenanceTestResult } from '../../../db';
 
 export type CandidateVerificationStatus = 'passed' | 'failed' | 'unavailable';
@@ -15,11 +16,23 @@ export interface CandidateVerificationResult {
   buildResult?: BuildVerificationResult;
   testResult?: ProvenanceTestResult;
   skippedWorkerVerification?: boolean;
+  /** Present and non-empty only when the candidate failed the pre-flight secret scan. */
+  secretMatches?: SecretMatch[];
 }
 
 export type CandidateVerifier = (overlay: WorkspaceOverlay) => Promise<CandidateVerificationResult>;
 
-export type VerificationKind = 'build' | 'tests' | 'mixed' | 'unknown';
+export type VerificationKind = 'build' | 'tests' | 'mixed' | 'security' | 'unknown';
+
+/**
+ * A security-kind failure (exposed secret detected in the candidate) is never
+ * eligible for the automatic repair loop — it requires a human to remove or
+ * rotate the credential, not an LLM repair attempt. Callers in agentLoop.ts
+ * must check this before deciding whether to enter the repair branch.
+ */
+export function isSecurityFailure(result: CandidateVerificationResult): boolean {
+  return Boolean(result.secretMatches && result.secretMatches.length > 0);
+}
 
 export interface VerificationEvidence {
   kind: VerificationKind;
@@ -42,13 +55,18 @@ export function normalizeVerificationEvidence(
   formattedText: string;
 } {
   let kind: VerificationKind = 'unknown';
+  const hasSecretMatches = isSecurityFailure(result);
   const hasFailedBuild = Boolean(result.buildResult && !result.buildResult.success);
   const hasFailedTests = Boolean(
     result.testResult &&
     (result.testResult.failed > 0 || result.testResult.status === 'failed' || result.testResult.status === 'error')
   );
 
-  if (hasFailedBuild && hasFailedTests) {
+  if (hasSecretMatches) {
+    // Security findings are surfaced on their own, even if build/test results are also present -
+    // a leaked credential takes priority over any other diagnostic.
+    kind = 'security';
+  } else if (hasFailedBuild && hasFailedTests) {
     kind = 'mixed';
   } else if (hasFailedBuild) {
     kind = 'build';
@@ -61,7 +79,10 @@ export function normalizeVerificationEvidence(
   }
 
   let summary: string;
-  if (kind === 'build') {
+  if (kind === 'security') {
+    const count = result.secretMatches?.length ?? 0;
+    summary = `Detected ${count} potential secret${count === 1 ? '' : 's'} or credential pattern${count === 1 ? '' : 's'} in the candidate changes.`;
+  } else if (kind === 'build') {
     summary = result.buildResult?.error || result.error || 'Candidate build verification failed.';
   } else if (kind === 'tests') {
     summary = result.testResult?.error || result.error || `${result.testResult?.failed ?? 0} test(s) failed.`;
@@ -72,6 +93,13 @@ export function normalizeVerificationEvidence(
   }
 
   const affectedFiles: string[] = [];
+  if (result.secretMatches) {
+    for (const m of result.secretMatches) {
+      if (m.file && !affectedFiles.includes(m.file)) {
+        affectedFiles.push(m.file);
+      }
+    }
+  }
   if (result.testResult?.failedTests && result.testResult.failedTests.length > 0) {
     for (const t of result.testResult.failedTests) {
       if (t && !affectedFiles.includes(t)) {
@@ -132,6 +160,7 @@ export async function verifyCandidateOverlay(
   options?: {
     checkBuild?: boolean;
     checkTests?: boolean;
+    checkSecurity?: boolean;
     onProgress?: (status: string) => void;
   }
 ): Promise<CandidateVerificationResult> {
@@ -145,6 +174,29 @@ export async function verifyCandidateOverlay(
   }
 
   const files = await overlay.materialize();
+
+  // 0. Security scan runs first: it's synchronous, needs no Worker, and a leaked
+  // secret should never spend a repair attempt or a build/test cycle. This is the
+  // same scanFilesForSecrets used by DeployModal and GithubPushModal, run one step
+  // earlier so it also gates the candidate before it ever reaches PatchReviewSheet.
+  const checkSecurity = options?.checkSecurity !== false;
+  if (checkSecurity) {
+    options?.onProgress?.('Scanning candidate for exposed secrets...');
+    const secretMatches = scanFilesForSecrets(files);
+    if (secretMatches.length > 0) {
+      const preview = secretMatches
+        .slice(0, 10)
+        .map(m => `• ${m.file}${m.line ? `:${m.line}` : ''} — ${m.pattern} (${m.preview})`)
+        .join('\n');
+      return {
+        success: false,
+        status: 'failed',
+        error: `Candidate verification blocked: ${secretMatches.length} potential secret(s) detected.`,
+        output: preview,
+        secretMatches
+      };
+    }
+  }
 
   // 1. Determine if build verification is needed
   const checkBuild = options?.checkBuild !== false;
