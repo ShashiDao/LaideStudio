@@ -44,8 +44,10 @@ describe('Provenance Signing & Verification Service', () => {
       expect(keys.publicJwk.kty).toBe('EC');
       expect(keys.publicJwk.crv).toBe('P-256');
 
-      const pubToken = await db.secureTokens.get('provenance_signing_public_key');
-      expect(pubToken).toBeDefined();
+      // Without an active vault session, keys are ephemeral by design
+      // (see getOrCreateProvenanceSigningKeys docstring) and are not
+      // persisted to secureTokens. Persisted-key behavior is covered
+      // by the "wraps private key inside vault AES key" test below.
     });
 
     it('wraps private key inside vault AES key if vault session is active', async () => {
